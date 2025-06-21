@@ -2,12 +2,12 @@ targets:
   main:
     features:
       - online
-      - apk
     resources:
       RemotePlace:
         name: !template "$LG_PLACE"
     drivers:
       NetworkPowerDriver: {}
+      TFTPProviderDriver: {}
       SerialDriver:
         txdelay: 0.01
       ShellDriver:
@@ -18,7 +18,6 @@ targets:
         post_login_settle_time: 5
         username: root
       UBootDriver:
-        interrupt: "\\x0"
         prompt: "ex400 ->"
         init_commands:
           - net_init

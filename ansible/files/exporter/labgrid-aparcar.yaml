@@ -1,7 +1,7 @@
 aparcar-openwrt-one:
   location: aparcar-desk
   RawSerialPort:
-    port: "/dev/ttyACM0"
+    port: "/dev/serial/by-id/usb-OpenWrt_OpenWrt_One_0000-if00"
   NetworkPowerPort:
     model: ubus
     host: "http://192.168.128.2/ubus"
@@ -16,7 +16,7 @@ aparcar-openwrt-one:
 aparcar-linksys-e8450:
   location: aparcar-desk
   RawSerialPort:
-    port: "/dev/ttyUSB1"
+    port: "/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller-if00-port0"
   NetworkPowerPort:
     model: ubus
     host: "http://192.168.128.2/ubus"
@@ -31,7 +31,7 @@ aparcar-linksys-e8450:
 aparcar-genexis-pulse-ex400:
   location: aparcar-desk
   RawSerialPort:
-    port: "/dev/ttyUSB1"
+    port: "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0"
   NetworkPowerPort:
     model: ubus
     host: "http://192.168.128.2/ubus"
