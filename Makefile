@@ -15,6 +15,7 @@ define pytest
 	uv run \
 		pytest $(TESTSDIR)/tests/ \
 		--lg-log \
+		--log-cli-level=CONSOLE \
 		--lg-colored-steps $(if $(K),-k $(K),)
 endef
 
