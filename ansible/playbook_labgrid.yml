@@ -22,6 +22,9 @@
       community.general.pipx:
         name: labgrid
         state: present
+      notify:
+        - Restart labgrid-exporter
+        - Restart labgrid-coordinator
 
     - name: Create labgrid folder
       file:
@@ -41,6 +44,8 @@
         src: files/exporter/{{ ansible_host }}.yaml
         dest: /etc/labgrid/exporter.yaml
       become: yes
+      notify:
+        - Restart labgrid-exporter
 
     - name: Install dnsmasq
       apt:
@@ -49,12 +54,16 @@
         state: present
         update_cache: yes
       become: yes
+      notify:
+        - Restart dnsmasq
 
     - name: Configure dnsmasq
       template:
         src: files/exporter/dnsmasq.conf
         dest: /etc/dnsmasq.conf
       become: yes
+      notify:
+        - Restart dnsmasq
 
     - name: Start and enable dnsmasq
       service:
@@ -68,6 +77,8 @@
         src: files/coordinator/labgrid-coordinator.service
         dest: /etc/systemd/system/labgrid-coordinator.service
       become: yes
+      notify:
+        - Restart labgrid-coordinator
 
     - name: Start and enable labgrid-coordinator
       service:
@@ -81,6 +92,8 @@
         src: files/exporter/labgrid-exporter.service
         dest: /etc/systemd/system/labgrid-exporter.service
       become: yes
+      notify:
+        - Restart labgrid-exporter
 
     - name: Start and enable labgrid-exporter
       service:
@@ -111,3 +124,35 @@
         group: "{{ ansible_user }}"
         mode: "0755"
       become: yes
+
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        state: present
+        sysctl_set: yes
+        reload: yes
+      become: yes
+
+    - name: Make IP forwarding persistent
+      copy:
+        content: "net.ipv4.ip_forward = 1"
+        dest: /etc/sysctl.d/99-ip-forward.conf
+        mode: "0644"
+      become: yes
+
+  handlers:
+    - name: Restart labgrid-exporter
+      service:
+        name: labgrid-exporter
+        state: restarted
+
+    - name: Restart labgrid-coordinator
+      service:
+        name: labgrid-coordinator
+        state: restarted
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: restarted
