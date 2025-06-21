@@ -1,10 +1,5 @@
 - hosts: hosts
   tasks:
-    - name: set hostname to inventory name
-      hostname:
-        name: "{{ inventory_hostname }}"
-      become: yes
-
     - name: Install required packages
       apt:
         name:
@@ -143,16 +138,19 @@
 
   handlers:
     - name: Restart labgrid-exporter
-      service:
+      systemd:
+        daemon_reload: yes
         name: labgrid-exporter
         state: restarted
 
     - name: Restart labgrid-coordinator
-      service:
+      systemd:
+        daemon_reload: yes
         name: labgrid-coordinator
         state: restarted
 
     - name: Restart dnsmasq
-      service:
+      systemd:
+        daemon_reload: yes
         name: dnsmasq
         state: restarted
