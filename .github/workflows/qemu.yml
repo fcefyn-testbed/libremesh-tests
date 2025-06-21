@@ -57,8 +57,7 @@ jobs:
             --lg-env targets/qemu-${{ matrix.target }}.yaml \
             --lg-log \
             --lg-colored-steps \
-            -v \
-            -s \
+            --log-cli-level=CONSOLE \
             --firmware $GITHUB_WORKSPACE/${firmware/.gz/}
 
       - name: Upload console logs
