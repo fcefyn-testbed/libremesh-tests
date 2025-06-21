@@ -19,7 +19,6 @@ from pathlib import Path
 import pytest
 from pytest_harvest import get_fixture_store
 
-
 logger = logging.getLogger(__name__)
 
 
