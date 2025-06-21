@@ -1,0 +1,14 @@
+bastian-turris-omnia:
+  location: bastian-desk
+  RawSerialPort:
+    port: "/dev/ttyUSB0"
+  NetworkPowerPort:
+    model: ubus
+    host: "http://192.168.128.2/ubus"
+    index: 1
+  TFTPProvider:
+    internal: "/srv/tftp/turris-omnia/"
+    external: "turris-omnia/"
+  NetworkService:
+    address: "192.168.1.1%vlan101"
+    username: "root"

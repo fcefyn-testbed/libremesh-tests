@@ -1,0 +1,113 @@
+- hosts: hosts
+  tasks:
+    - name: set hostname to inventory name
+      hostname:
+        name: "{{ inventory_hostname }}"
+      become: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - pipx
+          - microcom
+          - ser2net
+          - socat
+          - iptables
+          - iptables-persistent
+        state: present
+        update_cache: yes
+      become: yes
+
+    - name: Install labgrid packages
+      community.general.pipx:
+        name: labgrid
+        state: present
+
+    - name: Create labgrid folder
+      file:
+        path: /etc/labgrid
+        state: directory
+      become: yes
+
+    - name: Create tftp folder with 777
+      file:
+        path: /srv/tftp/
+        state: directory
+        mode: "0777"
+      become: yes
+
+    - name: Copy exporter configuration
+      template:
+        src: files/exporter/{{ ansible_host }}.yaml
+        dest: /etc/labgrid/exporter.yaml
+      become: yes
+
+    - name: Install dnsmasq
+      apt:
+        name:
+          - dnsmasq
+        state: present
+        update_cache: yes
+      become: yes
+
+    - name: Configure dnsmasq
+      template:
+        src: files/exporter/dnsmasq.conf
+        dest: /etc/dnsmasq.conf
+      become: yes
+
+    - name: Start and enable dnsmasq
+      service:
+        name: dnsmasq
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Copy labgrid-coordinator.service
+      template:
+        src: files/coordinator/labgrid-coordinator.service
+        dest: /etc/systemd/system/labgrid-coordinator.service
+      become: yes
+
+    - name: Start and enable labgrid-coordinator
+      service:
+        name: labgrid-coordinator
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Copy labgrid-exporter.service
+      template:
+        src: files/exporter/labgrid-exporter.service
+        dest: /etc/systemd/system/labgrid-exporter.service
+      become: yes
+
+    - name: Start and enable labgrid-exporter
+      service:
+        name: labgrid-exporter
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Add developers group to sudoers for labgrid-bound-connect
+      lineinfile:
+        path: /etc/sudoers
+        line: "%ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-bound-connect"
+        validate: "visudo -cf %s"
+      become: yes
+
+    - name: Install labgrid-bound-connect
+      copy:
+        src: files/labgrid-bound-connect
+        dest: /usr/local/sbin/labgrid-bound-connect
+        mode: "0755"
+      become: yes
+
+    - name: Create /var/cache/labgrid
+      file:
+        path: /var/cache/labgrid
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      become: yes
