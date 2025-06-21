@@ -4,10 +4,10 @@
 # %developers ALL = NOPASSWD: /usr/local/sbin/labgrid-bound-connect
 
 import argparse
-import os
-import sys
 import ipaddress
+import os
 import subprocess
+import sys
 
 
 def main(ifname, address, port):

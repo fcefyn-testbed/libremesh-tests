@@ -12,15 +12,15 @@ test: $(OPENWRT_CI_TESTS)
 TESTSDIR ?= $(shell readlink -f $(TOPDIR)/tests)
 
 define pytest
-	poetry -C $(TESTSDIR) run \
+	uv run \
 		pytest $(TESTSDIR)/tests/ \
 		--lg-log \
 		--lg-colored-steps $(if $(K),-k $(K),)
 endef
 
 $(curdir)/setup:
-	@[ -n "$$(command -v poetry)" ] || \
-		(echo "Please install poetry. See https://python-poetry.org/docs/#installation" && exit 1)
+	@[ -n "$$(command -v uv)" ] || \
+		(echo "Please install uv. See https://docs.astral.sh/uv/" && exit 1)
 	@[ -n "$$(command -v bats)" ] || \
 		(echo "Please install bats. See https://bats-core.readthedocs.io/en/stable/installation.html" && exit 1)
 	@[ -n "$$(command -v qemu-system-mips)" ] || \
@@ -29,7 +29,7 @@ $(curdir)/setup:
 		(echo "Please install qemu-system-x86_64" && exit 1)
 	@[ -n "$$(command -v qemu-system-aarch64)" ] || \
 		(echo "Please install qemu-system-aarch64" && exit 1)
-	@poetry -C $(TESTSDIR) install
+	@uv sync
 
 
 $(curdir)/x86-64: QEMU_BIN ?= qemu-system-x86_64
@@ -72,4 +72,3 @@ $(curdir)/malta-be:
 $(curdir)/shell:
 	[ -n "$$(command -v bats)" ] || (echo "Please install bats" && exit 1)
 	bats -r $(TESTSDIR)/tests/bats
-

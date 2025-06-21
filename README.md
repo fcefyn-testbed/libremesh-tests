@@ -10,7 +10,7 @@ different hardware.
 ## Requirements
 
 - An OpenWrt firmware image
-- Python and [`poetry`](https://python-poetry.org/)
+- Python and [`uv`](https://docs.astral.sh/uv/)
 - QEMU
 - bats (>1.5.0)
 
@@ -30,13 +30,12 @@ Install required packages to use Labgrid, QEMU and bats:
 ```shell
 sudo apt-get update
 sudo apt-get -y install \
-    python3-poetry \
     qemu-system-mips \
     qemu-system-x86 \
     qemu-system-aarch64 \
     make \
     bats
-poetry install
+    uv sync
 ```
 
 Verify the installation by running the tests:

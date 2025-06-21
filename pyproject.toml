@@ -12,3 +12,9 @@ dependencies = [
 
 [tool.uv.sources]
 labgrid = { git = "https://github.com/aparcar/labgrid.git" }
+
+[dependency-groups]
+dev = [
+    "isort>=6.0.1",
+    "ruff>=0.12.0",
+]

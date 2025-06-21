@@ -1,10 +1,9 @@
 import enum
 
 import attr
-
+from labgrid.driver import TFTPProviderDriver
 from labgrid.factory import target_factory
 from labgrid.strategy.common import Strategy, StrategyError
-from labgrid.driver import TFTPProviderDriver
 
 
 class Status(enum.Enum):
@@ -18,12 +17,13 @@ class Status(enum.Enum):
 @attr.s(eq=False)
 class UBootTFTPStrategy(Strategy):
     """UbootStrategy - Strategy to switch to uboot or shell"""
+
     bindings = {
         "power": "PowerProtocol",
         "console": "ConsoleProtocol",
         "uboot": "UBootDriver",
         "shell": "ShellDriver",
-        "tftp": "TFTPProviderDriver"
+        "tftp": "TFTPProviderDriver",
     }
     tftp: TFTPProviderDriver
 
@@ -38,7 +38,7 @@ class UBootTFTPStrategy(Strategy):
         if status == Status.unknown:
             raise StrategyError(f"can not transition to {status}")
         elif status == self.status:
-            return # nothing to do
+            return  # nothing to do
         elif status == Status.off:
             self.target.deactivate(self.console)
             self.target.activate(self.power)
