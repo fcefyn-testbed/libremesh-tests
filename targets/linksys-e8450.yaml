@@ -8,6 +8,7 @@ targets:
         name: !template "$LG_PLACE"
     drivers:
       NetworkPowerDriver: {}
+      TFTPProviderDriver: {}
       SerialDriver:
         txdelay: 0.01
       ShellDriver:
@@ -18,14 +19,15 @@ targets:
         post_login_settle_time: 5
         username: root
       UBootDriver:
-        interrupt: "\\x0"
         prompt: "MT7622>"
-        init_commands:
-          - setenv bootfile linksys-e8450/openwrt-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin
-          - dhcp
-        boot_command: bootm $loadaddr#$bootconf
-      UBootStrategy: {}
+        boot_command: >
+          dhcp;
+          bootm $loadaddr#$bootconf;
+      UBootTFTPStrategy: {}
       SSHDriver: {}
 
 images:
   root: !template $LG_IMAGE
+
+imports:
+  - ../strategies/tftpstrategy.py

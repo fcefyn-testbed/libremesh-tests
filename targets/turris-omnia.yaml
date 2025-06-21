@@ -23,16 +23,15 @@ targets:
           - setenv kernel_addr_r 0x2000000
           - setenv bootargs earlyprintk console=ttyS0,115200
         boot_command: >
-          dhcp $kernel_addr_r turris-omnia/openwrt-mvebu-cortexa9-cznic_turris-omnia-initramfs-kernel.bin;
+          dhcp $kernel_addr_r $bootfile;
           bootm $kernel_addr_r
       TFTPProviderDriver: {}
-      UBootStrategy: {}
+      UBootTFTPStrategy: {}
       SSHDriver:
         username: root
 
 images:
   root: !template $LG_IMAGE
 
-options:
-  tftp_server_ip: "192.168.1.203"
-  tftp_dev_ip: "192.168.1.2"
+imports:
+  - ../strategies/tftpstrategy.py
