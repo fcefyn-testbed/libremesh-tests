@@ -22,11 +22,12 @@ targets:
         prompt: "ex400 ->"
         init_commands:
           - net_init
-          - setenv bootfile genexis-pulse-ex400/openwrt-ramips-mt7621-genexis_pulse-ex400-initramfs-kernel.bin
-          - dhcp
-        boot_command: bootm $loadaddr
-      UBootStrategy: {}
+        boot_command: dhcp; bootm $loadaddr
+      UBootTFTPStrategy: {}
       SSHDriver: {}
 
 images:
   root: !template $LG_IMAGE
+
+imports:
+  - ../strategies/tftpstrategy.py

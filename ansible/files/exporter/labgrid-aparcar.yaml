@@ -27,3 +27,18 @@ aparcar-linksys-e8450:
   NetworkService:
     address: "192.168.1.1%vlan105"
     username: "root"
+
+aparcar-genexis-pulse-ex400:
+  location: aparcar-desk
+  RawSerialPort:
+    port: "/dev/ttyUSB1"
+  NetworkPowerPort:
+    model: ubus
+    host: "http://192.168.128.2/ubus"
+    index: 1
+  TFTPProvider:
+    internal: "/srv/tftp/genexis-pulse-ex400/"
+    external: "genexis-pulse-ex400/"
+  NetworkService:
+    address: "192.168.1.1%vlan101"
+    username: "root"
