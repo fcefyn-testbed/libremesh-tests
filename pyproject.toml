@@ -1,23 +1,14 @@
-[tool.poetry]
-name = "openwrt-tests"
+[project]
+name = "tests"
 version = "0.1.0"
-description = ""
-authors = ["Paul Spooren <mail@aparcar.org>"]
+description = "Add your description here"
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.13"
+dependencies = [
+    "labgrid>=25.0",
+    "pytest>=8.4.1",
+    "pytest-harvest>=1.10.5",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-labgrid = { git = "https://github.com/aparcar/labgrid.git", rev = "aparcar/staging" }
-pytest = "^8.4.0"
-pytest-harvest = "^1.10.5"
-pytest-json = "^0.4.0"
-
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.11.13"
-isort = "^6.0.1"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv.sources]
+labgrid = { git = "https://github.com/aparcar/labgrid.git" }
