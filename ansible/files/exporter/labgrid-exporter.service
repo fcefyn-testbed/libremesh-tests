@@ -8,8 +8,6 @@ StartLimitIntervalSec=0
 User={{ ansible_user }}
 Group={{ ansible_user }}
 Environment="PYTHONUNBUFFERED=1"
-# Should contain LG_COORDINATOR configuration
-EnvironmentFile=-/etc/environment
 ExecStart=/home/{{ ansible_user }}/.local/bin/labgrid-exporter --hostname "{{ inventory_hostname }}" /etc/labgrid/exporter.yaml
 Restart=always
 RestartSec=30

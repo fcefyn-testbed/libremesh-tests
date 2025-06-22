@@ -8,10 +8,7 @@ Group={{ ansible_user }}
 Environment="PYTHONUNBUFFERED=1"
 ExecStart=/home/{{ ansible_user }}/.local/bin/labgrid-coordinator
 Restart=on-failure
-# DynamicUser=yes
-StateDirectory=labgrid-coordinator
-# Set WorkingDirectory to StateDirectory, this works in DynamicUser mode since symlinks are created
-# WorkingDirectory=%S/labgrid-coordinator
+WorkingDirectory=/home/{{ ansible_user }}/labgrid-coordinator
 
 [Install]
 WantedBy=multi-user.target

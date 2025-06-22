@@ -1,5 +1,38 @@
-- hosts: hosts
+- hosts: coordinator
   tasks:
+    - name: Add labs to /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars[item].wireguard_ip }} {{ item }}"
+        state: present
+      loop: "{{ groups['labs'] }}"
+      become: yes
+
+    - name: Create .ssh directory
+      file:
+        path: /home/{{ ansible_user }}/.ssh
+        state: directory
+        mode: "0700"
+
+    - name: Add .ssh/config
+      blockinfile:
+        path: /home/{{ ansible_user }}/.ssh/config
+        block: |
+          Host {{ item }}
+            HostName {{ hostvars[item].wireguard_ip }}
+            User {{ hostvars[item].ansible_user }}
+        state: present
+        marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item }}"
+        create: true
+      loop: "{{ groups['labs'] }}"
+
+- hosts: labs
+  tasks:
+    - name: Add public SSH key of coordinator
+      authorized_key:
+        user: "{{ ansible_user }}"
+        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP0ZVlD9TmfAXL53Vq7V9WKE3KPomOa1jINyflrPWAlJ"
+
     - name: Install required packages
       apt:
         name:
@@ -74,6 +107,15 @@
       become: yes
       notify:
         - Restart labgrid-coordinator
+
+    - name: Create coordinator directory
+      file:
+        path: /home/{{ ansible_user }}/labgrid-coordinator
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: 0755
+      become: yes
 
     - name: Start and enable labgrid-coordinator
       service:
