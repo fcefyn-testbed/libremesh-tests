@@ -6,6 +6,10 @@ on:
       - main
   pull_request:
 
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTEST_ADDOPTS: "--color=yes"
+
 jobs:
   build:
     runs-on: ubuntu-latest
