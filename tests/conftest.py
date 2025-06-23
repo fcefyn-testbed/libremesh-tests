@@ -59,9 +59,10 @@ def pytest_sessionfinish(session):
     for json_file in Path(alluredir).glob("*.json"):
         json_data = json.loads(json_file.read_text())
         if "testCaseId" in json_data:
-            json_data["testCaseId"] = device + json_data["testCaseId"].split(".")[-1]
-            json_data["historyId"] = device + json_data["historyId"].split(".")[-1]
-        json_file.write_text(json.dumps(json_data))
+            json_data["parameters"] = [{"name": "device", "value": device}]
+            json_data["testCaseId"] = device + json_data["testCaseId"]
+            json_data["historyId"] = device + json_data["historyId"]
+            json_file.write_text(json.dumps(json_data))
 
     allure_properties_file = Path(alluredir, "environment.properties")
     allure_properties_file.write_text(
