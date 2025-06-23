@@ -1,6 +1,5 @@
 name: Test OpenWrt on real devices
 on:
-  pull_request:
   push:
     branches:
       - main
