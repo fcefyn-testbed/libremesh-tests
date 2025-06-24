@@ -184,15 +184,18 @@
         daemon_reload: yes
         name: labgrid-exporter
         state: restarted
+      become: yes
 
     - name: Restart labgrid-coordinator
       systemd:
         daemon_reload: yes
         name: labgrid-coordinator
         state: restarted
+      become: yes
 
     - name: Restart dnsmasq
       systemd:
         daemon_reload: yes
         name: dnsmasq
         state: restarted
+      become: yes
