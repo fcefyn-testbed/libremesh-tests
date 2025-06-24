@@ -1,0 +1,15 @@
+blocktrron-hp-msm460:
+  location: blocktrron-closet
+  RawSerialPort:
+    port: "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_ABSCG1ZV-if00-port0"
+    speed: 115200
+  NetworkPowerPort:
+    model: ubus
+    host: "http://192.168.128.2/ubus"
+    index: 3
+  TFTPProvider:
+    internal: "/srv/tftp/hp-msm460/"
+    external: "hp-msm460/"
+  NetworkService:
+    address: "192.168.1.1%vlan103"
+    username: "root"
