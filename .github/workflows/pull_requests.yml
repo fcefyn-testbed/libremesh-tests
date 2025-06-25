@@ -1,4 +1,5 @@
-name: Daily test for snapshots
+name: Pull Requests tests with stable release
+
 on:
   pull_request:
 
@@ -62,7 +63,6 @@ jobs:
             --lg-log \
             --lg-colored-steps \
             --log-cli-level=CONSOLE \
-            --alluredir allure-results \
             --firmware $GITHUB_WORKSPACE/${firmware/.gz/}
 
       - name: Upload console logs
@@ -71,14 +71,6 @@ jobs:
         with:
           name: console-${{ matrix.target }}
           path: console_*
-
-      - name: Upload allure results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: allure-results-${{ matrix.target }}
-          path: allure-results
-          retention-days: 30
 
   test-real:
     name: Test OpenWrt on ${{ matrix.device }}
@@ -141,8 +133,7 @@ jobs:
           uv run pytest tests/ \
             --lg-log \
             --lg-colored-steps \
-            --log-cli-level=CONSOLE \
-            --alluredir allure-results
+            --log-cli-level=CONSOLE
 
       - name: Poweroff and unlock device
         if: always()
@@ -156,10 +147,3 @@ jobs:
         with:
           name: console-${{ matrix.target }}
           path: console_*
-
-      - name: Upload allure results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: allure-results-${{ matrix.target }}
-          path: allure-results
