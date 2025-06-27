@@ -3,7 +3,6 @@ name: Healthcheck
 on:
   push:
     branches: [main]
-  pull_request: # to be removed later
   schedule:
     - cron: "0 0 * * *"
 
