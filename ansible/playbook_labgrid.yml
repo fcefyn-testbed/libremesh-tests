@@ -237,6 +237,14 @@
         mode: "0755"
       become: yes
 
+    - name: Add cronjob to clean old cache files
+      cron:
+        name: "Clean labgrid cache files older than 7 days"
+        minute: "0"
+        hour: "2"
+        job: "find /var/cache/labgrid -type f -mtime +7 -delete"
+        user: "{{ ansible_user }}"
+
     - name: Enable IP forwarding
       sysctl:
         name: net.ipv4.ip_forward
