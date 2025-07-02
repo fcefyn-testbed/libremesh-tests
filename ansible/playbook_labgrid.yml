@@ -139,7 +139,6 @@
         path: files/exporter/dnsmasq-{{ ansible_hostname }}.conf
       register: host_specific_dnsmasq_conf
       delegate_to: localhost
-      run_once: true
 
     - name: Configure dnsmasq using host specific config
       template:
