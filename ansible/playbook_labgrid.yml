@@ -38,6 +38,13 @@
         create: true
       loop: "{{ groups['labs'] }}"
 
+    - name: Install required packages
+      apt:
+        name:
+          - nmap
+        state: present
+        update_cache: yes
+
 - hosts: labs
   become: yes
   tasks:
