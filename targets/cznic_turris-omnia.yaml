@@ -25,7 +25,7 @@ targets:
       TFTPProviderDriver: {}
       UBootTFTPStrategy: {}
       SSHDriver:
-        username: root
+        connection_timeout: 120.0
 
 images:
   root: !template $LG_IMAGE

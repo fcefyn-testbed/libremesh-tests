@@ -34,7 +34,8 @@ targets:
         init_commands:
           - tftp 0x82000000
       UBootTFTPStrategy: {}
-      SSHDriver: {}
+      SSHDriver:
+        connection_timeout: 120.0
 
 images:
   root: !template $LG_IMAGE

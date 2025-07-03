@@ -21,7 +21,8 @@ targets:
           - dhcp
         boot_command: bootm $loadaddr#$bootconf
       UBootTFTPStrategy: {}
-      SSHDriver: {}
+      SSHDriver:
+        connection_timeout: 120.0
 
 images:
   root: !template $LG_IMAGE
