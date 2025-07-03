@@ -59,6 +59,8 @@
         shell: /bin/bash
         home: /home/labgrid-dev
         create_home: yes
+        append: true
+        groups: dialout
 
     - name: Add SSH keys to labgrid-dev based on labnet.yaml
       authorized_key:
