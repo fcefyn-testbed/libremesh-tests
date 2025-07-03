@@ -168,6 +168,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install \
+            nmap \
             ${{ matrix.dependency }}
 
           echo "LG_ENV=targets/qemu-${{ matrix.target }}.yaml" >> $GITHUB_ENV
