@@ -51,7 +51,7 @@ jobs:
           echo "matrix=$(echo "$matrix" | jq -c '.')" >> $GITHUB_OUTPUT
 
   test-real:
-    name: Device ${{ matrix.device }}
+    name: Device ${{ matrix.proxy }}/${{ matrix.device }}
     needs: generate-matrix
     runs-on: global-coordinator
     strategy:
