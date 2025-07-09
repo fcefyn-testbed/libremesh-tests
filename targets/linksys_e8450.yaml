@@ -23,6 +23,7 @@ targets:
       UBootTFTPStrategy: {}
       SSHDriver:
         connection_timeout: 120.0
+        explicit_scp_mode: True
 
 images:
   root: !template $LG_IMAGE
