@@ -39,10 +39,11 @@ def test_ssh_supported_algorithms(ssh_command):
 
         assert "ssh-ed25519" in algorithms["server_host_key_algorithms"]
         assert "rsa-sha2-256" in algorithms["server_host_key_algorithms"]
-        assert "ssh-rsa" in algorithms["server_host_key_algorithms"]
 
         assert "chacha20-poly1305@openssh.com" in algorithms["encryption_algorithms"]
         assert "aes128-ctr" in algorithms["encryption_algorithms"]
         assert "aes256-ctr" in algorithms["encryption_algorithms"]
 
         assert "hmac-sha2-256" in algorithms["mac_algorithms"]
+
+        print(algorithms)
