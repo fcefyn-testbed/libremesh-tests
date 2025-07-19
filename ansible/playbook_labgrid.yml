@@ -239,7 +239,8 @@
     - name: Configure network with netplan
       block:
         - name: Check if netplan is available
-          ansible.builtin.raw: which netplan
+          ansible.builtin.command:
+            cmd: which netplan
           register: which_res
 
         - name: Stop if netplan not available

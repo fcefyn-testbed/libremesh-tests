@@ -6,7 +6,7 @@ ExecStart=/usr/local/bin/pdudaemon --journal --conf=/etc/pdudaemon/pdudaemon.con
 Type=simple
 DynamicUser=yes
 StateDirectory=pdudaemon
-ProtectHome=trueq
+ProtectHome=true
 Restart=on-abnormal
 
 [Install]
