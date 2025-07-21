@@ -10,8 +10,9 @@
       authorized_key:
         user: labgrid-dev
         state: present
-        key: "{{ hostvars[inventory_hostname]['developers'][item]['sshkey'] }}"
-      loop: "{{ allowed_developers | default([]) }}"
+        key: "{{ item.value.sshkey }}"
+        comment: "{{ item.key }}"
+      loop: "{{ hostvars[inventory_hostname]['developers'] | dict2items | default([]) }}"
 
     - name: Add labs to /etc/hosts
       lineinfile:
@@ -25,6 +26,18 @@
         path: /home/labgrid-dev/.ssh
         state: directory
         mode: "0700"
+
+    - name: Add .ssh/config
+      blockinfile:
+        path: /home/labgrid-dev/.ssh/config
+        block: |
+          Host {{ item }}
+            HostName {{ hostvars[item].wireguard_ip }}
+            User labgrid-dev
+        state: present
+        marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item }}"
+        create: true
+      loop: "{{ groups['labs'] }}"
 
     - name: Add .ssh/config
       blockinfile:
@@ -74,8 +87,8 @@
         user: labgrid-dev
         state: present
         key: "{{ hostvars[inventory_hostname]['developers'][item]['sshkey'] }}"
-
-      loop: "{{ allowed_developers | default([]) }}"
+        comment: "{{ item }}"
+      loop: "{{ hostvars[inventory_hostname]['labs'][inventory_hostname]['developers'] | default([]) }}"
 
     - name: Set /etc/hosts
       lineinfile:
@@ -153,6 +166,7 @@
         state: directory
         owner: "labgrid-dev"
         group: "labgrid-dev"
+        recurse: yes
         mode: "0755"
 
     - name: Create tftp subfolders
@@ -225,7 +239,6 @@
             - Restart pdudaemon
           when: not host_specific_pdudaemon_conf.stat.exists
 
-
     - name: Install dnsmasq
       apt:
         name:
@@ -238,16 +251,6 @@
 
     - name: Configure network with netplan
       block:
-        - name: Check if netplan is available
-          ansible.builtin.command:
-            cmd: which netplan
-          register: which_res
-
-        - name: Stop if netplan not available
-          ansible.builtin.debug:
-            msg: "netplan is not available! Please switch your host to using netplan for network configuration"
-          when: "which_res.rc != 0"
-
         - name: Stat host specific netplan configuration
           ansible.builtin.stat:
             path: files/exporter/netplan-{{ ansible_hostname }}.yaml
@@ -265,6 +268,7 @@
           ansible.builtin.command:
             cmd: netplan apply
           become: true
+          when: host_specific_netplan_conf.stat.exists
 
     - name: Stat host specific dnsmasq configuration
       ansible.builtin.stat:
@@ -352,6 +356,7 @@
         state: directory
         owner: "labgrid-dev"
         group: "labgrid-dev"
+        recurse: yes
         mode: "0755"
 
     - name: Add cronjob to clean old cache files

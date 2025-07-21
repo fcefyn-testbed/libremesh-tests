@@ -51,6 +51,7 @@ labs:
     developers:
       - aparcar
       - dangowrt
+      - jonasjelonek
 
   labgrid-bastian:
     proxy: labgrid-bastian
@@ -93,3 +94,5 @@ developers:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDZTxjQ3/KTefKvsPlVBWz+ITD7dGWcOt8/C55ekd2VE
   dangowrt:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDe6tUbVJW3bYUVCYyQQFpNrJ1wP5kzvEkCruSjyA6TM
+  jonasjelonek:
+    sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDy4T0osxR8yS4RjJcsMn3rSacKvNzu+ZRNfe2lXTSHS
