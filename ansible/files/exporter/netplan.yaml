@@ -13,3 +13,9 @@ network:
           - 192.168.{{ vlan + 101 }}.1/24
           - 192.168.1.{{ vlan + 101 }}/24
   {% endfor %}
+    vlan200:
+      id: 200
+      link: {{ ethernet_interface}}
+      addresses:
+          - 192.168.200.1/24
+          - 192.168.1.200/24
