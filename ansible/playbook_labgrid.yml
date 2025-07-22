@@ -51,6 +51,18 @@
         create: true
       loop: "{{ groups['labs'] }}"
 
+    - name: Add .ssh/config
+      blockinfile:
+        path: /home/{{ ansible_ssh_user }}/.ssh/config
+        block: |
+          Host {{ item }}
+            HostName {{ hostvars[item].wireguard_ip }}
+            User labgrid-dev
+        state: present
+        marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item }}"
+        create: true
+      loop: "{{ groups['labs'] }}"
+
     - name: Install required packages
       apt:
         name:
@@ -80,7 +92,8 @@
         home: /home/labgrid-dev
         create_home: yes
         append: true
-        groups: dialout
+        groups:
+          - dialout
 
     - name: Add SSH keys to labgrid-dev based on labnet.yaml
       authorized_key:
@@ -182,9 +195,10 @@
       template:
         src: files/exporter/{{ ansible_host }}.yaml
         dest: /etc/labgrid/exporter.yaml
-
       notify:
         - Restart labgrid-exporter
+      tags:
+        - export
 
     - name: Setup pdudaemon
       block:
@@ -318,6 +332,8 @@
         labnet: "{{ lookup('file', '../labnet.yaml') | from_yaml }}"
       notify:
         - Restart labgrid-coordinator
+      tags:
+        - export
 
     - name: Start and enable labgrid-coordinator
       service:
