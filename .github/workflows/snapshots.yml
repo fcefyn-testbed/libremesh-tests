@@ -46,7 +46,7 @@ jobs:
                     select($devices[.] != null) |
                     {
                       "device": .,
-                      "name:": $devices[.].name,
+                      "name": $devices[.].name,
                       "proxy": $labs[$lab].proxy,
                       "target": $devices[.].target,
                       "firmware": $devices[.].firmware
