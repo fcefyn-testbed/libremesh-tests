@@ -12,12 +12,15 @@ def test_shell(shell_command):
     shell_command.run_check("true")
 
 
-def test_firmware_version(shell_command):
+def test_firmware_version(shell_command, record_property):
+    [actual_version] = shell_command.run_check(
+        "source /etc/os-release; echo $BUILD_ID"
+    )
+    record_property("firmware_version", actual_version)
+
     if "FIRMWARE_VERSION" in os.environ:
         expected_version = os.environ["FIRMWARE_VERSION"]
-        [actual_version] = shell_command.run_check(
-            "source /etc/os-release; echo $BUILD_ID"
-        )
+        record_property("expected_firmware_version", expected_version)
         assert actual_version == expected_version, (
             f"Firmware version mismatch: expected {expected_version}, got {actual_version}"
         )
