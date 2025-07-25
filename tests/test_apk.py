@@ -45,7 +45,6 @@ class TestApk:
             "A etc/rc.d/K90sysfixtime",
             "A etc/rc.d/K90umount",
             "A etc/rc.d/S00sysfixtime",
-            "A etc/rc.d/S00urngd",
             "A etc/rc.d/S10boot",
             "A etc/rc.d/S10system",
             "A etc/rc.d/S11sysctl",
