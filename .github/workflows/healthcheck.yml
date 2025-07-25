@@ -78,7 +78,7 @@ jobs:
           fi
 
           export firmware=openwrt-${RELEASE}-${{ matrix.target }}-${{ matrix.device }}-${{ matrix.firmware }}
-          export upstream_url="https://downloads.openwrt.org/releases/${RELEASE}/targets"
+          export upstream_url="https://mirror-03.infra.openwrt.org/releases/${RELEASE}/targets"
 
           mkdir -p /tmp/tftp/${{ matrix.device }}
           wget $upstream_url/${target/-/\/}/$firmware \
