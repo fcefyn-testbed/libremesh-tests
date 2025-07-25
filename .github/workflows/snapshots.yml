@@ -247,7 +247,6 @@ jobs:
 
       - name: Setup dashboard
         run: |
-          cp openwrt-tests/contrib/index.html page/index.html
           echo '${{ needs.generate-matrix.outputs.matrix }}' > page/devices.json
 
           # Add QEMU targets to devices.json
