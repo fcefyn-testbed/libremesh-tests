@@ -281,7 +281,7 @@ jobs:
           path: ${{ matrix.device }}-${{ matrix.version_name }}/*
 
   test-qemu:
-    name: ${{ matrix.target }} (${{ matrix.version_name }})
+    name: QEMU ${{ matrix.target }} (${{ matrix.version_name }})
     needs: generate-matrix
     runs-on: ubuntu-latest
     env:
@@ -424,7 +424,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always() && env.SKIP_TEST != 'true'
         with:
-          name: qemu-results-${{ matrix.target }}-${{ matrix.version_name }}
+          name: results-qemu-${{ matrix.target }}-${{ matrix.version_name }}
           path: ${{ matrix.target }}-${{ matrix.version_name }}/*
 
   results:
