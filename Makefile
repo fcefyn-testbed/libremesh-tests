@@ -48,14 +48,14 @@ $(curdir)/x86-64:
 		--lg-env $(TESTSDIR)/targets/qemu-x86-64.yaml \
 		--firmware $(FIRMWARE:.gz=)
 
-$(curdir)/armsr-armv8: QEMU_BIN ?= qemu-system-aarch64
+$(curdir)/armsr-armv8: QEMU_BIN ?= qemu_system-aarch64
 $(curdir)/armsr-armv8: FIRMWARE ?= $(TOPDIR)/bin/targets/armsr/armv8/openwrt-armsr-armv8-generic-initramfs-kernel.bin
 $(curdir)/armsr-armv8:
 	[ -f $(FIRMWARE) ]
 
 	LG_QEMU_BIN=$(QEMU_BIN) \
 		$(pytest) \
-		--lg-env $(TESTSDIR)/targets/qemu-armsr-armv8.yaml \
+		--lg-env $(TESTSDIR)/targets/qemu_armsr-armv8.yaml \
 		--firmware $(FIRMWARE)
 
 $(curdir)/malta-be: QEMU_BIN ?= qemu-system-mips
@@ -65,5 +65,5 @@ $(curdir)/malta-be:
 
 	LG_QEMU_BIN=$(QEMU_BIN) \
 		$(pytest) \
-		--lg-env $(TESTSDIR)/targets/qemu-malta-be.yaml \
+		--lg-env $(TESTSDIR)/targets/qemu_malta-be.yaml \
 		--firmware $(FIRMWARE)

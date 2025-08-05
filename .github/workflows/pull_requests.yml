@@ -105,7 +105,7 @@ jobs:
             echo "RELEASE=${RELEASE}" >> $GITHUB_ENV
           fi
 
-          echo "LG_ENV=targets/qemu-${{ matrix.target }}.yaml" >> $GITHUB_ENV
+          echo "LG_ENV=targets/qemu_${{ matrix.target }}.yaml" >> $GITHUB_ENV
           echo "UPSTREAM_URL=https://mirror-03.infra.openwrt.org/releases/${RELEASE}/targets" >> $GITHUB_ENV
 
       - name: Install uv

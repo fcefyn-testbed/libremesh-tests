@@ -302,7 +302,7 @@ jobs:
             nmap \
             ${{ matrix.dependency }}
 
-          echo "LG_ENV=targets/qemu-${{ matrix.target }}.yaml" >> $GITHUB_ENV
+          echo "LG_ENV=targets/qemu_${{ matrix.target }}.yaml" >> $GITHUB_ENV
           echo "VERSION_NAME=${{ matrix.version_name }}" >> $GITHUB_ENV
 
       - name: Install uv
@@ -424,7 +424,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always() && env.SKIP_TEST != 'true'
         with:
-          name: results-qemu-${{ matrix.target }}-${{ matrix.version_name }}
+          name: results-qemu_${{ matrix.target }}-${{ matrix.version_name }}
           path: ${{ matrix.target }}-${{ matrix.version_name }}/*
 
   results:
