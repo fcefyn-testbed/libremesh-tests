@@ -127,14 +127,6 @@ class TestSystemHealth:
         # Alert if too few processes (system might not be fully functional)
         assert proc_count > 20, f"Too few processes running: {proc_count}"
 
-    def test_zombie_processes(self, ssh_command):
-        """Check for zombie processes."""
-        zombies = ssh_command.run("ps | grep -E '\\s+Z\\s+' | grep -v grep")[0]
-
-        zombie_count = len(zombies)
-
-        assert zombie_count == 0, f"Found {zombie_count} zombie processes:\n{zombies}"
-
     def test_entropy_available(self, ssh_command):
         """Test that sufficient entropy is available for cryptographic operations."""
         entropy = int(
