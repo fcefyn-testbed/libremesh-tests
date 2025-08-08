@@ -18,7 +18,7 @@ targets:
         username: root
       UBootDriver:
         autoboot: "or any other key to stop autoboot"
-        interrupt: "admin\n"
+        interrupt: "\x08admin\n"
         prompt: "Boot \\(PRI\\)->"
         password_prompt: "password:"
         password: "new2day"
