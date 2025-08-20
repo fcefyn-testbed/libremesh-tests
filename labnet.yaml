@@ -84,7 +84,6 @@ labs:
       - genexis_pulse-ex400
       - bananapi_bpi-r4
       - glinet_gl-mt6000
-      - rpi-4
       - enterasys_ws-ap3710i
     developers:
       - aparcar
