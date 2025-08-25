@@ -56,7 +56,6 @@ jobs:
                 .value.devices
                 | map(
                     select($devices[.] != null) |
-                    select($devices[.].snapshots_only != true) |
                     {
                       "device": .,
                       "name": $devices[.].name,
