@@ -27,7 +27,9 @@ jobs:
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
               sudo chmod +x /usr/local/bin/yq
 
-          matrix=$(yq -o=json '
+          # Use pipe because of this bug
+          # https://github.com/mikefarah/yq/issues/2454
+          matrix=$(yq -o=json labnet.yaml | jq '
             . as $root |
             $root.labs as $labs |
             $root.devices as $devices |
@@ -49,7 +51,7 @@ jobs:
                   )
               )
             | flatten
-          ' labnet.yaml)
+          ')
           echo "matrix=$(echo "$matrix" | jq -c '.')" >> $GITHUB_OUTPUT
 
   test-real:
