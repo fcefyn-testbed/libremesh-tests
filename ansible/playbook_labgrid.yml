@@ -122,6 +122,9 @@
         type: ed25519
         comment: labgrid
         state: present
+        owner: labgrid-dev
+        group: labgrid-dev
+
       register: labgrid_key
 
     - name: Add public SSH key of labgrid
