@@ -29,3 +29,35 @@ labgrid-hsn-bananapi_bpi-r64:
   NetworkService:
     address: "192.168.1.1%vlan102"
     username: "root"
+
+labgrid-hsn-bananapi_bpi-r4:
+  location: hsn-desk
+  USBSerialPort:
+    match:
+      ID_PATH: pci-0000:00:14.0-usb-0:1.1.2:1.0
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: 192.168.128.3
+    index: 3
+  TFTPProvider:
+    internal: "/srv/tftp/bananapi_bpi-r4"
+    external: "bananapi_bpi-r4/"
+  NetworkService:
+    address: "192.168.1.1%vlan106"
+    username: "root"
+
+labgrid-hsn-iei_puzzle-m902:
+  location: hsn-desk
+  USBSerialPort:
+    match:
+      ID_PATH: pci-0000:00:14.0-usb-0:1.1.3:1.0
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: 192.168.128.3
+    index: 2
+  TFTPProvider:
+    internal: "/srv/tftp/iei_puzzle-m902"
+    external: "iei_puzzle-m902/"
+  NetworkService:
+    address: "192.168.1.1%vlan108"
+    username: "root"
