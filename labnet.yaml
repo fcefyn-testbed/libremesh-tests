@@ -159,6 +159,7 @@ labs:
       - genexis_pulse-ex400
       - bananapi_bpi-r64
       - bananapi_bpi-r4
+      - glinet_gl-mt1300
     developers:
       - aparcar
       - jonasjelonek
