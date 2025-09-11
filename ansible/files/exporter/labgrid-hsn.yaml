@@ -62,3 +62,19 @@ labgrid-hsn-glinet_gl-mt1300:
     address: "192.168.1.1%vlan108"
     username: "root"
 
+labgrid-hsn-linksys_e8450:
+  location: hsn-desk
+  USBSerialPort:
+    match:
+      ID_PATH: pci-0000:00:14.0-usb-0:1.2:1.0
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: 192.168.128.4
+    index: 4
+  TFTPProvider:
+    internal: "/srv/tftp/linksys_e8450"
+    external: "linksys_e8450/"
+  NetworkService:
+    address: "192.168.1.1%vlan110"
+    username: "root"
+

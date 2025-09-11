@@ -160,6 +160,7 @@ labs:
       - bananapi_bpi-r64
       - bananapi_bpi-r4
       - glinet_gl-mt1300
+      - linksys_e8450
     developers:
       - aparcar
       - jonasjelonek
