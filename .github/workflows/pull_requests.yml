@@ -139,7 +139,7 @@ jobs:
           path: console_*
 
   test-real:
-    name: Device ${{ matrix.proxy }}/${{ matrix.device }}
+    name: ${{ matrix.proxy }}/${{ matrix.device }}
     needs: generate-matrix
     runs-on: global-coordinator
     strategy:
