@@ -63,7 +63,7 @@ devices:
 
   glinet_gl-mt1300:
     name: GL.iNet GL-MT1300
-    target: mediatek-mt7621
+    target: ramips-mt7621
     firmware: initramfs-kernel.bin
 
   glinet_gl-mt6000:
