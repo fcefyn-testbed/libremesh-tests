@@ -1,12 +1,12 @@
-labgrid-wigyori-pine64_pine64-plus:
+labgrid-wigyori-olimex_a10-olinuxino-lime:
   location: wigyorilab
   USBSerialPort:
     match:
       ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.4.1:1.0
     speed: 115200
   TFTPProvider:
-    internal: "/tftpboot/pine64_pine64-plus"
-    external: "pine64_pine64-plus"
+    internal: "/tftpboot/olimex_a10-olinuxino-lime"
+    external: "olimex_a10-olinuxino-lime"
     external_ip: 192.168.101.1
   NetworkService:
     address: "192.168.1.1%eth0.201"
@@ -16,15 +16,15 @@ labgrid-wigyori-pine64_pine64-plus:
       ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:2:1.0
     index: 1
 
-labgrid-wigyori-xunlong_orangepi-zero2:
+labgrid-wigyori-olimex_a20-olinuxino-micro:
   location: wigyorilab
   USBSerialPort:
     match:
       ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.4.2:1.0
     speed: 115200
   TFTPProvider:
-    internal: "/tftpboot/xunlong_orangepi-zero2"
-    external: "xunlong_orangepi-zero2
+    internal: "/tftpboot/olimex_a20-olinuxino-micro"
+    external: "olimex_a20-olinuxino-micro"
     external_ip: 192.168.102.1
   NetworkService:
     address: "192.168.1.1%eth0.202"
@@ -33,3 +33,68 @@ labgrid-wigyori-xunlong_orangepi-zero2:
     match:
       ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:2:1.0
     index: 2
+
+labgrid-wigyori-xunlong_orangepi-2:
+  location: wigyorilab
+  USBSerialPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.4.3:1.0
+    speed: 115200
+  TFTPProvider:
+    internal: "/tftpboot/xunlong_orangepi-2"
+    external: "xunlong_orangepi-2"
+    external_ip: 192.168.103.1
+  NetworkService:
+    address: "192.168.1.1%eth0.203"
+    username: "root"
+  USBPowerPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:2:1.0
+    index: 3
+
+labgrid-wigyori-xunlong_orangepi-zero2:
+  location: wigyorilab
+  USBSerialPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.4.4:1.0
+    speed: 115200
+  TFTPProvider:
+    internal: "/tftpboot/xunlong_orangepi-zero2"
+    external: "xunlong_orangepi-zero2"
+    external_ip: 192.168.104.1
+  NetworkService:
+    address: "192.168.1.1%eth0.204"
+    username: "root"
+  USBPowerPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:2:1.0
+    index: 4
+
+labgrid-wigyori-linksprite_a10-pcduino:
+  location: wigyorilab
+  USBSerialPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.1:1.0
+    speed: 115200
+  TFTPProvider:
+    internal: "/tftpboot/linksprite_a10-pcduino"
+    external: "linksprite_a10-pcduino"
+    external_ip: 192.168.105.1
+  NetworkService:
+    address: "192.168.1.1%eth0.205"
+    username: "root"
+
+labgrid-wigyori-pine64_pine64-plus:
+  location: wigyorilab
+  USBSerialPort:
+    match:
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3.2:1.0
+    speed: 115200
+  TFTPProvider:
+    internal: "/tftpboot/pine64_pine64-plus"
+    external: "pine64_pine64-plus"
+    external_ip: 192.168.106.1
+  NetworkService:
+    address: "192.168.1.1%eth0.206"
+    username: "root"
+

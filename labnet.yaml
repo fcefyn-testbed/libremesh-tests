@@ -39,9 +39,33 @@ devices:
     target: mvebu-cortexa9
     firmware: initramfs-kernel.bin
 
+  olimex_a10-lime:
+    name: Olimex A10 Lime
+    target: sunxi-cortexa8
+    firmware: initramfs-kernel.bin
+    snapshots_only: true
+
+  olimex_a20-olinuxino-micro:
+    name: Olimex A20 Micro
+    target: sunxi-cortexa7
+    firmware: initramfs-kernel.bin
+    snapshots_only: true
+
   xunlong_orangepi-zero2:
     name: Orange Pi Zero2
     target: sunxi-cortexa53
+    firmware: initramfs-kernel.bin
+    snapshots_only: true
+
+  xunlong_orangepi-2:
+    name: Orange Pi 2
+    target: sunxi-cortexa7
+    firmware: initramfs-kernel.bin
+    snapshots_only: true
+
+  linksprite_a10-pcduino:
+    name: Linksprite pcDuino 2
+    target: sunxi-cortexa8
     firmware: initramfs-kernel.bin
     snapshots_only: true
 
@@ -144,7 +168,9 @@ labs:
     proxy: labgrid-wigyori
     maintainers: "@wigyori"
     devices:
-      - pine64_pine64-plus
+      - olimex_a10-olinuxino-lime
+      - olimex_a20-olinuxino-micro
+      - xunlong_orangepi-2
       - xunlong_orangepi-zero2
     developers:
       - wigyori
