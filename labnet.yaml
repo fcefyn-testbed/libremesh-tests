@@ -33,6 +33,11 @@ devices:
     name: TP-Link TL-WR1043N/ND v3
     target: ath79-generic
     firmware: initramfs-kernel.bin
+  
+  tplink_tl-wr1043nd-v4:
+    name: TP-Link TL-WR1043N/ND v4
+    target: ath79-generic
+    firmware: initramfs-kernel.bin
 
   cznic_turris-omnia:
     name: CZ.NIC Turris Omnia
@@ -161,6 +166,7 @@ labs:
       - bananapi_bpi-r4
       - glinet_gl-mt1300
       - linksys_e8450
+      - tplink_tl-wr1043nd-v4
     developers:
       - aparcar
       - jonasjelonek

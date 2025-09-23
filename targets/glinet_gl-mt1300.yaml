@@ -23,6 +23,8 @@ targets:
         prompt: "MT7621 #"
         boot_secret: "gl"
         init_commands:
+#         - setenv ipaddr "192.168.$vlan108.2"
+#         - setenv serverip "$address"
           - tftp 0x81000000
       UBootTFTPStrategy: {}
       SSHDriver:

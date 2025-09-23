@@ -1,5 +1,8 @@
 config global
 	option budget	'77'
+#Required on zyxel gs1900-24hp V2
+#	option force-baudrate '115200'
+#	option force_dialect 'realtek'
 
 config port
 	option enable 	'1'
