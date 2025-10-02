@@ -33,7 +33,7 @@ devices:
     name: TP-Link TL-WR1043N/ND v3
     target: ath79-generic
     firmware: initramfs-kernel.bin
-  
+
   tplink_tl-wr1043nd-v4:
     name: TP-Link TL-WR1043N/ND v4
     target: ath79-generic
@@ -44,7 +44,7 @@ devices:
     target: mvebu-cortexa9
     firmware: initramfs-kernel.bin
 
-  olimex_a10-lime:
+  olimex_a10-olinuxino-lime:
     name: Olimex A10 Lime
     target: sunxi-cortexa8
     firmware: initramfs-kernel.bin
