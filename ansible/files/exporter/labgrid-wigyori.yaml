@@ -83,6 +83,10 @@ labgrid-wigyori-linksprite_a10-pcduino:
   NetworkService:
     address: "192.168.1.1%eth0.205"
     username: "root"
+  PDUDaemonPort:
+      host: localhost:16421
+      pdu: clusterhat
+      index: 1
 
 labgrid-wigyori-pine64_pine64-plus:
   location: wigyorilab
@@ -97,4 +101,7 @@ labgrid-wigyori-pine64_pine64-plus:
   NetworkService:
     address: "192.168.1.1%eth0.206"
     username: "root"
-
+  PDUDaemonPort:
+      host: localhost:16421
+      pdu: clusterhat
+      index: 2
