@@ -176,8 +176,10 @@ labs:
     proxy: labgrid-wigyori
     maintainers: "@wigyori"
     devices:
+      - linksprite_a10-pcduino
       - olimex_a10-olinuxino-lime
       - olimex_a20-olinuxino-micro
+      - pine64_pine64-plus
       - xunlong_orangepi-2
       - xunlong_orangepi-zero2
     developers:
