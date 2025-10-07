@@ -43,7 +43,10 @@ def test_wifi_wpa3(ssh_command):
     iwinfo_output = "\n".join(ssh_command.run("iwinfo")[0])
 
     assert "Mode: Master" in iwinfo_output
-    assert "Encryption: WPA3 SAE (CCMP)" in iwinfo_output
+    assert (
+        "Encryption: WPA3 SAE (CCMP)" in iwinfo_output
+        or "Encryption: SAE (CCMP)" in iwinfo_output
+    )
 
 
 @pytest.mark.lg_feature("wifi")
@@ -64,7 +67,10 @@ def test_wifi_wpa2(ssh_command):
     iwinfo_output = "\n".join(ssh_command.run("iwinfo")[0])
 
     assert "Mode: Master" in iwinfo_output
-    assert "Encryption: WPA2 PSK (CCMP)" in iwinfo_output
+    assert (
+        "Encryption: WPA2 PSK (CCMP)" in iwinfo_output
+        or "Encryption: WPA-PSK (CCMP)" in iwinfo_output
+    )
 
 
 @pytest.mark.lg_feature("wifi")
