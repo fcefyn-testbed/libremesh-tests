@@ -45,7 +45,7 @@ $(curdir)/x86-64:
 
 	LG_QEMU_BIN=$(QEMU_BIN) \
 		$(pytest) \
-		--lg-env $(TESTSDIR)/targets/qemu-x86-64.yaml \
+		--lg-env $(TESTSDIR)/targets/qemu_x86-64.yaml \
 		--firmware $(FIRMWARE:.gz=)
 
 $(curdir)/armsr-armv8: QEMU_BIN ?= qemu_system-aarch64
