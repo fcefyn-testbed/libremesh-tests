@@ -27,7 +27,7 @@ labgrid-aparcar-enterasys_ws-ap3710i:
     internal: /srv/tftp/enterasys_ws-ap3710i/
   USBSerialPort:
     match:
-      ID_PATH: platform-xhci-hcd.0-usb-0:2.4:1.0
+      ID_PATH: platform-xhci-hcd.1-usb-0:2.1.2:1.0
 
 labgrid-aparcar-genexis_pulse-ex400:
   NetworkService:
@@ -46,19 +46,19 @@ labgrid-aparcar-genexis_pulse-ex400:
 
 labgrid-aparcar-glinet_gl-mt6000:
   NetworkService:
-    address: 192.168.1.1%vlan107
+    address: 192.168.1.1%vlan110
     username: root
   PDUDaemonPort:
     host: localhost:16421
-    index: 7
+    index: 10
     pdu: 192.168.128.2
   TFTPProvider:
     external: glinet_gl-mt6000/
-    external_ip: 192.168.107.1
+    external_ip: 192.168.110.1
     internal: /srv/tftp/glinet_gl-mt6000/
   USBSerialPort:
     match:
-      ID_PATH: platform-xhci-hcd.0-usb-0:2.1.1:1.0
+      ID_PATH: platform-xhci-hcd.1-usb-0:2.1.3:1.0
 
 labgrid-aparcar-openwrt_one:
   NetworkService:
