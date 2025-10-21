@@ -50,7 +50,7 @@ jobs:
           if [ -n "${{ github.event.inputs.VERSION }}" ] && [ "${{ github.event.inputs.VERSION }}" != "" ]; then
             user_version=${{ github.event.inputs.VERSION }}
             versions="[
-              {\"type\": \"snapshot\", \"name\": \"$user_version\", \"version_url\": \"https://mirror-03.infra.openwrt.org/releases/$user_version/targets\"},
+              {\"type\": \"snapshot\", \"name\": \"$user_version\", \"version_url\": \"https://mirror-03.infra.openwrt.org/releases/$user_version/targets\"}
             ]"
           else
             versions="[
