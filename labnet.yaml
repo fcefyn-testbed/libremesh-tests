@@ -121,6 +121,11 @@ devices:
     target: mvebu-cortexa72
     firmware: initramfs-kernel.bin
 
+  linksys_e8450:
+    name: Linksys E8450 / Belkin RT3200
+    target: mediatek-mt7622
+    firmware: initramfs-kernel.bin
+
 labs:
   labgrid-aparcar:
     proxy: labgrid-aparcar
