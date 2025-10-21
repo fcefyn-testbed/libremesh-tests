@@ -10,6 +10,7 @@ env:
   PYTEST_ADDOPTS: "--color=yes"
   LG_CONSOLE: "internal"
   RELEASE: "24.10.2"
+  USER: "labgrid-dev"
 
 jobs:
   generate-matrix:

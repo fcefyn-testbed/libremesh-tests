@@ -16,6 +16,7 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTEST_ADDOPTS: "--color=yes"
   LG_CONSOLE: "internal"
+  USER: "labgrid-dev"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
