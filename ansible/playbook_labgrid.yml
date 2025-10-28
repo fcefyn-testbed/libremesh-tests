@@ -168,7 +168,6 @@
       environment:
         PIPX_HOME: /opt/pipx/
         PIPX_BIN_DIR: /usr/local/bin
-      become: true
       notify:
         - Restart labgrid-exporter
         - Restart labgrid-coordinator
@@ -185,6 +184,7 @@
       file:
         path: /etc/labgrid
         state: directory
+
 
     - name: Create tftp folder
       file:
@@ -203,7 +203,8 @@
         group: "labgrid-dev"
         mode: "0755"
       loop: "{{ hostvars[inventory_hostname]['labs'][inventory_hostname]['devices'] }}"
-
+      tags:
+        - export
 
     - name: Copy exporter configuration
       template:
@@ -237,23 +238,16 @@
             src: files/exporter/pdudaemon.service
             dest: /etc/systemd/system/pdudaemon.service
 
-        - name: Start and enable pdudaemon
-          ansible.builtin.systemd_service:
-            name: pdudaemon
-            state: restarted
-            enabled: yes
-            daemon_reload: yes
-
         - name: Stat host specific pdudaemon configuration
           ansible.builtin.stat:
-            path: files/exporter/pdudaemon-{{ inventory_hostname }}.conf
+            path: files/exporter/{{ inventory_hostname }}/pdudaemon.conf
           register: host_specific_pdudaemon_conf
           delegate_to: localhost
           become: false
 
         - name: Configure pdudaemon using host specific config
           template:
-            src: files/exporter/pdudaemon-{{ inventory_hostname }}.conf
+            src: files/exporter/{{ inventory_hostname }}/pdudaemon.conf
             dest: /etc/pdudaemon/pdudaemon.conf
           notify:
             - Restart pdudaemon
@@ -266,6 +260,13 @@
           notify:
             - Restart pdudaemon
           when: not host_specific_pdudaemon_conf.stat.exists
+
+        - name: Start and enable pdudaemon
+          ansible.builtin.systemd_service:
+            name: pdudaemon
+            state: restarted
+            enabled: yes
+            daemon_reload: yes
 
     - name: Install dnsmasq
       apt:
@@ -281,33 +282,38 @@
       block:
         - name: Stat host specific netplan configuration
           ansible.builtin.stat:
-            path: files/exporter/netplan-{{ inventory_hostname }}.yaml
+            path: files/exporter/{{ inventory_hostname }}/netplan.yaml
           register: host_specific_netplan_conf
           delegate_to: localhost
           become: false
 
         - name: Configure netplan using host specific config
           ansible.builtin.template:
-            src: files/exporter/netplan-{{ inventory_hostname }}.yaml
+            src: files/exporter/{{ inventory_hostname }}/netplan.yaml
             dest: /etc/netplan/labnet.yaml
+            mode: 0600
+            owner: root
+            group: root
           when: host_specific_netplan_conf.stat.exists
 
-        - name: Apply netplan config
-          ansible.builtin.command:
-            cmd: netplan apply
-          become: true
-          when: host_specific_netplan_conf.stat.exists
+        - name: Configure netplan using default config
+          template:
+            src: files/exporter/netplan.yaml
+            dest: /etc/netplan/labnet.yaml
+          notify:
+            - Apply netplan
+          when: not host_specific_netplan_conf.stat.exists
 
     - name: Stat host specific dnsmasq configuration
       ansible.builtin.stat:
-        path: files/exporter/dnsmasq-{{ inventory_hostname}}.conf
+        path: files/exporter/{{ inventory_hostname }}/dnsmasq.conf
       register: host_specific_dnsmasq_conf
       delegate_to: localhost
       become: false
 
     - name: Configure dnsmasq using host specific config
       template:
-        src: files/exporter/dnsmasq-{{ inventory_hostname }}.conf
+        src: files/exporter/{{ inventory_hostname }}/dnsmasq.conf
         dest: /etc/dnsmasq.conf
 
       notify:
@@ -380,9 +386,9 @@
         dest: /usr/local/sbin/labgrid-bound-connect
         mode: "0755"
 
-    - name: Create /var/cache/labgrid
+    - name: Create /var/cache/labgrid/labgrid-dev
       file:
-        path: /var/cache/labgrid
+        path: /var/cache/labgrid/labgrid-dev
         state: directory
         owner: "labgrid-dev"
         group: "labgrid-dev"
@@ -447,3 +453,7 @@
 
     - name: Reload udev rules
       command: udevadm control --reload-rules
+
+    - name: Apply netplan
+      ansible.builtin.command:
+        cmd: netplan apply
