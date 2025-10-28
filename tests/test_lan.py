@@ -5,7 +5,7 @@ from conftest import ubus_call
 
 def test_lan_wait_for_link_ready(shell_command):
     for _ in range(60):
-        if shell_command.run("dmesg | grep 'br-lan: link becomes ready'")[2] == 0:
+        if shell_command.run("dmesg | grep br-lan | grep forwarding")[2] == 0:
             return
         sleep(1)
 
