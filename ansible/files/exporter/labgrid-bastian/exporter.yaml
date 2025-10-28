@@ -2,8 +2,7 @@ labgrid-bastian-cznic_turris-omnia:
   location: bastian-desk
   USBSerialPort:
     match:
-      ID_SERIAL_SHORT: AI024GU9
-      ID_USB_INTERFACE_NUM: "00"
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.1.1.1:1.0
   PDUDaemonPort:
     host: localhost:16421
     pdu: 192.168.128.2
@@ -12,14 +11,13 @@ labgrid-bastian-cznic_turris-omnia:
     internal: "/srv/tftp/cznic_turris-omnia/"
     external: "cznic_turris-omnia/"
   NetworkService:
-    address: "192.168.1.1%vlan101"
+    address: "192.168.1.1%vlan102"
     username: "root"
 
 labgrid-bastian-tplink_tl-wdr4300-v1:
   USBSerialPort:
     match:
-      ID_SERIAL_SHORT: AI024KC7
-      ID_USB_INTERFACE_NUM: "00"
+      ID_PATH: platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.1.1.2:1.0
   PDUDaemonPort:
     host: localhost:16421
     pdu: 192.168.128.2
@@ -27,7 +25,7 @@ labgrid-bastian-tplink_tl-wdr4300-v1:
   TFTPProvider:
     internal: "/srv/tftp/tplink_tl-wdr4300-v1/"
     external: "tplink_tl-wdr4300-v1/"
-    external_ip: "192.168.103.1"
+    external_ip: "192.168.104.1"
   NetworkService:
-    address: "192.168.1.1%vlan103"
+    address: "192.168.1.1%vlan104"
     username: "root"

@@ -1,0 +1,57 @@
+{{ netplan_custom  | to_yaml(indent=2) }}
+  vlans:
+    vlan101:
+      # fuer tftp
+      accept-ra: no
+      id: 101
+      link: eth0
+      addresses:
+        - 192.168.101.1/24
+        - 192.168.1.101/24
+    vlan102:
+      # fuer LAN zum Testrouter: TURRIS Omnia
+      accept-ra: no
+      id: 102
+      link: eth0
+      addresses:
+        - 192.168.102.1/24
+        - 192.168.1.102/24
+    vlan103:
+      # fuer tftp
+      accept-ra: no
+      id: 103
+      link: eth0
+      addresses:
+        - 192.168.103.1/24
+        - 192.168.1.103/24
+    vlan104:
+      # fuer LAN zum Testrouter: TP-LINK4300
+      accept-ra: no
+      id: 104
+      link: eth0
+      addresses:
+        - 192.168.104.1/24
+        - 192.168.1.104/24
+    vlan105:
+      accept-ra: no
+      id: 105
+      link: eth0
+      addresses:
+        - 192.168.105.1/24
+        - 192.168.1.105/24
+    vlan106:
+      # fuer tftp
+      accept-ra: no
+      id: 106
+      link: eth0
+      addresses:
+        - 192.168.106.1/24
+        - 192.168.1.106/24
+    vlan107:
+      # fuer LAN zum Testrouter: TP-LINK4900 (PowerPC)
+      accept-ra: no
+      id: 107
+      link: eth0
+      addresses:
+        - 192.168.107.1/24
+        - 192.168.1.107/24

@@ -37,8 +37,8 @@ labgrid-hsn-bananapi_bpi-r4:
       ID_PATH: pci-0000:00:14.0-usb-0:1.1.2:1.0
   PDUDaemonPort:
     host: localhost:16421
-    pdu: 192.168.128.3
-    index: 3
+    pdu: 192.168.128.2
+    index: 5
   TFTPProvider:
     internal: "/srv/tftp/bananapi_bpi-r4"
     external: "bananapi_bpi-r4/"
@@ -58,6 +58,7 @@ labgrid-hsn-glinet_gl-mt1300:
   TFTPProvider:
     internal: "/srv/tftp/glinet_gl-mt1300"
     external: "glinet_gl-mt1300/"
+    external_ip: 192.168.108.1
   NetworkService:
     address: "192.168.1.1%vlan108"
     username: "root"
@@ -90,7 +91,23 @@ labgrid-hsn-tplink_tl-wr1043nd-v4:
   TFTPProvider:
     internal: "/srv/tftp/tplink_tl-wr1043nd-v4"
     external: "tplink_tl-wr1043nd-v4/"
+    external_ip: 192.168.112.1
   NetworkService:
     address: "192.168.1.1%vlan112"
     username: "root"
 
+labgrid-hsn-youku_yk-l1:
+  location: hsn-desk
+  USBSerialPort:
+    match:
+      ID_PATH: pci-0000:00:14.0-usb-0:1.4:1.0
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: 192.168.128.2
+    index: 13
+  TFTPProvider:
+    internal: "/srv/tftp/youku_yk-l1"
+    external: "youku_yk-l1"
+  NetworkService:
+    address: "192.168.1.1%vlan114"
+    username: "root"
