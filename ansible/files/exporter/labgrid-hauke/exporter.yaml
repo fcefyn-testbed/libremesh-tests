@@ -1,0 +1,16 @@
+labgrid-hauke-openwrt_one:
+  location: hauke-lab
+  USBSerialPort:
+    match:
+      ID_SERIAL_SHORT: '0000'
+      ID_USB_INTERFACE_NUM: '00'
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: 192.168.15.1
+    index: 1
+  TFTPProvider:
+    internal: "/srv/tftp/openwrt_one/"
+    external: "openwrt_one/"
+  NetworkService:
+    address: "192.168.1.1%vlan101"
+    username: "root"
