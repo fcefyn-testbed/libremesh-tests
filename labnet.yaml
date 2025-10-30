@@ -208,6 +208,8 @@ labs:
     maintainers: "@hauke"
     devices:
       - openwrt_one
+    developers:
+      - hauke
 
 developers:
   aparcar:
@@ -218,3 +220,5 @@ developers:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDy4T0osxR8yS4RjJcsMn3rSacKvNzu+ZRNfe2lXTSHS
   wigyori:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG8vcHMKcl6W6OuzSdjOhQ0ZehtH+McjLB7WzgP9P4Ls
+  hauke:
+    sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDhbJDeGBfpn8vkd1wjHgOWvN9WGWS3mRgqqFqNqgpNE
