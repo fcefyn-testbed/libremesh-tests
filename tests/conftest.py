@@ -14,23 +14,78 @@
 
 import json
 import logging
+import os
+from pathlib import Path
 from os import getenv
 
 import pytest
 
 logger = logging.getLogger(__name__)
 
-device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
 
+def _resolve_target_from_place():
+    lg_env = getenv("LG_ENV")
+    lg_place = getenv("LG_PLACE")
 
-def pytest_addoption(parser):
-    parser.addoption("--firmware", action="store", default="firmware.bin")
+    if lg_env or not lg_place:
+        return lg_env
+
+    parts = lg_place.split("-", 2)
+    if len(parts) < 3:
+        return None
+
+    device_instance = parts[2]
+
+    try:
+        repo_root = Path(__file__).parent.parent
+        labnet_path = repo_root / "labnet.yaml"
+
+        if not labnet_path.exists():
+            return None
+
+        import yaml
+        with open(labnet_path, 'r') as f:
+            labnet = yaml.safe_load(f)
+
+        if device_instance in labnet.get('devices', {}):
+            device_config = labnet['devices'][device_instance]
+            target_name = device_config.get('target_file', device_instance)
+            target_file = f"targets/{target_name}.yaml"
+            if (repo_root / target_file).exists():
+                return str(repo_root / target_file)
+
+        for lab_name, lab_config in labnet.get('labs', {}).items():
+            device_instances = lab_config.get('device_instances', {})
+            for base_device, instances in device_instances.items():
+                if device_instance in instances:
+                    if base_device in labnet.get('devices', {}):
+                        device_config = labnet['devices'][base_device]
+                        target_name = device_config.get('target_file', base_device)
+                        target_file = f"targets/{target_name}.yaml"
+                        if (repo_root / target_file).exists():
+                            return str(repo_root / target_file)
+
+    except Exception:
+        pass
+
+    return None
 
 
 def pytest_configure(config):
     config._metadata = getattr(config, "_metadata", {})
     config._metadata["version"] = "12.3.4"
     config._metadata["environment"] = "staging"
+
+    resolved_env = _resolve_target_from_place()
+    if resolved_env:
+        os.environ["LG_ENV"] = resolved_env
+
+
+device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
+
+
+def pytest_addoption(parser):
+    parser.addoption("--firmware", action="store", default="firmware.bin")
 
 
 def ubus_call(command, namespace, method, params={}):
