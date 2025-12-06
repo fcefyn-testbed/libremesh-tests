@@ -211,6 +211,18 @@ labs:
     developers:
       - hauke
 
+  labgrid-fcefyn:
+    proxy: labgrid-fcefyn
+    maintainers: "@francoriba"
+    devices:
+      - linksys_e8450
+    device_instances:
+      linksys_e8450:
+        - belkin_rt3200_1
+        - belkin_rt3200_2
+    developers:
+      - francoriba
+
 developers:
   aparcar:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDZTxjQ3/KTefKvsPlVBWz+ITD7dGWcOt8/C55ekd2VE
@@ -222,3 +234,5 @@ developers:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG8vcHMKcl6W6OuzSdjOhQ0ZehtH+McjLB7WzgP9P4Ls
   hauke:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDhbJDeGBfpn8vkd1wjHgOWvN9WGWS3mRgqqFqNqgpNE
+  francoriba:
+    sshkey: # COMPLETE WIH KEY IN FCEFYN LABNET HOST AFTER MIGRATION
