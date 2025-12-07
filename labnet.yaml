@@ -220,6 +220,7 @@ labs:
       linksys_e8450:
         - belkin_rt3200_1
         - belkin_rt3200_2
+        - belkin_rt3200_3
     developers:
       - francoriba
 

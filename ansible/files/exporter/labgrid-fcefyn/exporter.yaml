@@ -31,3 +31,20 @@ labgrid-fcefyn-belkin_rt3200_2:
   NetworkService:
     address: "192.168.1.1%vlan101"
     username: "root"
+
+labgrid-fcefyn-belkin_rt3200_3:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/belkin-rt3200-3"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 4
+  TFTPProvider:
+    internal: "/srv/tftp/belkin_rt3200_3/"
+    external: "belkin_rt3200_3/"
+    external_ip: "192.168.102.1"
+  NetworkService:
+    address: "192.168.1.1%vlan102"
+    username: "root"
