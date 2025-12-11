@@ -1,0 +1,30 @@
+{{ netplan_custom | to_yaml(indent=2) }}
+  vlans:
+    vlan100:
+      accept-ra: no
+      id: 100
+      link: enp0s25
+      addresses:
+        - 192.168.100.1/24
+        - 192.168.1.100/24
+    vlan101:
+      accept-ra: no
+      id: 101
+      link: enp0s25
+      addresses:
+        - 192.168.101.1/24
+        - 192.168.1.101/24
+    vlan102:
+      accept-ra: no
+      id: 102
+      link: enp0s25
+      addresses:
+        - 192.168.102.1/24
+        - 192.168.1.102/24
+    vlan103:
+      accept-ra: no
+      id: 103
+      link: enp0s25
+      addresses:
+        - 192.168.103.1/24
+        - 192.168.1.103/24
