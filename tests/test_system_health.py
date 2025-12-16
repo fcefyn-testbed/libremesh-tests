@@ -1,7 +1,5 @@
 """System health monitoring tests for OpenWrt."""
 
-import re
-
 
 class TestSystemHealth:
     """Tests for monitoring system health and resource usage."""
