@@ -106,7 +106,7 @@ jobs:
       - name: Run test
         id: test
         run: |
-          uv run pytest tests/ \
+          uv run pytest tests/test_base.py::test_shell tests/test_base.py::test_ssh \
             --lg-log \
             --lg-colored-steps \
             --log-cli-level=CONSOLE
