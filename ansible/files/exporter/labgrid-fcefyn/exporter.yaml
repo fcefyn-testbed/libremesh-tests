@@ -48,3 +48,20 @@ labgrid-fcefyn-belkin_rt3200_3:
   NetworkService:
     address: "192.168.1.1%vlan102"
     username: "root"
+
+labgrid-fcefyn-openwrt_one:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/openwrt_one"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 5
+  TFTPProvider:
+    internal: "/srv/tftp/openwrt_one/"
+    external: "openwrt_one/"
+    external_ip: "192.168.103.1"
+  NetworkService:
+    address: "192.168.1.1%vlan103"
+    username: "root"    
