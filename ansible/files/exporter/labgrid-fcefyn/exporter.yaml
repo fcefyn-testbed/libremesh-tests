@@ -6,7 +6,7 @@ labgrid-fcefyn-belkin_rt3200_1:
   PDUDaemonPort:
     host: localhost:16421
     pdu: fcefyn-arduino
-    index: 2
+    index: 0
   TFTPProvider:
     internal: "/srv/tftp/belkin_rt3200_1/"
     external: "belkin_rt3200_1/"
@@ -23,7 +23,7 @@ labgrid-fcefyn-belkin_rt3200_2:
   PDUDaemonPort:
     host: localhost:16421
     pdu: fcefyn-arduino
-    index: 3
+    index: 1
   TFTPProvider:
     internal: "/srv/tftp/belkin_rt3200_2/"
     external: "belkin_rt3200_2/"
@@ -40,7 +40,7 @@ labgrid-fcefyn-belkin_rt3200_3:
   PDUDaemonPort:
     host: localhost:16421
     pdu: fcefyn-arduino
-    index: 4
+    index: 2
   TFTPProvider:
     internal: "/srv/tftp/belkin_rt3200_3/"
     external: "belkin_rt3200_3/"
