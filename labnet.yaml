@@ -216,6 +216,7 @@ labs:
     maintainers: "@francoriba"
     devices:
       - linksys_e8450
+      - bananapi_bpi-r4
     device_instances:
       linksys_e8450:
         - belkin_rt3200_1
