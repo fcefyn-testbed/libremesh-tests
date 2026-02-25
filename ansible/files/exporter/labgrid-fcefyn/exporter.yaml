@@ -69,16 +69,16 @@ labgrid-fcefyn-bananapi_bpi-r4:
 labgrid-fcefyn-openwrt_one:
   location: fcefyn-testbed
   RawSerialPort:
-    port: "/dev/openwrt_one"
+    port: "/dev/openwrt-one"
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-arduino
-    index: 5
+    pdu: fcefyn-poe
+    index: 1
   TFTPProvider:
     internal: "/srv/tftp/openwrt_one/"
     external: "openwrt_one/"
-    external_ip: "192.168.103.1"
+    external_ip: "192.168.104.1"
   NetworkService:
-    address: "192.168.1.1%vlan103"
-    username: "root"    
+    address: "192.168.1.1%vlan104"
+    username: "root"
