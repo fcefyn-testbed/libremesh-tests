@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/fork-openwrt-tests.iml" filepath="$PROJECT_DIR$/.idea/fork-openwrt-tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../libremesh-tests/.idea/libremesh-tests.iml" filepath="$PROJECT_DIR$/../libremesh-tests/.idea/libremesh-tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../fork-libremesh-virtual-mesh/.idea/libremesh-virtual-mesh.iml" filepath="$PROJECT_DIR$/../fork-libremesh-virtual-mesh/.idea/libremesh-virtual-mesh.iml" />
+      <module fileurl="file://$USER_HOME$/openwrt/.idea/openwrt.iml" filepath="$USER_HOME$/openwrt/.idea/openwrt.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../pi-hil-testing-utils/.idea/pi-hil-testing-utils.iml" filepath="$PROJECT_DIR$/../pi-hil-testing-utils/.idea/pi-hil-testing-utils.iml" />
+    </modules>
+  </component>
+</project>

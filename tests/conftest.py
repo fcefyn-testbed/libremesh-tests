@@ -44,23 +44,24 @@ def _resolve_target_from_place():
             return None
 
         import yaml
-        with open(labnet_path, 'r') as f:
+
+        with open(labnet_path, "r") as f:
             labnet = yaml.safe_load(f)
 
-        if device_instance in labnet.get('devices', {}):
-            device_config = labnet['devices'][device_instance]
-            target_name = device_config.get('target_file', device_instance)
+        if device_instance in labnet.get("devices", {}):
+            device_config = labnet["devices"][device_instance]
+            target_name = device_config.get("target_file", device_instance)
             target_file = f"targets/{target_name}.yaml"
             if (repo_root / target_file).exists():
                 return str(repo_root / target_file)
 
-        for lab_name, lab_config in labnet.get('labs', {}).items():
-            device_instances = lab_config.get('device_instances', {})
+        for lab_name, lab_config in labnet.get("labs", {}).items():
+            device_instances = lab_config.get("device_instances", {})
             for base_device, instances in device_instances.items():
                 if device_instance in instances:
-                    if base_device in labnet.get('devices', {}):
-                        device_config = labnet['devices'][base_device]
-                        target_name = device_config.get('target_file', base_device)
+                    if base_device in labnet.get("devices", {}):
+                        device_config = labnet["devices"][base_device]
+                        target_name = device_config.get("target_file", base_device)
                         target_file = f"targets/{target_name}.yaml"
                         if (repo_root / target_file).exists():
                             return str(repo_root / target_file)
