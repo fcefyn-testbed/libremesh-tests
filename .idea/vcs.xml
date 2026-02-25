@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/build_dir/target-aarch64_cortex-a53_musl/shared-state-async-2024.05.13~db58e3d/_deps/libretroshare-src" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/build_dir/target-aarch64_cortex-a53_musl/shared-state-async-2024.05.13~db58e3d/_deps/rapidjson-src" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/build_dir/target-aarch64_cortex-a53_musl/shared-state-async-2024.05.13~db58e3d/_deps/rapidjson-src/thirdparty/gtest" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/lime" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/luci" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/packages" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/routing" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/telephony" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/feeds/vwifi" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/libremesh-virtual-mesh" vcs="Git" />
+    <mapping directory="$USER_HOME$/openwrt/libremesh-virtual-mesh/vwifi" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../fork-libremesh-virtual-mesh" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../fork-libremesh-virtual-mesh/vwifi" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../libremesh-tests" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../pi-hil-testing-utils" vcs="Git" />
+  </component>
+</project>
