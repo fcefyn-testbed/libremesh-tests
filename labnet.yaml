@@ -218,7 +218,10 @@ labs:
 
   labgrid-fcefyn:
     proxy: labgrid-fcefyn
-    maintainers: "@francoriba"
+    maintainers:
+      - "@javierbrk"
+      - "@francoriba"
+      - "@ccasanueva7"
     devices:
       - linksys_e8450
       - openwrt_one
