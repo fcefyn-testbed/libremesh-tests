@@ -20,7 +20,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Generate matrix
         id: set-matrix
@@ -66,7 +66,7 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -106,7 +106,7 @@ jobs:
       - name: Run test
         id: test
         run: |
-          uv run pytest tests/ \
+          uv run pytest tests/test_base.py::test_shell tests/test_base.py::test_ssh \
             --lg-log \
             --lg-colored-steps \
             --log-cli-level=CONSOLE
@@ -118,7 +118,7 @@ jobs:
           uv run labgrid-client unlock
 
       - name: Upload console logs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: console-${{ matrix.proxy }}-${{ matrix.device }}

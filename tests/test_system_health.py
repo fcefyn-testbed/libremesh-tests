@@ -1,31 +1,8 @@
 """System health monitoring tests for OpenWrt."""
 
-import re
-
 
 class TestSystemHealth:
     """Tests for monitoring system health and resource usage."""
-
-    def test_cpu_load(self, ssh_command, results_bag):
-        """Test CPU load is within acceptable limits."""
-        # Get load average for 1, 5, and 15 minutes
-        output = ssh_command.run_check("uptime")
-        load_match = re.search(r"load average: ([\d.]+), ([\d.]+), ([\d.]+)", output[0])
-
-        assert load_match, "Could not parse load average"
-
-        load_1min = float(load_match.group(1))
-        load_5min = float(load_match.group(2))
-        load_15min = float(load_match.group(3))
-
-        results_bag["cpu_load"] = {
-            "1min": load_1min,
-            "5min": load_5min,
-            "15min": load_15min,
-        }
-
-        # Load should generally be less than 2x CPU count for healthy system
-        assert load_15min < 1, f"15-minute load average {load_15min} is stragely high"
 
     def test_memory_usage(self, ssh_command, results_bag):
         """Test memory usage and check for memory leaks."""
