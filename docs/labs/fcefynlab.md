@@ -1,78 +1,52 @@
 # Devices in FCEFYN Lab
 
 ## Coordinator/Exporter
-- Laptop
-    - Ethernet: Connected to network switch with VLAN trunk
-    - USB Serial Adapters: Connected to DUTs via USB hub
-    - Arduino-based relay control: Power management for all DUTs
-    - TFTP/DHCP Server: dnsmasq serving `/srv/tftp/` per VLAN
 
-## Network Infrastructure
-- MikroTik router: Router providing inter-VLAN routing and internet access
-- TP-Link SG2008P: 8-port Gigabit managed switch with VLAN support
-- Each DUT is isolated in its own VLAN
+- Lenovo T430 (Ubuntu)
+    - Ethernet: VLAN trunk to switch
+    - USB serial adapters via hub (udev symlinks)
+    - Arduino relay control (barrel-jack DUTs)
+    - PoE switch control (PoE DUTs via TP-Link SG2016P)
+    - TFTP/DHCP: dnsmasq per VLAN
 
-### VLAN Configuration
-| VLAN ID | Purpose          | Subnet           | Gateway         |
-|---------|------------------|------------------|-----------------|
-| 100     | Belkin RT3200 #1 | 192.168.100.0/24 | 192.168.100.254 |
-| 101     | Belkin RT3200 #2 | 192.168.101.0/24 | 192.168.101.254 |
-| 102     | Belkin RT3200 #3 | 192.168.102.0/24 | 192.168.102.254 |
+## Switch
 
-## DUT Devices
+- **Model:** TP-Link SG2016P (16-port Gigabit, 8 PoE)
 
-### belkin_rt3200_1 (Linksys E8450 / Belkin RT3200)
-- VLAN: 100 (isolated)
-- Device IP: 192.168.1.1 (OpenWrt default)
-- Server TFTP IP: 192.168.100.1
-- Serial: `/dev/belkin-rt3200-1` @ 115200 baud
-- Power: Arduino relay #2 (via PDUDaemon)
-- Board: `linksys,e8450-ubi`
-- Target: `mediatek-mt7622`
-- Firmware: `initramfs-recovery.itb` (U-Boot TFTP recovery)
+| Port | Device          | Power  |
+|------|-----------------|--------|
+| 1    | OpenWRT One     | PoE    |
+| 2    | LibreRouter #1  | PoE (splitter 48V→12V) |
+| 9    | Host            | Trunk  |
+| 10   | MikroTik        | Trunk  |
+| 11   | Belkin RT3200 #1| Relay  |
+| 12   | Belkin RT3200 #2| Relay  |
+| 13   | Belkin RT3200 #3| Relay  |
+| 14   | Banana Pi R4    | Relay  |
 
-### belkin_rt3200_2 (Linksys E8450 / Belkin RT3200)
-- VLAN: 101 (isolated)
-- Device IP: 192.168.1.1 (OpenWrt default)
-- Server TFTP IP: 192.168.101.1
-- Serial: `/dev/belkin-rt3200-2` @ 115200 baud
-- Power: Arduino relay #3 (via PDUDaemon)
-- Board: `linksys,e8450-ubi`
-- Target: `mediatek-mt7622`
-- Firmware: `initramfs-recovery.itb` (U-Boot TFTP recovery)
+## DUTs
 
-### belkin_rt3200_3 (Linksys E8450 / Belkin RT3200)
-- VLAN: 101 (isolated)
-- Device IP: 192.168.1.1 (OpenWrt default)
-- Server TFTP IP: 192.168.101.1
-- Serial: `/dev/belkin-rt3200-3` @ 115200 baud
-- Power: Arduino relay #4 (via PDUDaemon)
-- Board: `linksys,e8450-ubi`
-- Target: `mediatek-mt7622`
-- Firmware: `initramfs-recovery.itb` (U-Boot TFTP recovery)
+- **Belkin RT3200 #1, #2, #3** (linksys_e8450)
+    - Power: Arduino relay (channels 0–2)
+    - Target: mediatek-mt7622
 
-## Power Control
+- **Banana Pi R4** (bananapi_bpi-r4)
+    - Power: Arduino relay (channel 3)
+    - Target: mediatek-filogic
 
-Power control is managed via **PDUDaemon** using a custom Arduino-based relay controller interface:
-- Relay channel 2 → Belkin RT3200 #1
-- Relay channel 3 → Belkin RT3200 #2
-- Relay channel 4 → Belkin RT3200 #3
+- **OpenWrt One** (openwrt_one)
+    - Power: PoE (switch port 1)
+    - Target: mediatek-filogic
 
-## Server Configuration
-
-The coordinator server has VLAN interfaces for each DUT:
-- `vlan100`: 192.168.100.1/24, 192.168.1.100/24 (for Belkin #1)
-- `vlan101`: 192.168.101.1/24, 192.168.1.101/24 (for Belkin #2)
-- `vlan102`: 192.168.102.1/24, 192.168.1.102/24 (for Belkin #3)
-
-Each VLAN interface has two IPs:
-- `192.168.X.1/24`: TFTP server address (used by U-Boot)
-- `192.168.1.X/24`: SSH access to device at 192.168.1.1
+- **LibreRouter #1** (librerouter_librerouter_v1)
+    - Power: PoE (switch port 2, via splitter 48V→12V)
+    - Target: ath79-generic
+    - Strategy: UBootTFTPStrategy (TFTP boot initramfs in RAM, same as other DUTs)
 
 ## Misc Hardware / Notes
 
-- All devices use TFTP for firmware recovery via U-Boot
-- SSH connections use `labgrid-bound-connect` to route through specific VLAN interfaces
+- Each DUT in isolated VLAN
+- LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Serial: `/dev/librerouter-1`
 
 ## Maintainers
 
