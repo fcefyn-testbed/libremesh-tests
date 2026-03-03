@@ -7,6 +7,17 @@ real. Using [`labgrid`](https://labgrid.readthedocs.io/en/latest/) to control
 the devices, the framework offers a simple way to write tests and run them on
 different hardware.
 
+## About this fork (libremesh-tests)
+
+This repository is a fork aimed at **LibreMesh** testing. It is intended for
+contributors who want to add their DUTs to **libremesh-tests** rather than
+upstream openwrt-tests.
+
+Currently, only the **labgrid-fcefyn** lab contributes DUTs to both libremesh-tests
+and openwrt-tests. In the future, we may facilitate a hybrid setup so that
+other labs can contribute to both projects—for now, new labs added ti this project would contribute
+to libremesh-tests only.
+
 ## Requirements
 
 - An OpenWrt firmware image
@@ -16,12 +27,12 @@ different hardware.
 
 ## Setup
 
-For maximum convenience, clone the repository inside the `openwrt.git`
+For maximum convenience, clone this repository inside the `openwrt.git`
 repository as `tests/`:
 
 ```shell
 cd /path/to/openwrt.git/
-git clone https://github.com/aparcar/openwrt-tests.git tests/
+git clone https://github.com/francoriba/libremesh-tests.git tests/
 ```
 
 Install required packages to use Labgrid and QEMU:
@@ -93,12 +104,12 @@ With *labgrid*, you can remotely access devices. Key capabilities include
 **power control**, **console**, and **SSH access**.
 
 To enable remote access, you need SSH access with forwarding enabled on the host
-exporting the device. For example, to reach the device `openwrt-one` located in
-the lab `labgrid-aparcar`, you must have access to both the `labgrid-aparcar`
-host and use the `global-coordinator` as a jump host:
+exporting the device. For example, to reach the device `openwrt_one` located in
+the lab `labgrid-fcefyn`, you must have access to the `labgrid-fcefyn` host
+(coordinator and exporter run on the same host):
 
 ```shell
-global-coordinator -> labgrid-aparcar -> openwrt-one
+labgrid-fcefyn -> openwrt_one
 ```
 
 You can request access to existing labs or contribute your own. To do this,
@@ -110,10 +121,10 @@ To access a remote device, configure the following environment variables.
 Notably, `LG_PROXY` sets the proxy host (always the lab name):
 
 ```shell
-export LG_IMAGE=~/firmware/openwrt-ath79-generic-tplink_tl-wdr3600-v1-initramfs-kernel.bin # Firmware to boot
-export LG_PLACE=aparcar-tplink_tl-wdr3600-v1 # Target device, formatted as <lab>-<device>
-export LG_PROXY=labgrid-aparcar # Proxy to use, typically the lab name
-export LG_ENV=targets/tplink_tl-wdr3600-v1.yaml # Environment definition (optional when using device_instances)
+export LG_IMAGE=~/firmware/openwrt-mediatek-mt7622-linksys_e8450-ubi-initramfs-kernel.bin # Firmware to boot
+export LG_PLACE=labgrid-fcefyn-belkin_rt3200_1 # Target device, formatted as <lab>-<device>
+export LG_PROXY=labgrid-fcefyn # Proxy to use, typically the lab name
+export LG_ENV=targets/linksys_e8450.yaml # Environment definition (optional when using device_instances)
 ```
 
 **Note**: `LG_ENV` is optional when using `device_instances`. If not set, pytest automatically resolves the target file from `LG_PLACE`. Explicitly setting `LG_ENV` takes precedence over automatic resolution. See [docs/sharing-target-files.md](docs/sharing-target-files.md) for details.
