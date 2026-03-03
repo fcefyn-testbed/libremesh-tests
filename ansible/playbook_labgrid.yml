@@ -113,7 +113,9 @@
       file:
         path: /etc/labgrid
         state: directory
-
+        owner: labgrid-dev
+        group: labgrid-dev
+        mode: "0755"
 
     - name: Create tftp folder
       file:
