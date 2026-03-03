@@ -58,7 +58,7 @@ jobs:
   test-real:
     name: ${{ matrix.device }} (${{ matrix.proxy }})
     needs: generate-matrix
-    runs-on: global-coordinator
+    runs-on: [self-hosted, testbed-fcefyn]
     strategy:
       fail-fast: false
       matrix:

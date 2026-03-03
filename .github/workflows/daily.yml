@@ -136,7 +136,7 @@ jobs:
   test-real:
     name: ${{ matrix.name }} (${{ matrix.version_name }})
     needs: generate-matrix
-    runs-on: global-coordinator
+    runs-on: [self-hosted, testbed-fcefyn]
     strategy:
       fail-fast: false
       matrix:
