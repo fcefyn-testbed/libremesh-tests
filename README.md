@@ -15,7 +15,7 @@ upstream openwrt-tests.
 
 Currently, only the **labgrid-fcefyn** lab contributes DUTs to both libremesh-tests
 and openwrt-tests. In the future, we may facilitate a hybrid setup so that
-other labs can contribute to both projects—for now, new labs added ti this project would contribute
+other labs can contribute to both projects—for now, new labs added to this project would contribute
 to libremesh-tests only.
 
 ## Requirements
@@ -76,7 +76,7 @@ you can still run the tests. Use this command to run tests on `malta/be` image:
 
 ```shell
 pytest tests/ \
-    --lg-env targets/qemu-malta-be.yaml \
+    --lg-env targets/qemu_malta-be.yaml \
     --lg-log \
     --log-cli-level=CONSOLE \
     --lg-colored-steps \
