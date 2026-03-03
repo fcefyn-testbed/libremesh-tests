@@ -1,44 +1,36 @@
-aparcar-turris:
-  location: aparcar-desk
+# Example configuration for labgrid-fcefyn
+# Full exporter config: ansible/files/exporter/labgrid-fcefyn/exporter.yaml
+
+labgrid-fcefyn-belkin_rt3200_1:
+  location: fcefyn-testbed
   RawSerialPort:
-    port: "/dev/ttyUSB0"
-  NetworkPowerPort:
-    model: shelly_gen3
-    host: "http://192.168.27.159"
+    port: "/dev/belkin-rt3200-1"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
     index: 0
   TFTPProvider:
-    internal: "/srv/tftp/turris/"
-    external: "turris/"
+    internal: "/srv/tftp/belkin_rt3200_1/"
+    external: "belkin_rt3200_1/"
+    external_ip: "192.168.100.1"
   NetworkService:
-    address: "cznic_turris-omnia"
+    address: "192.168.1.1%vlan100"
     username: "root"
 
-aparcar-openwrt_one:
-  location: aparcar-desk
+labgrid-fcefyn-openwrt_one:
+  location: fcefyn-testbed
   RawSerialPort:
-    port: "/dev/ttyACM0"
-  NetworkPowerPort:
-    model: ubus
-    host: "http://192.168.128.2/ubus"
-    index: 3
+    port: "/dev/openwrt-one"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-poe
+    index: 1
   TFTPProvider:
     internal: "/srv/tftp/openwrt_one/"
-    external: "/openwrt_one/"
+    external: "openwrt_one/"
+    external_ip: "192.168.104.1"
   NetworkService:
-    address: "openwrt_one"
-    username: "root"
-
-aparcar-linksys_e8450:
-  location: aparcar-desk
-  RawSerialPort:
-    port: "/dev/ttyUSB1"
-  NetworkPowerPort:
-    model: ubus
-    host: "http://192.168.128.2/ubus"
-    index: 5
-  TFTPProvider:
-    internal: "/srv/tftp/linksys_e8450/"
-    external: "/linksys_e8450/"
-  NetworkService:
-    address: "linksys_e8450"
+    address: "192.168.1.1%vlan104"
     username: "root"
