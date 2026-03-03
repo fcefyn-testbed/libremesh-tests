@@ -13,16 +13,17 @@
 
 - **Model:** TP-Link SG2016P (16-port Gigabit, 8 PoE)
 
-| Port | Device          | Power  |
-|------|-----------------|--------|
-| 1    | OpenWRT One     | PoE    |
-| 2    | LibreRouter #1  | PoE (splitter 48V→12V) |
-| 9    | Host            | Trunk  |
-| 10   | MikroTik        | Trunk  |
-| 11   | Belkin RT3200 #1| Relay  |
-| 12   | Belkin RT3200 #2| Relay  |
-| 13   | Belkin RT3200 #3| Relay  |
-| 14   | Banana Pi R4    | Relay  |
+| Port | Device           | Power  |
+|------|------------------|--------|
+| 1    | OpenWRT One      | PoE    |
+| 2    | LibreRouter #1   | PoE (splitter 48V→12V) |
+| 3    | LibreRouter #2   | Relay |
+| 9    | Host             | Trunk  |
+| 10   | MikroTik         | Trunk  |
+| 11   | Belkin RT3200 #1 | Relay  |
+| 12   | Belkin RT3200 #2 | Relay  |
+| 13   | Belkin RT3200 #3 | Relay  |
+| 14   | Banana Pi R4     | Relay  |
 
 ## DUTs
 
