@@ -31,6 +31,7 @@
         key: "{{ hostvars[inventory_hostname]['developers'][item]['sshkey'] }}"
         comment: "{{ item }}"
       loop: "{{ hostvars[inventory_hostname]['labs'][inventory_hostname]['developers'] | default([]) }}"
+      when: hostvars[inventory_hostname]['developers'][item]['sshkey'] | default('') | trim != '' and not hostvars[inventory_hostname]['developers'][item]['sshkey'].startswith('#')
 
     - name: Set /etc/hosts
       lineinfile:
@@ -42,7 +43,7 @@
     - name: Add public SSH key of coordinator
       authorized_key:
         user: "labgrid-dev"
-        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP0ZVlD9TmfAXL53Vq7V9WKE3KPomOa1jINyflrPWAlJ"
+        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICgvjp6jVUqMT0S+H7MoMifz3+M/rTLBS0P4MtQUCshG labgrid-fcefyn"
 
     - name: Generate SSH key pair for labgrid
       community.crypto.openssh_keypair:
