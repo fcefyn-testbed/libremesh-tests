@@ -1,0 +1,35 @@
+---
+# Hybrid lab playbook: dual exporter (isolated/mesh), labgrid-dut-proxy, labgrid-exporter-select.
+#
+# Run AFTER playbook_labgrid.yml. Targets hosts that have exporter-isolated.yaml
+# (detected by file presence; no host vars needed).
+#
+# Usage:
+#   ansible-playbook -i inventory.ini playbook_hybrid.yml
+#
+- hosts: labs
+  become: true
+  tasks:
+    - name: Stat hybrid lab (exporter-isolated.yaml exists)
+      ansible.builtin.stat:
+        path: "files/exporter/{{ inventory_hostname }}/exporter-isolated.yaml"
+      register: hybrid_check
+      delegate_to: localhost
+      become: false
+
+    - name: Include hybrid lab tasks
+      ansible.builtin.include_tasks: tasks/labgrid_hybrid.yml
+      when: hybrid_check.stat.exists
+
+  handlers:
+    - name: Restart labgrid-exporter
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        name: labgrid-exporter
+        state: restarted
+
+    - name: Restart dnsmasq
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        name: dnsmasq
+        state: restarted
