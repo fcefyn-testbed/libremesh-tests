@@ -1,3 +1,5 @@
+# Exporter for isolated mode (OpenWrt: one VLAN per DUT).
+#
 labgrid-fcefyn-belkin_rt3200_1:
   location: fcefyn-testbed
   RawSerialPort:
