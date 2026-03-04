@@ -1,5 +1,5 @@
 # Example configuration for labgrid-fcefyn
-# Full exporter config: ansible/files/exporter/labgrid-fcefyn/exporter.yaml
+# Full exporter config: ansible/files/exporter/labgrid-fcefyn/exporter-isolated.yaml
 
 labgrid-fcefyn-belkin_rt3200_1:
   location: fcefyn-testbed

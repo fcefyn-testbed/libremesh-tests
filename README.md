@@ -117,6 +117,11 @@ submit a pull request modifying the `labnet.yaml` file. If you have multiple
 devices of the same model, see [docs/sharing-target-files.md](docs/sharing-target-files.md)
 for how to avoid duplicate target files.
 
+**Lab setup**: The `ansible/` directory contains the base playbook for contributor labs.
+For hybrid labs (OpenWrt isolated + LibreMesh mesh), run the base playbook first, then
+`ansible/playbook_hybrid.yml`. Hybrid labs are detected by the presence of
+`exporter-isolated.yaml` in `ansible/files/exporter/<host>/`.
+
 To access a remote device, configure the following environment variables.
 Notably, `LG_PROXY` sets the proxy host (always the lab name):
 
