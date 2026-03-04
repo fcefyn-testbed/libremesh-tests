@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""
+labgrid-exporter-select - Switch labgrid exporter based on VLAN mode (isolated vs mesh).
+
+For hybrid labs: symlinks /etc/labgrid/exporter.yaml to exporter-isolated or exporter-mesh
+and restarts labgrid-exporter. Reads mode from ~/.config/labgrid-vlan-mode
+(same file written by switch_vlan_preset.py).
+
+Usage: labgrid-exporter-select [mode]
+  If mode is given (isolated|mesh), use it. Else read from config file.
+  Default: isolated if file missing.
+
+Requires: systemctl (to restart labgrid-exporter)
+Sudoers: ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-exporter-select
+"""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+EXPORTER_DIR = Path("/etc/labgrid")
+EXPORTER_SYMLINK = EXPORTER_DIR / "exporter.yaml"
+EXPORTER_ISOLATED = EXPORTER_DIR / "exporter-isolated.yaml"
+EXPORTER_MESH = EXPORTER_DIR / "exporter-mesh.yaml"
+MODE_FILE = Path(os.path.expanduser("~/.config/labgrid-vlan-mode"))
+
+
+def get_config_path() -> Path:
+    """Return path to labgrid-vlan-mode. Prefer invoking user's home."""
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user:
+        try:
+            import pwd
+            home = pwd.getpwnam(sudo_user).pw_dir
+            return Path(home) / ".config" / "labgrid-vlan-mode"
+        except (KeyError, ImportError):
+            pass
+    return Path.home() / ".config" / "labgrid-vlan-mode"
+
+
+def get_mode() -> str:
+    """Read mode from config file or default to isolated."""
+    path = get_config_path()
+    if path.exists():
+        try:
+            mode = path.read_text().strip().lower()
+            if mode in ("mesh", "isolated"):
+                return mode
+        except (OSError, PermissionError):
+            pass
+    return "isolated"
+
+
+def main() -> int:
+    if len(sys.argv) >= 2:
+        mode = sys.argv[1].lower()
+        if mode not in ("mesh", "isolated"):
+            print(f"ERROR: mode must be 'isolated' or 'mesh', got '{mode}'", file=sys.stderr)
+            return 1
+    else:
+        mode = get_mode()
+
+    target = EXPORTER_MESH if mode == "mesh" else EXPORTER_ISOLATED
+    if not target.exists():
+        print(f"ERROR: {target} not found. Run hybrid playbook.", file=sys.stderr)
+        return 1
+
+    # Update symlink
+    if EXPORTER_SYMLINK.exists():
+        EXPORTER_SYMLINK.unlink()
+    EXPORTER_SYMLINK.symlink_to(target.name)
+
+    # Restart labgrid-exporter
+    subprocess.run(
+        ["systemctl", "restart", "labgrid-exporter"],
+        check=True,
+        capture_output=True,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
