@@ -44,9 +44,18 @@
     - Target: ath79-generic
     - Strategy: UBootTFTPStrategy (TFTP boot initramfs in RAM, same as other DUTs)
 
+## Dual-mode topology (isolated + mesh)
+
+The lab supports two network topologies controlled by the PoE switch and labgrid exporter:
+
+| Mode    | VLANs       | Use case              |
+|---------|-------------|------------------------|
+| isolated | 100–105 (one per DUT) | OpenWrt tests, each DUT in its own VLAN |
+| mesh    | 200 (shared) | LibreMesh multi-node tests, all DUTs in one VLAN |
+
 ## Misc Hardware / Notes
 
-- Each DUT in isolated VLAN
+- Default: each DUT in isolated VLAN (100–105)
 - LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Serial: `/dev/librerouter-1`
 
 ## Maintainers
