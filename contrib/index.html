@@ -3,120 +3,273 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>LibreMesh Tests - FCEFyN</title>
+        <title>libremesh-tests - FCEFyN</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <style>
+            :root {
+                --bg: #f8fafc;
+                --card-bg: #ffffff;
+                --text: #1e293b;
+                --text-muted: #64748b;
+                --accent: #0ea5e9;
+                --accent-hover: #0284c7;
+                --border: #e2e8f0;
+                --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+                --shadow-hover: 0 10px 40px -10px rgba(0, 0, 0, 0.12);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
             body {
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    "Helvetica Neue", Arial, sans-serif;
+                font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                    sans-serif;
+                font-size: 16px;
                 line-height: 1.6;
-                color: #333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 40px 20px;
-                background-color: #f5f5f5;
+                color: var(--text);
+                background: var(--bg);
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 3rem 1.5rem;
             }
-            .container {
-                background-color: white;
-                padding: 40px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+            .page {
+                width: 100%;
+                max-width: 720px;
             }
-            h1 {
-                color: #2c3e50;
-                margin-bottom: 30px;
+
+            .header {
                 text-align: center;
+                margin-bottom: 2.5rem;
             }
-            .section {
-                margin-bottom: 30px;
+
+            .project-branding {
+                margin-bottom: 2rem;
             }
-            .section h2 {
-                color: #34495e;
-                margin-bottom: 15px;
-                border-bottom: 2px solid #3498db;
-                padding-bottom: 10px;
+
+            .project-branding .logo-link {
+                display: inline-flex;
+                transition: opacity 0.2s, transform 0.2s;
             }
-            .link-card {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                padding: 20px;
-                margin-bottom: 15px;
-                transition:
-                    transform 0.2s,
-                    box-shadow 0.2s;
+
+            .project-branding .logo-link:hover {
+                opacity: 0.85;
+                transform: translateY(-1px);
             }
-            .link-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+            .project-branding .logo-link img {
+                height: 56px;
+                width: auto;
+                object-fit: contain;
             }
-            .link-card h3 {
-                margin-top: 0;
-                color: #2c3e50;
+
+            .institution-block {
+                margin-top: 2.5rem;
+                padding-top: 2rem;
+                border-top: 1px solid var(--border);
             }
-            .link-card a {
-                color: #3498db;
+
+            .institution-label {
+                font-size: 0.75rem;
+                font-weight: 500;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                margin-bottom: 1rem;
+            }
+
+            .institution-logos {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 1.75rem;
+                flex-wrap: wrap;
+            }
+
+            .institution-logos a {
+                display: flex;
+                align-items: center;
+                transition: opacity 0.2s, transform 0.2s;
+            }
+
+            .institution-logos a:hover {
+                opacity: 0.85;
+                transform: translateY(-1px);
+            }
+
+            .institution-logos img {
+                height: 44px;
+                width: auto;
+                object-fit: contain;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+                font-weight: 700;
+                color: var(--text);
+                margin: 0 0 0.35rem;
+                letter-spacing: -0.02em;
+            }
+
+            .subtitle {
+                font-size: 0.9375rem;
+                color: var(--text-muted);
+                margin: 0;
+                line-height: 1.5;
+            }
+
+            .subtitle-link {
+                color: var(--accent);
                 text-decoration: none;
                 font-weight: 500;
             }
-            .link-card a:hover {
+
+            .subtitle-link:hover {
                 text-decoration: underline;
             }
-            .description {
-                color: #666;
-                margin-top: 10px;
+
+            .section-title {
+                font-size: 0.8125rem;
+                font-weight: 600;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                margin: 0 0 1rem;
             }
+
+            .cards {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .card {
+                background: var(--card-bg);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 1.25rem 1.5rem;
+                transition: border-color 0.2s, box-shadow 0.2s;
+            }
+
+            .card:hover {
+                border-color: #cbd5e1;
+                box-shadow: var(--shadow-hover);
+            }
+
+            .card-title {
+                font-size: 1rem;
+                font-weight: 600;
+                color: var(--text);
+                margin: 0 0 0.5rem;
+            }
+
+            .card-description {
+                font-size: 0.9375rem;
+                color: var(--text-muted);
+                margin: 0 0 0.75rem;
+                line-height: 1.5;
+            }
+
+            .card-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                font-size: 0.9375rem;
+                font-weight: 500;
+                color: var(--accent);
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+
+            .card-link:hover {
+                color: var(--accent-hover);
+            }
+
+            .card-link::after {
+                content: "→";
+                font-size: 0.9em;
+            }
+
             .footer {
+                margin-top: 3rem;
+                padding-top: 1.5rem;
+                border-top: 1px solid var(--border);
                 text-align: center;
-                margin-top: 40px;
-                color: #7f8c8d;
-                font-size: 14px;
+                font-size: 0.8125rem;
+                color: var(--text-muted);
             }
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>LibreMesh Tests</h1>
-            <p style="text-align: center; color: #666; margin-top: -15px;">
-                Facultad de Ciencias Exactas, Físicas y Naturales<br />
-                Universidad Nacional de Córdoba
-            </p>
-
-            <div class="section">
-                <h2>Quick Links</h2>
-                <div class="link-card">
-                    <h3>📊 Test Dashboard</h3>
-                    <p class="description">
-                        <em>Work in progress.</em> For now, the upstream
-                        openwrt-tests dashboard can be used as reference.
-                    </p>
-                    <a
-                        href="https://aparcar.github.io/openwrt-tests-ui/"
-                        target="_blank"
-                        >Upstream dashboard (openwrt-tests) →</a
-                    >
+        <main class="page">
+            <header class="header">
+                <div class="project-branding">
+                    <a href="https://libremesh.org" target="_blank" rel="noopener" title="LibreMesh" class="logo-link">
+                        <img src="img/libremesh.png" alt="LibreMesh" />
+                    </a>
                 </div>
-
-                <div class="link-card">
-                    <h3>💻 Source Code Repository</h3>
-                    <a
-                        href="https://github.com/francoriba/libremesh-tests"
-                        target="_blank"
-                        >https://github.com/francoriba/libremesh-tests</a
-                    >
-                    <p class="description">
-                        Source code, contributions, and issues. Fork aimed at
-                        LibreMesh testing.
-                    </p>
-                </div>
-            </div>
-
-            <div class="footer">
-                <p>
-                    Maintained by FCEFyN · Universidad Nacional de Córdoba ·
-                    Córdoba, Argentina
+                <h1>libremesh-tests</h1>
+                <p class="subtitle">
+                    Automated testing framework for LibreMesh firmwares. Based on
+                    <a href="https://github.com/aparcar/openwrt-tests" target="_blank" rel="noopener" class="subtitle-link">openwrt-tests</a>.
                 </p>
-            </div>
-        </div>
+                <div class="institution-block">
+                    <p class="institution-label">Initiative and base infrastructure by</p>
+                    <div class="institution-logos">
+                        <a href="https://fcefyn.unc.edu.ar" target="_blank" rel="noopener" title="FCEFyN">
+                            <img src="img/fcefyn.png" alt="FCEFyN" />
+                        </a>
+                        <a href="https://www.unc.edu.ar" target="_blank" rel="noopener" title="Universidad Nacional de Córdoba">
+                            <img src="img/unc.png" alt="UNC" />
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <section>
+                <h2 class="section-title">Quick Links</h2>
+                <div class="cards">
+                    <article class="card">
+                        <h3 class="card-title">Test Dashboard</h3>
+                        <p class="card-description">
+                            <em>Work in progress.</em> For now, the upstream
+                            openwrt-tests dashboard can be used as reference.
+                        </p>
+                        <a
+                            href="https://aparcar.github.io/openwrt-tests-ui/"
+                            target="_blank"
+                            rel="noopener"
+                            class="card-link"
+                            >Upstream dashboard (openwrt-tests)</a
+                        >
+                    </article>
+
+                    <article class="card">
+                        <h3 class="card-title">Source Code Repository</h3>
+                        <p class="card-description">
+                            Source code, contributions, and issues. Fork aimed at
+                            LibreMesh testing.
+                        </p>
+                        <a
+                            href="https://github.com/francoriba/libremesh-tests"
+                            target="_blank"
+                            rel="noopener"
+                            class="card-link"
+                            >github.com/francoriba/libremesh-tests</a
+                        >
+                    </article>
+                </div>
+            </section>
+
+            <footer class="footer">
+                · Maintained by the LibreMesh community ·
+            </footer>
+        </main>
     </body>
 </html>
