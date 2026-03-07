@@ -1,7 +1,15 @@
-# Exporter for LibreMesh mesh mode (VLAN 200).
-# All DUTs share VLAN 200; NetworkService uses %vlan200.
-# TFTP external_ip uses host on vlan200 (192.168.200.1).
+# NetworkService addresses use FIXED IPs in the 10.13.200.x range.
+# These IPs are configured via serial console before SSH access (see conftest.py).
+# This approach ensures stable SSH connectivity regardless of what IP LibreMesh
+# auto-assigns, making it resilient to LibreMesh version changes.
 #
+# The test framework adds these IPs as secondary addresses on br-lan,
+# preserving the original LibreMesh IP for validation tests.
+#
+# IP GENERATION: Uses MD5 hash for deterministic results across Python runs.
+# To calculate the IP for a new place, run:
+#   python3 -c "import hashlib; h=hashlib.md5('PLACE_NAME'.encode()).hexdigest(); print(f'10.13.200.{int(h[:8],16)%253+1}')"
+
 labgrid-fcefyn-belkin_rt3200_1:
   location: fcefyn-testbed
   RawSerialPort:
@@ -16,7 +24,7 @@ labgrid-fcefyn-belkin_rt3200_1:
     external: "belkin_rt3200_1/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.11%vlan200"
     username: "root"
 
 labgrid-fcefyn-belkin_rt3200_2:
@@ -33,7 +41,7 @@ labgrid-fcefyn-belkin_rt3200_2:
     external: "belkin_rt3200_2/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.196%vlan200"
     username: "root"
 
 labgrid-fcefyn-belkin_rt3200_3:
@@ -50,7 +58,7 @@ labgrid-fcefyn-belkin_rt3200_3:
     external: "belkin_rt3200_3/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.118%vlan200"
     username: "root"
 
 labgrid-fcefyn-bananapi_bpi-r4:
@@ -67,7 +75,7 @@ labgrid-fcefyn-bananapi_bpi-r4:
     external: "bananapi_bpi-r4/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.169%vlan200"
     username: "root"
 
 labgrid-fcefyn-openwrt_one:
@@ -77,14 +85,14 @@ labgrid-fcefyn-openwrt_one:
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-poe
+    pdu: fcefyn-poe-port1
     index: 1
   TFTPProvider:
     internal: "/srv/tftp/openwrt_one/"
     external: "openwrt_one/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.120%vlan200"
     username: "root"
 
 labgrid-fcefyn-librerouter_1:
@@ -94,12 +102,12 @@ labgrid-fcefyn-librerouter_1:
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-poe
+    pdu: fcefyn-poe-port2
     index: 2
   TFTPProvider:
     internal: "/srv/tftp/librerouter_1/"
     external: "librerouter_1/"
     external_ip: "192.168.200.1"
   NetworkService:
-    address: "192.168.1.1%vlan200"
+    address: "10.13.200.77%vlan200"
     username: "root"
