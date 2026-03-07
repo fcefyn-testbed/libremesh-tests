@@ -1,15 +1,3 @@
-# NetworkService addresses use FIXED IPs in the 10.13.200.x range.
-# These IPs are configured via serial console before SSH access (see conftest.py).
-# This approach ensures stable SSH connectivity regardless of what IP LibreMesh
-# auto-assigns, making it resilient to LibreMesh version changes.
-#
-# The test framework adds these IPs as secondary addresses on br-lan,
-# preserving the original LibreMesh IP for validation tests.
-#
-# IP GENERATION: Uses MD5 hash for deterministic results across Python runs.
-# To calculate the IP for a new place, run:
-#   python3 -c "import hashlib; h=hashlib.md5('PLACE_NAME'.encode()).hexdigest(); print(f'10.13.200.{int(h[:8],16)%253+1}')"
-
 labgrid-fcefyn-belkin_rt3200_1:
   location: fcefyn-testbed
   RawSerialPort:
