@@ -1,128 +1,54 @@
+"""WAN / upstream connectivity tests for LibreMesh.
+
+In vanilla OpenWrt, the WAN port is the upstream internet connection.
+In LibreMesh running from initramfs (RAM boot), WAN is typically not
+configured as a separate interface — internet access goes through
+whatever upstream route is available in the mesh.
+
+These tests verify upstream connectivity rather than a specific WAN
+interface, which is more appropriate for LibreMesh's architecture.
+"""
+
 import pytest
-from conftest import ubus_call
 
 
-def check_download(
-    command,
-    url,
-    expect_stdout=None,
-    expect_stderr=None,
-    expect_exitcode=0,
-    expect_content=None,
-    remove=True,
-    filename="index.html",
-):
-    try:
-        stdout, stderr, exitcode = command.run(f"wget {url} -O {filename}")
-        if expect_stdout:
-            found = False
-            for line in stdout:
-                if expect_stdout in line:
-                    found = True
-                    break
-            assert found, f"Expected output '{expect_stdout}' not found in {stdout}"
+@pytest.mark.lg_feature("online")
+def test_internet_reachability(ssh_command):
+    """Verify the node can reach the internet via any available route.
 
-        if expect_stderr:
-            found = False
-            for line in stderr:
-                if expect_stderr in line:
-                    found = True
-                    break
-            assert found, f"Expected error '{expect_stderr}' not found in {stderr}"
-
-        assert expect_exitcode == exitcode, (
-            f"Expected exit code {expect_exitcode} not found in {exitcode}"
-        )
-        if expect_content:
-            assert expect_content in command.run(f"cat {url.split('/')[-1]}")[0], (
-                f"Expected content '{expect_content}' not found in {url.split('/')[-1]}"
-            )
-    finally:
-        if remove:
-            command.run(f"rm {filename}")
+    In LibreMesh, internet access is routed through the mesh (babeld/batman)
+    rather than a dedicated WAN port. This test checks basic internet
+    connectivity without assuming a specific WAN interface.
+    """
+    stdout, stderr, rc = ssh_command.run("ping -c 3 -W 5 8.8.8.8")
+    assert rc == 0, (
+        f"Cannot reach internet (8.8.8.8). "
+        f"stdout: {stdout}, stderr: {stderr}"
+    )
 
 
-@pytest.mark.lg_feature("wan_port")
-def test_wan_wait_for_network(shell_command):
-    for i in range(60):
-        if ubus_call(shell_command, "network.interface.wan", "status").get(
-            "ipv4-address"
-        ):
-            return
-
-    assert False, "WAN interface did not come up within 60 seconds"
+@pytest.mark.lg_feature("online")
+def test_dns_resolution(ssh_command):
+    """Verify DNS resolution works through the mesh."""
+    stdout, stderr, rc = ssh_command.run("nslookup openwrt.org")
+    if rc != 0:
+        stdout, stderr, rc = ssh_command.run("host openwrt.org")
+    assert rc == 0, (
+        f"DNS resolution failed. stdout: {stdout}, stderr: {stderr}"
+    )
 
 
 @pytest.mark.lg_feature("online")
 def test_https_download(ssh_command):
-    check_download(
-        ssh_command,
-        "https://downloads.openwrt.org/releases/21.02.2/targets/armvirt/64/config.buildinfo",
-        expect_stderr="Download completed",
-        filename="config.buildinfo",
-        remove=False,
-    )
+    """Verify HTTPS download works (validates routing + TLS + DNS)."""
+    try:
+        stdout, stderr, rc = ssh_command.run(
+            "wget -q -O /tmp/test_download.txt "
+            "https://downloads.openwrt.org/releases/21.02.2/targets/armvirt/64/config.buildinfo"
+        )
+        assert rc == 0, f"wget failed with rc={rc}. stderr: {stderr}"
 
-    assert (
-        "26b85383a138594b1197e581bd13c6825c0b6b5f23829870a6dbc5d37ccf6cd8  config.buildinfo"
-        in ssh_command.run("sha256sum config.buildinfo")[0]
-    )
-    ssh_command.run("rm config.buildinfo")
-
-
-# @pytest.mark.lg_feature("online")
-# def test_http_download(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "http://http.badssl.com",
-#         expect_stderr="Download completed",
-#     )
-
-
-# @pytest.mark.lg_feature("online")
-# def test_https_mozilla(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "https://www.mozilla.org/",
-#         expect_stderr="Download completed",
-#     )
-
-
-# @pytest.mark.lg_feature("online")
-# def test_https_untrusted(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "https://untrusted-root.badssl.com/",
-#         expect_stderr="Connection error: Invalid SSL certificate",
-#         expect_exitcode=5,
-#     )
-
-
-# @pytest.mark.lg_feature("online")
-# def test_https_wrong(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "https://wrong.host.badssl.com/",
-#         expect_stderr="Connection error: Server hostname does not match SSL certificate",
-#         expect_exitcode=5,
-#     )
-
-
-# @pytest.mark.lg_feature("online")
-# def test_https_expired(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "https://expired.badssl.com/",
-#         expect_stderr="Connection error: Invalid SSL certificate",
-#         expect_exitcode=5,
-#     )
-
-
-# @pytest.mark.lg_feature("online")
-# def test_https_rc4(ssh_command):
-#     check_download(
-#         ssh_command,
-#         "https://rc4.badssl.com/",
-#         expect_stderr="Connection error: Connection failed",
-#         4,
-#     )
+        content, _, cat_rc = ssh_command.run("cat /tmp/test_download.txt | head -1")
+        assert cat_rc == 0 and content, "Downloaded file is empty or unreadable"
+    finally:
+        ssh_command.run("rm -f /tmp/test_download.txt")

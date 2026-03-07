@@ -49,7 +49,13 @@ def test_uname(ssh_command):
 
 def test_ubus_system_board(ssh_command, results_bag):
     output = ubus_call(ssh_command, "system", "board", {})
-    assert output["release"]["distribution"] == "OpenWrt"
+
+    # LibreMesh is built on top of OpenWrt, so the distribution field
+    # may report "OpenWrt", "LibreMesh", or "LiMe" depending on the build.
+    distribution = output["release"]["distribution"]
+    assert distribution in ("OpenWrt", "LibreMesh", "LiMe"), (
+        f"Unexpected distribution: {distribution}"
+    )
 
     results_bag["board_name"] = output["board_name"]
     results_bag["kernel"] = output["kernel"]
@@ -60,10 +66,18 @@ def test_ubus_system_board(ssh_command, results_bag):
 
 
 def test_free_memory(ssh_command, results_bag):
-    used_memory = int(ssh_command.run_check("free -m")[1].split()[2])
+    mem_parts = ssh_command.run_check("free -m")[1].split()
+    total_memory = int(mem_parts[1])
+    used_memory = int(mem_parts[2])
 
-    assert used_memory > 10000, "Used memory is more than 100MB"
-    results_bag["used_memory"] = used_memory
+    # Router flash typically ranges from 64MB to 1024MB.
+    # Used memory should not exceed 90% of total.
+    mem_percent = (used_memory / total_memory) * 100
+    assert mem_percent < 90, (
+        f"Memory usage too high: {used_memory}MB used of {total_memory}MB ({mem_percent:.1f}%)"
+    )
+    results_bag["used_memory_mb"] = used_memory
+    results_bag["total_memory_mb"] = total_memory
 
 
 @pytest.mark.lg_feature("rootfs")
