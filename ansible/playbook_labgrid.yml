@@ -313,12 +313,16 @@
         dest: /etc/systemd/system/labgrid-exporter.service
       notify:
         - Restart labgrid-exporter
+      tags:
+        - export
 
     - name: Start and enable labgrid-exporter
       service:
         name: labgrid-exporter
         state: started
         enabled: yes
+      tags:
+        - export
 
     - name: Add labgrid-bound-connect to sudoers
       lineinfile:
