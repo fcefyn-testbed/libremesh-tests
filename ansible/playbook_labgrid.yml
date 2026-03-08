@@ -150,20 +150,12 @@
       tags:
         - export
 
-    - name: Stat hybrid lab (exporter-isolated.yaml exists)
-      ansible.builtin.stat:
-        path: "files/exporter/{{ inventory_hostname }}/exporter-isolated.yaml"
-      register: hybrid_exporter
-      delegate_to: localhost
-      become: false
-
     - name: Copy exporter configuration
       template:
         src: files/exporter/{{ inventory_hostname }}/exporter.yaml
         dest: /etc/labgrid/exporter.yaml
       notify:
         - Restart labgrid-exporter
-      when: not hybrid_exporter.stat.exists
       tags:
         - export
 
@@ -339,6 +331,18 @@
         src: files/labgrid-bound-connect
         dest: /usr/local/sbin/labgrid-bound-connect
         mode: "0755"
+
+    - name: Install labgrid-dut-proxy
+      copy:
+        src: files/labgrid-dut-proxy
+        dest: /usr/local/sbin/labgrid-dut-proxy
+        mode: "0755"
+
+    - name: Add labgrid-dut-proxy to sudoers
+      lineinfile:
+        path: /etc/sudoers
+        line: "ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-dut-proxy"
+        validate: "visudo -cf %s"
 
     - name: Create /var/cache/labgrid/labgrid-dev
       file:
