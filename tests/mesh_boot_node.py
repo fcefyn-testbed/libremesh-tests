@@ -33,6 +33,53 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
+FIXED_IP_PREFIX = "10.13.200"
+
+
+def _generate_fixed_ip(place_name: str) -> str:
+    """Generate a deterministic fixed IP for a place name.
+
+    Must match conftest._generate_fixed_ip so exporter, labgrid-dut-proxy,
+    and mesh tests all use the same IP. Enables manual SSH after mesh tests.
+    """
+    import hashlib
+    md5_hash = hashlib.md5(place_name.encode()).hexdigest()
+    hash_value = int(md5_hash[:8], 16) % 253 + 1
+    return f"{FIXED_IP_PREFIX}.{hash_value}"
+
+
+def _configure_fixed_ip(target, place_name: str) -> str | None:
+    """Configure fixed IP on br-lan via serial for stable SSH access.
+
+    Adds 10.13.200.x as secondary address so manual SSH (labgrid-dut-proxy)
+    and mesh tests use the same IP. Returns the IP if configured, None otherwise.
+    """
+    if not place_name:
+        return None
+
+    fixed_ip = _generate_fixed_ip(place_name)
+    shell = target.get_driver("ShellDriver")
+
+    try:
+        # Check if already configured (grep -q returns 0 if found)
+        shell.run_check(f"ip addr show br-lan | grep -q '{fixed_ip}'")
+        logger.info("Fixed IP %s already on %s", fixed_ip, place_name)
+        return fixed_ip
+    except Exception:
+        pass  # Not found, need to add it
+
+    try:
+        logger.info("Configuring fixed IP %s on %s", fixed_ip, place_name)
+        shell.run_check(f"ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null || true")
+
+        # Verify
+        shell.run_check(f"ip addr show br-lan | grep -q '{fixed_ip}'")
+        logger.info("Fixed IP %s configured on %s", fixed_ip, place_name)
+        return fixed_ip
+    except Exception as e:
+        logger.warning("Failed to configure fixed IP %s: %s", fixed_ip, e)
+
+    return None
 
 
 def _patch_reg_driver_idempotent():
@@ -288,8 +335,14 @@ def boot_node(place: str, image: str, target_yaml: str,
 
     _ensure_batman_mesh(target)
 
-    node_ip = _query_node_ip(target)
-    logger.info("Node %s has IP %s", place, node_ip)
+    # Configure fixed IP (10.13.200.x) so manual SSH via labgrid-dut-proxy works
+    fixed_ip = _configure_fixed_ip(target, place)
+    if fixed_ip:
+        node_ip = fixed_ip
+        logger.info("Node %s using fixed IP %s", place, node_ip)
+    else:
+        node_ip = _query_node_ip(target)
+        logger.info("Node %s has IP %s (fixed IP not configured)", place, node_ip)
 
     return {
         "session": session,
