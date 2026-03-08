@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-labgrid-dut-proxy - SSH ProxyCommand for DUT access via VLAN 200.
+labgrid-dut-proxy - SSH ProxyCommand for dual-mode DUT access (isolated / mesh).
 
-All LibreMesh DUTs share VLAN 200. This script forwards the SSH connection
-through labgrid-bound-connect bound to the vlan200 interface.
+Selects the correct VLAN and IP based on ~/.config/labgrid-vlan-mode
+(written by switch_vlan_preset.py when changing testbed mode).
+
+  - isolated: each DUT in its own VLAN (100-108), IP 192.168.1.1
+  - mesh:     all DUTs in VLAN 200, IPs 10.13.200.x (LibreMesh fixed IPs)
 
 Usage: labgrid-dut-proxy <device-id> <host> <port>
-  e.g. labgrid-dut-proxy librerouter-1 10.13.200.77 22
+  e.g. labgrid-dut-proxy belkin-2 192.168.1.1 22
+
+The host/port args are ignored for known devices; the script uses the correct
+address from the mode. SSH config can pass 192.168.1.1 for all — it works in both modes.
 
 Requires: labgrid-bound-connect in /usr/local/sbin/
 Sudoers: ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-dut-proxy
@@ -15,18 +21,71 @@ Sudoers: ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-dut-proxy
 import os
 import sys
 
-VLAN_MESH = 200
 LABGRID_BOUND_CONNECT = "/usr/local/sbin/labgrid-bound-connect"
+VLAN_MESH = 200
+MODE_FILE = ".config/labgrid-vlan-mode"
+
+# device_id (from ssh config) -> (vlan_isolated, ip_mesh)
+# Must match ssh_config_fcefyn aliases and pool-config.yaml
+DEVICE_MAP = {
+    "belkin-1": (100, "10.13.200.11"),
+    "belkin-2": (101, "10.13.200.196"),
+    "belkin-3": (102, "10.13.200.118"),
+    "bananapi": (103, "10.13.200.169"),
+    "openwrt-one": (104, "10.13.200.120"),
+    "librerouter-1": (105, "10.13.200.77"),
+    "librerouter-2": (106, "10.13.200.78"),
+    "librerouter-3": (107, "10.13.200.79"),
+}
+
+
+def get_mode_file_path() -> str:
+    """Resolve path to labgrid-vlan-mode (invoking user's home when run via sudo)."""
+    real_user = os.environ.get("SUDO_USER")
+    if real_user:
+        try:
+            import pwd
+            home = pwd.getpwnam(real_user).pw_dir
+        except (KeyError, ImportError):
+            home = os.path.expanduser("~")
+    else:
+        home = os.path.expanduser("~")
+    return os.path.join(home, MODE_FILE)
+
+
+def read_mode() -> str:
+    """Read current mode from file. Default to isolated if missing."""
+    path = get_mode_file_path()
+    try:
+        with open(path) as f:
+            mode = f.read().strip().lower()
+    except OSError:
+        mode = "isolated"
+    return mode if mode in ("isolated", "mesh") else "isolated"
 
 
 def main() -> int:
     if len(sys.argv) != 4:
         print("Usage: labgrid-dut-proxy <device-id> <host> <port>", file=sys.stderr)
-        print("  e.g. labgrid-dut-proxy librerouter-1 10.13.200.77 22", file=sys.stderr)
+        print("  e.g. labgrid-dut-proxy belkin-2 192.168.1.1 22", file=sys.stderr)
         return 1
 
-    _device_id, host, port_str = sys.argv[1], sys.argv[2], sys.argv[3]
-    ifname = f"vlan{VLAN_MESH}"
+    device_id, _host, port_str = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    if device_id not in DEVICE_MAP:
+        print(f"labgrid-dut-proxy: unknown device '{device_id}'", file=sys.stderr)
+        print(f"Known devices: {', '.join(sorted(DEVICE_MAP))}", file=sys.stderr)
+        return 1
+
+    vlan_isolated, ip_mesh = DEVICE_MAP[device_id]
+    mode = read_mode()
+
+    if mode == "mesh":
+        ifname = f"vlan{VLAN_MESH}"
+        host = ip_mesh
+    else:
+        ifname = f"vlan{vlan_isolated}"
+        host = "192.168.1.1"
 
     os.execv(
         LABGRID_BOUND_CONNECT,
