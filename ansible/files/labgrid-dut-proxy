@@ -1,42 +1,49 @@
 #!/usr/bin/env python3
 """
-labgrid-dut-proxy - SSH ProxyCommand for dual-mode DUT access (isolated / mesh).
+labgrid-dut-proxy - SSH ProxyCommand for DUT access (isolated / mesh or single-mode).
 
-Selects the correct VLAN and IP based on ~/.config/labgrid-vlan-mode
-(written by switch_vlan_preset.py when changing testbed mode).
-
-  - isolated: each DUT in its own VLAN (100-108), IP 192.168.1.1
-  - mesh:     all DUTs in VLAN 200, IPs 10.13.200.x (LibreMesh fixed IPs)
+Reads device map from /etc/labgrid/dut-proxy.yaml (deployed by Ansible per lab).
+Selects VLAN and IP based on ~/.config/labgrid-vlan-mode when in dual-mode labs.
 
 Usage: labgrid-dut-proxy <device-id> <host> <port>
   e.g. labgrid-dut-proxy belkin-2 192.168.1.1 22
-
-The host/port args are ignored for known devices; the script uses the correct
-address from the mode. SSH config can pass 192.168.1.1 for all — it works in both modes.
 
 Requires: labgrid-bound-connect in /usr/local/sbin/
 Sudoers: ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-dut-proxy
 """
 
+import json
 import os
 import sys
 
 LABGRID_BOUND_CONNECT = "/usr/local/sbin/labgrid-bound-connect"
-VLAN_MESH = 200
 MODE_FILE = ".config/labgrid-vlan-mode"
+CONFIG_PATH = "/etc/labgrid/dut-proxy.yaml"
 
-# device_id (from ssh config) -> (vlan_isolated, ip_mesh)
-# Must match ssh_config_fcefyn aliases and pool-config.yaml
-DEVICE_MAP = {
-    "belkin-1": (100, "10.13.200.11"),
-    "belkin-2": (101, "10.13.200.196"),
-    "belkin-3": (102, "10.13.200.118"),
-    "bananapi": (103, "10.13.200.169"),
-    "openwrt-one": (104, "10.13.200.120"),
-    "librerouter-1": (105, "10.13.200.77"),
-    "librerouter-2": (106, "10.13.200.78"),
-    "librerouter-3": (107, "10.13.200.79"),
-}
+
+def get_config_path() -> str | None:
+    """Return config path if it exists. Override via LABGRID_DUT_PROXY_CONFIG env."""
+    env_path = os.environ.get("LABGRID_DUT_PROXY_CONFIG")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    if os.path.isfile(CONFIG_PATH):
+        return CONFIG_PATH
+    return None
+
+
+def load_config(path: str) -> dict:
+    """Load config from YAML or JSON."""
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    if path.endswith(".json"):
+        return json.loads(content)
+    try:
+        import yaml
+        return yaml.safe_load(content) or {}
+    except ImportError:
+        raise RuntimeError(
+            "YAML config requires PyYAML. Install with: pip install pyyaml"
+        ) from None
 
 
 def get_mode_file_path() -> str:
@@ -72,20 +79,52 @@ def main() -> int:
 
     device_id, _host, port_str = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    if device_id not in DEVICE_MAP:
-        print(f"labgrid-dut-proxy: unknown device '{device_id}'", file=sys.stderr)
-        print(f"Known devices: {', '.join(sorted(DEVICE_MAP))}", file=sys.stderr)
+    config_path = get_config_path()
+    if not config_path:
+        print(
+            f"labgrid-dut-proxy: config not found at {CONFIG_PATH}. "
+            "Add ansible/files/exporter/<lab>/dut-proxy.yaml and deploy.",
+            file=sys.stderr,
+        )
         return 1
 
-    vlan_isolated, ip_mesh = DEVICE_MAP[device_id]
+    try:
+        config = load_config(config_path)
+    except Exception as e:
+        print(f"labgrid-dut-proxy: failed to load config: {e}", file=sys.stderr)
+        return 1
+
+    devices = config.get("devices") or {}
+    if device_id not in devices:
+        print(f"labgrid-dut-proxy: unknown device '{device_id}'", file=sys.stderr)
+        print(f"Known devices: {', '.join(sorted(devices))}", file=sys.stderr)
+        return 1
+
+    device_cfg = devices[device_id]
     mode = read_mode()
 
-    if mode == "mesh":
-        ifname = f"vlan{VLAN_MESH}"
-        host = ip_mesh
-    else:
-        ifname = f"vlan{vlan_isolated}"
-        host = "192.168.1.1"
+    # Prefer mode-specific config; if only one mode defined, use it
+    mode_cfg = device_cfg.get(mode)
+    if not mode_cfg and len(device_cfg) == 1:
+        mode_cfg = next(iter(device_cfg.values()))
+    if not mode_cfg:
+        print(
+            f"labgrid-dut-proxy: no config for device '{device_id}' in mode '{mode}'",
+            file=sys.stderr,
+        )
+        print(f"Available for device: {', '.join(device_cfg)}", file=sys.stderr)
+        return 1
+
+    vlan = mode_cfg.get("vlan")
+    host = mode_cfg.get("ip", "192.168.1.1")
+    if vlan is None:
+        print(
+            f"labgrid-dut-proxy: missing 'vlan' for device '{device_id}'",
+            file=sys.stderr,
+        )
+        return 1
+
+    ifname = f"vlan{vlan}"
 
     os.execv(
         LABGRID_BOUND_CONNECT,
