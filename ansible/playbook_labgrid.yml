@@ -337,6 +337,8 @@
         src: files/labgrid-dut-proxy
         dest: /usr/local/sbin/labgrid-dut-proxy
         mode: "0755"
+      tags:
+        - export
 
     - name: Add labgrid-dut-proxy to sudoers
       lineinfile:
