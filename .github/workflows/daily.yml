@@ -109,7 +109,6 @@ jobs:
       - name: Set environment
         run: |
           echo "LG_PROXY=${{ matrix.proxy }}" >> $GITHUB_ENV
-          echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
           if [ -n "${{ github.event.inputs.LM_IMAGE_URL }}" ]; then
             echo "LM_IMAGE_URL=${{ github.event.inputs.LM_IMAGE_URL }}" >> $GITHUB_ENV
           fi
@@ -121,6 +120,7 @@ jobs:
           echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
           echo "LG_PLACE=+" >> $GITHUB_ENV
           uv run labgrid-client -p +$LG_TOKEN lock
+          echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
 
       - name: Resolve LG_IMAGE from catalog
         run: |
