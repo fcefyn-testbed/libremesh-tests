@@ -201,9 +201,6 @@ def ssh_command(shell_command, target):
     fixed_ip = _configure_fixed_ip(shell_command, place_name)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH on %s", fixed_ip, place_name)
-        # Override labgrid's SSH target so it connects to the IP we just configured
-        # (LibreMesh may auto-assign different IPs; exporter's address can be stale)
-        os.environ["LG_HOSTNAME"] = fixed_ip
 
     ssh = target.get_driver("SSHDriver")
     return ssh
