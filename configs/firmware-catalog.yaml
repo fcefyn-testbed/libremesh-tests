@@ -1,5 +1,7 @@
+# firmwares_folder: subdir under /srv/tftp/firmwares/ for each device (Labgrid stage() creates symlink in place folder)
 devices:
   linksys_e8450:
+    firmwares_folder: "belkin_rt3200"
     default: "openwrt-24.10.5"
     images:
       openwrt-24.10.5:
@@ -13,6 +15,7 @@ devices:
         label: "LibreMesh 23.05.5 UBI (Belkin RT3200)"
 
   openwrt_one:
+    firmwares_folder: "openwrt_one"
     default: "openwrt-24.10.5"
     images:
       openwrt-24.10.5:
@@ -20,6 +23,7 @@ devices:
         label: "LibreMesh 24.10.5 (OpenWrt One)"
 
   bananapi_bpi-r4:
+    firmwares_folder: "bananapi_bpi-r4"
     default: "openwrt-24.10.5"
     images:
       openwrt-24.10.5:
@@ -27,6 +31,7 @@ devices:
         label: "LibreMesh 24.10.5 (BananaPi R4)"
 
   librerouter_librerouter_v1:
+    firmwares_folder: "librerouter_librerouter_v1"
     default: "openwrt-24.10.5"
     images:
       openwrt-24.10.5:
