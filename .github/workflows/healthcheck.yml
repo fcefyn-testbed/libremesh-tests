@@ -2,7 +2,8 @@ name: Healthcheck
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    # 06:00 UTC — after openwrt-tests midnight run, no hardware collision
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 env:
@@ -135,7 +136,7 @@ jobs:
             const isSuccess = "${{ job.status }}" === "success";
 
             const failureBody = `
-              ### ❌ Healthcheck Failed
+              ### ❌ LibreMesh Healthcheck Failed
 
               The automated healthcheck for:
 
@@ -144,6 +145,7 @@ jobs:
               - **Maintainers**: ${{ matrix.maintainers }}
 
               has **failed**. Please review the logs and investigate the issue.
+              This device will be excluded from daily and PR test runs until resolved.
 
               🔗 [View the full workflow run](${runUrl})
             `.trim();
