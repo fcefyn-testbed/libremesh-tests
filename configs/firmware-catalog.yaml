@@ -1,0 +1,37 @@
+devices:
+  linksys_e8450:
+    default: "openwrt-24.10.5"
+    images:
+      openwrt-24.10.5:
+        filename: "openwrt-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin"
+        label: "LibreMesh 24.10.5 (Belkin RT3200)"
+      lime:
+        filename: "lime-mediatek-mt7622-linksys_e8450-ubi-initramfs-recovery.itb"
+        label: "LibreMesh lime UBI (Belkin RT3200, fallback)"
+      openwrt-23.05.5:
+        filename: "openwrt-23.05.5-mediatek-mt7622-linksys_e8450-ubi-initramfs-recovery.itb"
+        label: "LibreMesh 23.05.5 UBI (Belkin RT3200)"
+
+  openwrt_one:
+    default: "openwrt-24.10.5"
+    images:
+      openwrt-24.10.5:
+        filename: "openwrt-24.10.5-mediatek-filogic-openwrt_one-initramfs.itb"
+        label: "LibreMesh 24.10.5 (OpenWrt One)"
+
+  bananapi_bpi-r4:
+    default: "openwrt-24.10.5"
+    images:
+      openwrt-24.10.5:
+        filename: "openwrt-24.10.5-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb"
+        label: "LibreMesh 24.10.5 (BananaPi R4)"
+
+  librerouter_librerouter_v1:
+    default: "openwrt-24.10.5"
+    images:
+      openwrt-24.10.5:
+        filename: "openwrt-24.10.5-ath79-generic-librerouter_librerouter-v1-initramfs-kernel.bin"
+        label: "LibreMesh 24.10.5 (LibreRouter v1)"
+      openwrt-legacy:
+        filename: "openwrt-ath79-generic-librerouter_librerouter-v1-initramfs-kernel.bin"
+        label: "LibreMesh legacy (LibreRouter v1)"
