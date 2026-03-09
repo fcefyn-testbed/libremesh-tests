@@ -130,8 +130,13 @@ jobs:
             exit 1
           }
           echo "$LOCK_OUT"
-          PLACE=$(echo "$LOCK_OUT" | sed -n 's/^acquired place \([^ ]*\)/\1/p')
-          if [ -n "$PLACE" ]; then echo "LG_PLACE=$PLACE" >> $GITHUB_ENV; fi
+          PLACE=$(echo "$LOCK_OUT" | sed -n 's/.*acquired place \([^ ]*\).*/\1/p')
+          if [ -n "$PLACE" ]; then
+            echo "LG_PLACE=$PLACE" >> $GITHUB_ENV
+            echo "Resolved LG_PLACE=$PLACE"
+          else
+            echo "::warning::Could not parse place name from lock output"
+          fi
           echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
 
       - name: Resolve LG_IMAGE from catalog

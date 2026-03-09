@@ -29,35 +29,22 @@ logger = logging.getLogger(__name__)
 FIXED_IP_PREFIX = "10.13.200"
 
 
-def _get_exporter_ip(place_name: str) -> str | None:
-    """Get the expected SSH IP for a place from the lab's exporter config.
+def _get_ssh_target_ip(target) -> str | None:
+    """Extract the IP that the SSHDriver will connect to from the target's NetworkService.
 
-    When using LG_PROXY, the SSH connection runs on the exporter host, which
-    uses the address from exporter.yaml. We must configure the DUT with that
-    same IP so the exporter can reach it.
-
-    Returns the IP (without %vlan200 suffix) or None if not found.
+    The SSHDriver binds to a NetworkService resource whose address comes from
+    the exporter config (e.g. "10.13.200.169%vlan200"). We must configure the
+    DUT with that same IP so SSH can reach it.
     """
-    # Place format: lab-instance (e.g. labgrid-fcefyn-bananapi_bpi-r4)
-    parts = place_name.split("-", 2)
-    if len(parts) < 3:
-        return None
-    lab = f"{parts[0]}-{parts[1]}"
-    repo_root = Path(__file__).parent.parent
-    exporter_path = repo_root / "ansible" / "files" / "exporter" / lab / "exporter.yaml"
-    if not exporter_path.exists():
-        return None
     try:
-        import yaml
-        with open(exporter_path) as f:
-            config = yaml.safe_load(f)
-        place_config = config.get(place_name, {})
-        ns = place_config.get("NetworkService", {})
-        addr = ns.get("address", "")
-        if addr and "%" in addr:
+        ssh = target.get_driver("SSHDriver", activate=False)
+        addr = ssh.networkservice.address
+        logger.info("NetworkService address for SSH: %s", addr)
+        if "%" in addr:
             addr = addr.split("%")[0]
         return addr if addr else None
-    except Exception:
+    except Exception as e:
+        logger.warning("Could not read NetworkService address: %s", e)
         return None
 
 
@@ -67,12 +54,6 @@ def _generate_fixed_ip(place_name: str) -> str:
     md5_hash = hashlib.md5(place_name.encode()).hexdigest()
     hash_value = int(md5_hash[:8], 16) % 253 + 1
     return f"{FIXED_IP_PREFIX}.{hash_value}"
-
-
-def _get_fixed_ip_for_place(place_name: str) -> str:
-    """Return the IP to configure on the DUT. Prefer exporter's IP for LG_PROXY compatibility."""
-    exporter_ip = _get_exporter_ip(place_name)
-    return exporter_ip if exporter_ip else _generate_fixed_ip(place_name)
 
 
 def _resolve_target_from_place():
@@ -175,32 +156,33 @@ def shell_command(strategy):
         pytest.exit("Failed to transition to state shell", returncode=3)
 
 
-def _configure_fixed_ip(shell_command, place_name: str) -> str | None:
+def _configure_fixed_ip(shell_command, target) -> str | None:
     """Configure a fixed IP on br-lan via serial for stable SSH access.
 
-    This ensures SSH connectivity works regardless of what IP LibreMesh
-    auto-assigns. The fixed IP is added as a secondary address, preserving
-    the original LibreMesh IP for tests that need to validate it.
+    Reads the IP from the target's SSHDriver NetworkService binding, which
+    is the exact address SSH will connect to. This ensures the DUT has the
+    IP that labgrid expects, regardless of LG_PLACE expansion.
 
-    The IP is generated deterministically from the place name, so no
-    hardcoding of specific devices is needed.
+    Falls back to a hash-based IP from LG_PLACE if NetworkService is unavailable.
 
     Returns the fixed IP if configured, None otherwise.
     """
-    if not place_name:
-        logger.warning("No place name provided, cannot configure fixed IP")
-        return None
+    fixed_ip = _get_ssh_target_ip(target)
+    if not fixed_ip:
+        place_name = getenv("LG_PLACE", "")
+        if not place_name or place_name == "+":
+            logger.warning("Cannot determine SSH target IP (no NetworkService, LG_PLACE=%s)", place_name)
+            return None
+        fixed_ip = _generate_fixed_ip(place_name)
+        logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
+    logger.info("SSH target IP resolved to %s", fixed_ip)
 
-    fixed_ip = _get_fixed_ip_for_place(place_name)
-
-    # Check if the fixed IP is already configured
     stdout, _, rc = shell_command.run(f"ip addr show br-lan | grep -q '{fixed_ip}'")
     if rc == 0:
-        logger.info("Fixed IP %s already configured on %s", fixed_ip, place_name)
+        logger.info("Fixed IP %s already configured", fixed_ip)
         return fixed_ip
 
-    # Add the fixed IP as a secondary address on br-lan
-    logger.info("Configuring fixed IP %s on %s", fixed_ip, place_name)
+    logger.info("Configuring fixed IP %s on br-lan", fixed_ip)
     shell_command.run(f"ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null || true")
 
     # Verify it was added
@@ -215,13 +197,9 @@ def _configure_fixed_ip(shell_command, place_name: str) -> str | None:
 
 @pytest.fixture
 def ssh_command(shell_command, target):
-    # Get the place name to look up the fixed IP
-    place_name = getenv("LG_PLACE", "")
-
-    # Configure fixed IP via serial before attempting SSH
-    fixed_ip = _configure_fixed_ip(shell_command, place_name)
+    fixed_ip = _configure_fixed_ip(shell_command, target)
     if fixed_ip:
-        logger.info("Using fixed IP %s for SSH on %s", fixed_ip, place_name)
+        logger.info("Using fixed IP %s for SSH", fixed_ip)
 
     ssh = target.get_driver("SSHDriver")
     return ssh
