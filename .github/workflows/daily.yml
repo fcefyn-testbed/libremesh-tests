@@ -113,38 +113,19 @@ jobs:
             echo "LM_IMAGE_URL=${{ github.event.inputs.LM_IMAGE_URL }}" >> $GITHUB_ENV
           fi
 
-      - name: Diagnose labgrid state (before reserve)
-        run: |
-          echo "=== Places (device=${{ matrix.device }}) ==="
-          uv run labgrid-client -v places 2>&1 | head -80 || true
-          echo "=== Who has places? ==="
-          uv run labgrid-client who 2>&1 || true
-          echo "=== Reservations ==="
-          uv run labgrid-client reservations 2>&1 || true
-        continue-on-error: true
-
       - name: Wait for free device
         run: |
           # Create reservation and get token (reserve --shell returns immediately with token)
           eval $(uv run labgrid-client reserve --shell device=${{ matrix.device }})
           echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
           echo "LG_PLACE=+" >> $GITHUB_ENV
-          echo "Reservation created, token=$LG_TOKEN, waiting for allocation..."
           # Explicitly wait for allocation (reserve --wait can return before allocated in some labgrid forks)
           timeout 180 uv run labgrid-client wait || {
-            echo "::error::labgrid reserve timed out after 3 min. Check: coordinator running, exporter active, places have device tag, run 'labgrid-client reservations' for stuck reservations."
+            echo "::error::labgrid reserve timed out after 3 min. Check: labgrid-client who (release acquired places), coordinator/exporter running, places have device tag."
             exit 1
           }
           uv run labgrid-client -p +$LG_TOKEN lock
           echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
-
-      - name: Diagnose on reserve failure
-        if: failure()
-        run: |
-          echo "=== State when reserve/wait failed ==="
-          uv run labgrid-client reservations 2>&1 || true
-          uv run labgrid-client -v places 2>&1 | head -60 || true
-        continue-on-error: true
 
       - name: Resolve LG_IMAGE from catalog
         run: |
