@@ -156,26 +156,41 @@ def shell_command(strategy):
         pytest.exit("Failed to transition to state shell", returncode=3)
 
 
-def _find_lan_interface(shell_command) -> str | None:
-    """Detect the LAN bridge or fallback interface for IP assignment.
+def _find_lan_interface(shell_command, max_wait: int = 60) -> str | None:
+    """Wait for an UP LAN interface suitable for IP assignment.
 
-    Tries br-lan first (standard OpenWrt/LibreMesh), then eth0, then the
-    default route interface. Some devices (e.g. LibreRouter) don't create
-    br-lan immediately or use a different bridge name.
+    Waits up to max_wait seconds for br-lan (created by LibreMesh after
+    wifi/batman init, can take 50+ seconds on slow devices like LibreRouter).
+    Only falls back to eth0 or default-route interface if they are UP.
     """
     import time
-    for attempt in range(3):
-        for iface in ("br-lan", "eth0"):
-            _, _, rc = shell_command.run(f"ip link show {iface} 2>/dev/null")
+
+    deadline = time.time() + max_wait
+    attempt = 0
+    while time.time() < deadline:
+        stdout, _, rc = shell_command.run(
+            "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
+        )
+        if rc == 0:
+            return "br-lan"
+
+        for iface in ("eth0",):
+            stdout, _, rc = shell_command.run(
+                f"ip -o link show {iface} 2>/dev/null | grep -q 'state UP'"
+            )
             if rc == 0:
                 return iface
+
         stdout, _, rc = shell_command.run(
             "ip route show default 2>/dev/null | awk '{print $5}' | head -1"
         )
         if rc == 0 and stdout and stdout[0].strip():
             return stdout[0].strip()
-        if attempt < 2:
-            logger.info("No LAN interface found yet, waiting for network init (attempt %d/3)", attempt + 1)
+
+        attempt += 1
+        remaining = int(deadline - time.time())
+        if remaining > 0:
+            logger.info("Waiting for LAN interface to come UP (%ds remaining)", remaining)
             time.sleep(5)
     return None
 
