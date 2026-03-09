@@ -156,8 +156,32 @@ def shell_command(strategy):
         pytest.exit("Failed to transition to state shell", returncode=3)
 
 
+def _find_lan_interface(shell_command) -> str | None:
+    """Detect the LAN bridge or fallback interface for IP assignment.
+
+    Tries br-lan first (standard OpenWrt/LibreMesh), then eth0, then the
+    default route interface. Some devices (e.g. LibreRouter) don't create
+    br-lan immediately or use a different bridge name.
+    """
+    import time
+    for attempt in range(3):
+        for iface in ("br-lan", "eth0"):
+            _, _, rc = shell_command.run(f"ip link show {iface} 2>/dev/null")
+            if rc == 0:
+                return iface
+        stdout, _, rc = shell_command.run(
+            "ip route show default 2>/dev/null | awk '{print $5}' | head -1"
+        )
+        if rc == 0 and stdout and stdout[0].strip():
+            return stdout[0].strip()
+        if attempt < 2:
+            logger.info("No LAN interface found yet, waiting for network init (attempt %d/3)", attempt + 1)
+            time.sleep(5)
+    return None
+
+
 def _configure_fixed_ip(shell_command, target) -> str | None:
-    """Configure a fixed IP on br-lan via serial for stable SSH access.
+    """Configure a fixed IP on the LAN interface via serial for stable SSH access.
 
     Reads the IP from the target's SSHDriver NetworkService binding, which
     is the exact address SSH will connect to. This ensures the DUT has the
@@ -167,6 +191,10 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
 
     Returns the fixed IP if configured, None otherwise.
     """
+    import time
+
+    time.sleep(5)
+
     fixed_ip = _get_ssh_target_ip(target)
     if not fixed_ip:
         place_name = getenv("LG_PLACE", "")
@@ -177,22 +205,27 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
         logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
-    stdout, _, rc = shell_command.run(f"ip addr show br-lan | grep -q '{fixed_ip}'")
-    if rc == 0:
-        logger.info("Fixed IP %s already configured", fixed_ip)
-        return fixed_ip
-
-    logger.info("Configuring fixed IP %s on br-lan", fixed_ip)
-    shell_command.run(f"ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null || true")
-
-    # Verify it was added
-    stdout, _, rc = shell_command.run(f"ip addr show br-lan | grep '{fixed_ip}'")
-    if rc == 0:
-        logger.info("Fixed IP %s configured successfully", fixed_ip)
-        return fixed_ip
-    else:
-        logger.error("Failed to configure fixed IP %s", fixed_ip)
+    iface = _find_lan_interface(shell_command)
+    if not iface:
+        logger.error("No suitable network interface found for fixed IP")
         return None
+    logger.info("Using interface %s for fixed IP", iface)
+
+    _, _, rc = shell_command.run(f"ip addr show {iface} | grep -q '{fixed_ip}'")
+    if rc == 0:
+        logger.info("Fixed IP %s already configured on %s", fixed_ip, iface)
+        return fixed_ip
+
+    logger.info("Configuring fixed IP %s on %s", fixed_ip, iface)
+    shell_command.run(f"ip addr add {fixed_ip}/16 dev {iface} 2>/dev/null || true")
+
+    _, _, rc = shell_command.run(f"ip addr show {iface} | grep '{fixed_ip}'")
+    if rc == 0:
+        logger.info("Fixed IP %s configured successfully on %s", fixed_ip, iface)
+        return fixed_ip
+
+    logger.error("Failed to configure fixed IP %s on %s", fixed_ip, iface)
+    return None
 
 
 @pytest.fixture
