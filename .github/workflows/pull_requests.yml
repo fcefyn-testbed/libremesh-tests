@@ -7,7 +7,6 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTEST_ADDOPTS: "--color=yes"
   LG_CONSOLE: "internal"
-  RELEASE: "24.10.2"
 
 concurrency:
   group: pr-${{ github.workflow }}-${{ github.ref }}
@@ -69,75 +68,6 @@ jobs:
 
           echo "matrix=$(echo "$filtered_matrix" | jq -c '.')" >> $GITHUB_OUTPUT
 
-  test-qemu:
-    name: QEMU ${{ matrix.target }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: malta-be
-            firmware: openwrt-${RELEASE}-malta-be-vmlinux-initramfs.elf
-            dependency: qemu-system-mips
-
-          - target: x86-64
-            firmware: openwrt-${RELEASE}-x86-64-generic-squashfs-combined.img.gz
-            dependency: qemu-system-x86
-
-          - target: armsr-armv8
-            firmware: openwrt-${RELEASE}-armsr-armv8-generic-initramfs-kernel.bin
-            dependency: qemu-system-aarch64
-
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v6
-
-      - name: Setup environment
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install \
-            nmap \
-            ${{ matrix.dependency }}
-
-          # workaround until ARMSR is fixed
-          if [ "${{ matrix.target }}" = "armsr-armv8" ]; then
-            export RELEASE=23.05.5
-            echo "RELEASE=${RELEASE}" >> $GITHUB_ENV
-          fi
-
-          echo "LG_ENV=targets/qemu_${{ matrix.target }}.yaml" >> $GITHUB_ENV
-          echo "UPSTREAM_URL=https://mirror-03.infra.openwrt.org/releases/${RELEASE}/targets" >> $GITHUB_ENV
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Download test firmware
-        env:
-          target: ${{ matrix.target }}
-        run: |
-          wget $UPSTREAM_URL/${target/-/\/}/${{ matrix.firmware }} \
-            --output-document ${{ matrix.firmware }}
-          FIRMWARE_VERSION=$(curl $UPSTREAM_URL/${target/-/\/}/version.buildinfo)
-          echo "FIRMWARE_VERSION=$FIRMWARE_VERSION" >> $GITHUB_ENV
-
-      - name: Run test
-        run: |
-          gunzip ${{ matrix.firmware }} || true
-          firmware=${{ matrix.firmware }}
-
-          uv run pytest tests/ \
-            --lg-log \
-            --lg-colored-steps \
-            --log-cli-level=CONSOLE \
-            --firmware $GITHUB_WORKSPACE/${firmware/.gz/}
-
-      - name: Upload console logs
-        uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: console-${{ matrix.target }}
-          path: console_*
-
   test-real:
     name: ${{ matrix.proxy }}/${{ matrix.device }}
     needs: generate-matrix
@@ -155,28 +85,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Set environment
-        env:
-          target: ${{ matrix.target }}
         run: |
-          # workaround until 24.10.x is fixed on tplink_tl-wr1043nd-v3
-          if [ "${{ matrix.device }}" = "tplink_tl-wr1043nd-v3" ]; then
-            export RELEASE=23.05.5
-            echo "RELEASE=${RELEASE}" >> $GITHUB_ENV
-          fi
-
-          export firmware=openwrt-${RELEASE}-${{ matrix.target }}-${{ matrix.device }}-${{ matrix.firmware }}
-          export upstream_url="https://mirror-03.infra.openwrt.org/releases/${RELEASE}/targets"
-
-          mkdir -p $GITHUB_WORKSPACE/tftp/${{ matrix.device }}
-          wget $upstream_url/${target/-/\/}/$firmware \
-            --output-document $GITHUB_WORKSPACE/tftp/${{ matrix.device }}/$firmware
-            (cd $GITHUB_WORKSPACE/tftp/ && gzip -d ${{ matrix.device }}/$firmware) || true
-
-          FIRMWARE_VERSION=$(curl $upstream_url/${target/-/\/}/version.buildinfo)
-          echo "FIRMWARE_VERSION=$FIRMWARE_VERSION" >> $GITHUB_ENV
-
-          echo "LG_IMAGE=$GITHUB_WORKSPACE/tftp/${{ matrix.device }}/${firmware/.gz/}" >> $GITHUB_ENV
           echo "LG_PROXY=${{ matrix.proxy }}" >> $GITHUB_ENV
+          echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
 
       - name: Wait for free device
         run: |
@@ -184,11 +95,10 @@ jobs:
           echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
           echo "LG_PLACE=+" >> $GITHUB_ENV
           uv run labgrid-client -p +$LG_TOKEN lock
-          echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
 
-      - name: Run test
+      - name: Run LibreMesh tests
         run: |
-          uv run pytest tests/ \
+          uv run pytest tests/test_libremesh.py \
             --lg-log \
             --lg-colored-steps \
             --log-cli-level=CONSOLE
@@ -197,7 +107,7 @@ jobs:
         if: always()
         run: |
           uv run labgrid-client power off || true
-          uv run labgrid-client unlock
+          uv run labgrid-client -p +$LG_TOKEN unlock
 
       - name: Upload console logs
         uses: actions/upload-artifact@v6
