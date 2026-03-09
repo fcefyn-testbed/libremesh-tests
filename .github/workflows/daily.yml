@@ -26,7 +26,7 @@ env:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   generate-matrix:
@@ -115,7 +115,10 @@ jobs:
 
       - name: Wait for free device
         run: |
-          eval $(uv run labgrid-client reserve --wait --shell device=${{ matrix.device }})
+          eval $(timeout 180 uv run labgrid-client reserve --wait --shell device=${{ matrix.device }}) || {
+            echo "::error::labgrid reserve timed out after 3 min. Check: coordinator running, exporter (libremesh) active, places have device tag, run 'labgrid-client reservations' for stuck reservations."
+            exit 1
+          }
           echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
           echo "LG_PLACE=+" >> $GITHUB_ENV
           uv run labgrid-client -p +$LG_TOKEN lock
