@@ -154,8 +154,10 @@ jobs:
       - name: Poweroff and unlock device
         if: always()
         run: |
-          uv run labgrid-client power off || true
-          uv run labgrid-client -p +$LG_TOKEN unlock
+          if [ -n "${{ env.LG_TOKEN }}" ]; then
+            uv run labgrid-client power off || true
+            uv run labgrid-client -p +$LG_TOKEN unlock
+          fi
 
       - name: Upload results
         uses: actions/upload-artifact@v6
