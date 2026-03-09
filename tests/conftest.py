@@ -29,29 +29,50 @@ logger = logging.getLogger(__name__)
 FIXED_IP_PREFIX = "10.13.200"
 
 
-def _generate_fixed_ip(place_name: str) -> str:
-    """Generate a deterministic fixed IP for a place name.
+def _get_exporter_ip(place_name: str) -> str | None:
+    """Get the expected SSH IP for a place from the lab's exporter config.
 
-    Uses MD5 hash of the place name to derive the last octet, ensuring:
-    - Same place always gets the same IP (deterministic across runs)
-    - Different places get different IPs (with high probability)
-    - No hardcoding of specific devices
+    When using LG_PROXY, the SSH connection runs on the exporter host, which
+    uses the address from exporter.yaml. We must configure the DUT with that
+    same IP so the exporter can reach it.
 
-    Note: We use hashlib.md5 instead of hash() because Python's hash()
-    is randomized by default (PYTHONHASHSEED) and not consistent across runs.
-
-    Args:
-        place_name: The labgrid place name (e.g., "labgrid-fcefyn-openwrt_one")
-
-    Returns:
-        IP address string (e.g., "10.13.200.42")
+    Returns the IP (without %vlan200 suffix) or None if not found.
     """
+    # Place format: lab-instance (e.g. labgrid-fcefyn-bananapi_bpi-r4)
+    parts = place_name.split("-", 2)
+    if len(parts) < 3:
+        return None
+    lab = f"{parts[0]}-{parts[1]}"
+    repo_root = Path(__file__).parent.parent
+    exporter_path = repo_root / "ansible" / "files" / "exporter" / lab / "exporter.yaml"
+    if not exporter_path.exists():
+        return None
+    try:
+        import yaml
+        with open(exporter_path) as f:
+            config = yaml.safe_load(f)
+        place_config = config.get(place_name, {})
+        ns = place_config.get("NetworkService", {})
+        addr = ns.get("address", "")
+        if addr and "%" in addr:
+            addr = addr.split("%")[0]
+        return addr if addr else None
+    except Exception:
+        return None
+
+
+def _generate_fixed_ip(place_name: str) -> str:
+    """Generate a deterministic fixed IP for a place name (hash fallback)."""
     import hashlib
-    # Use MD5 hash (deterministic) of place name, modulo 253 to get range 1-254
-    # (avoiding .0 network and .255 broadcast)
     md5_hash = hashlib.md5(place_name.encode()).hexdigest()
     hash_value = int(md5_hash[:8], 16) % 253 + 1
     return f"{FIXED_IP_PREFIX}.{hash_value}"
+
+
+def _get_fixed_ip_for_place(place_name: str) -> str:
+    """Return the IP to configure on the DUT. Prefer exporter's IP for LG_PROXY compatibility."""
+    exporter_ip = _get_exporter_ip(place_name)
+    return exporter_ip if exporter_ip else _generate_fixed_ip(place_name)
 
 
 def _resolve_target_from_place():
@@ -170,7 +191,7 @@ def _configure_fixed_ip(shell_command, place_name: str) -> str | None:
         logger.warning("No place name provided, cannot configure fixed IP")
         return None
 
-    fixed_ip = _generate_fixed_ip(place_name)
+    fixed_ip = _get_fixed_ip_for_place(place_name)
 
     # Check if the fixed IP is already configured
     stdout, _, rc = shell_command.run(f"ip addr show br-lan | grep -q '{fixed_ip}'")
@@ -201,9 +222,6 @@ def ssh_command(shell_command, target):
     fixed_ip = _configure_fixed_ip(shell_command, place_name)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH on %s", fixed_ip, place_name)
-        # Labgrid's SSHDriver uses NetworkService address from exporter (e.g. 10.13.200.169).
-        # We configured a different deterministic IP; override so SSH reaches the DUT.
-        os.environ["LG_HOSTNAME"] = fixed_ip
 
     ssh = target.get_driver("SSHDriver")
     return ssh
