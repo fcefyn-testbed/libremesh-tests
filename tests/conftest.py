@@ -201,6 +201,9 @@ def ssh_command(shell_command, target):
     fixed_ip = _configure_fixed_ip(shell_command, place_name)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH on %s", fixed_ip, place_name)
+        # Labgrid's SSHDriver uses NetworkService address from exporter (e.g. 10.13.200.169).
+        # We configured a different deterministic IP; override so SSH reaches the DUT.
+        os.environ["LG_HOSTNAME"] = fixed_ip
 
     ssh = target.get_driver("SSHDriver")
     return ssh
