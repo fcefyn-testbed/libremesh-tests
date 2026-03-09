@@ -1,0 +1,83 @@
+[
+  {
+    "device": "bananapi_bpi-r4",
+    "name": "Bananapi BPi-R4",
+    "proxy": "labgrid-fcefyn",
+    "target": "mediatek-filogic",
+    "firmware": "initramfs-recovery.itb",
+    "maintainers": [
+      "@javierbrk",
+      "@francoriba",
+      "@ccasanueva7"
+    ],
+    "snapshots_only": false,
+    "version_url": "https://mirror-03.infra.openwrt.org/releases/24.10-SNAPSHOT/targets",
+    "version_name": "24.10"
+  },
+  {
+    "device": "librerouter_librerouter_v1",
+    "name": "LibreRouter v1",
+    "proxy": "labgrid-fcefyn",
+    "target": "ath79-generic",
+    "firmware": "initramfs-kernel.bin",
+    "maintainers": [
+      "@javierbrk",
+      "@francoriba",
+      "@ccasanueva7"
+    ],
+    "snapshots_only": false,
+    "version_url": "https://mirror-03.infra.openwrt.org/releases/24.10-SNAPSHOT/targets",
+    "version_name": "24.10"
+  },
+  {
+    "device": "linksys_e8450",
+    "name": "Linksys E8450 / Belkin RT3200",
+    "proxy": "labgrid-fcefyn",
+    "target": "mediatek-mt7622",
+    "firmware": "initramfs-kernel.bin",
+    "maintainers": [
+      "@javierbrk",
+      "@francoriba",
+      "@ccasanueva7"
+    ],
+    "snapshots_only": false,
+    "version_url": "https://mirror-03.infra.openwrt.org/releases/24.10-SNAPSHOT/targets",
+    "version_name": "24.10"
+  },
+  {
+    "device": "openwrt_one",
+    "name": "OpenWrt One",
+    "proxy": "labgrid-fcefyn",
+    "target": "mediatek-filogic",
+    "firmware": "initramfs.itb",
+    "maintainers": [
+      "@javierbrk",
+      "@francoriba",
+      "@ccasanueva7"
+    ],
+    "snapshots_only": false,
+    "version_url": "https://mirror-03.infra.openwrt.org/releases/24.10-SNAPSHOT/targets",
+    "version_name": "24.10"
+  },
+  {
+    "device": "qemu_malta-be",
+    "name": "QEMU malta-be",
+    "target": "malta-be",
+    "firmware": "vmlinux-initramfs.elf",
+    "version_name": "24.10"
+  },
+  {
+    "device": "qemu_x86-64",
+    "name": "QEMU x86-64",
+    "target": "x86-64",
+    "firmware": "generic-squashfs-combined.img.gz",
+    "version_name": "24.10"
+  },
+  {
+    "device": "qemu_armsr-armv8",
+    "name": "QEMU armsr-armv8",
+    "target": "armsr-armv8",
+    "firmware": "generic-initramfs-kernel.bin",
+    "version_name": "24.10"
+  }
+]
