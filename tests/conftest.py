@@ -185,7 +185,13 @@ def _find_lan_interface(shell_command, max_wait: int = 60) -> str | None:
             "ip route show default 2>/dev/null | awk '{print $5}' | head -1"
         )
         if rc == 0 and stdout and stdout[0].strip():
-            return stdout[0].strip()
+            iface = stdout[0].strip()
+            # Verify interface exists before using (avoids "can't find device" on early boot)
+            _, _, rc2 = shell_command.run(
+                f"ip -o link show {iface} 2>/dev/null | grep -q ."
+            )
+            if rc2 == 0:
+                return iface
 
         attempt += 1
         remaining = int(deadline - time.time())
@@ -220,27 +226,38 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
         logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
-    iface = _find_lan_interface(shell_command)
-    if not iface:
-        logger.error("No suitable network interface found for fixed IP")
-        return None
-    logger.info("Using interface %s for fixed IP", iface)
+    max_attempts = 3
+    retry_delay = 15
+    for attempt in range(1, max_attempts + 1):
+        iface = _find_lan_interface(shell_command)
+        if not iface:
+            logger.error("No suitable network interface found for fixed IP")
+            return None
+        logger.info("Using interface %s for fixed IP (attempt %d/%d)", iface, attempt, max_attempts)
 
-    _, _, rc = shell_command.run(f"ip addr show {iface} | grep -q '{fixed_ip}'")
-    if rc == 0:
-        logger.info("Fixed IP %s already configured on %s", fixed_ip, iface)
-        return fixed_ip
+        _, _, rc = shell_command.run(f"ip addr show {iface} | grep -q '{fixed_ip}'")
+        if rc == 0:
+            logger.info("Fixed IP %s already configured on %s", fixed_ip, iface)
+            return fixed_ip
 
-    logger.info("Configuring fixed IP %s on %s", fixed_ip, iface)
-    shell_command.run(f"ip addr add {fixed_ip}/16 dev {iface} 2>/dev/null || true")
+        logger.info("Configuring fixed IP %s on %s", fixed_ip, iface)
+        shell_command.run(f"ip addr add {fixed_ip}/16 dev {iface} 2>/dev/null || true")
 
-    _, _, rc = shell_command.run(f"ip addr show {iface} | grep '{fixed_ip}'")
-    if rc == 0:
-        logger.info("Fixed IP %s configured successfully on %s", fixed_ip, iface)
-        return fixed_ip
+        stdout, stderr, rc = shell_command.run(f"ip addr show {iface} | grep '{fixed_ip}'")
+        if rc == 0:
+            logger.info("Fixed IP %s configured successfully on %s", fixed_ip, iface)
+            return fixed_ip
 
-    logger.error("Failed to configure fixed IP %s on %s", fixed_ip, iface)
-    return None
+        if attempt < max_attempts:
+            err_msg = " ".join(stderr) if stderr else " ".join(stdout) if stdout else "exit %d" % rc
+            logger.warning(
+                "Failed to verify IP on %s (attempt %d/%d): %s; retrying in %ds",
+                iface, attempt, max_attempts, err_msg, retry_delay,
+            )
+            time.sleep(retry_delay)
+        else:
+            logger.error("Failed to configure fixed IP %s on %s after %d attempts", fixed_ip, iface, max_attempts)
+            return None
 
 
 @pytest.fixture
