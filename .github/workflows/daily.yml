@@ -115,27 +115,39 @@ jobs:
 
       - name: Wait for free device
         run: |
-          # Create reservation and get token (reserve --shell returns immediately with token)
-          eval $(uv run labgrid-client reserve --shell device=${{ matrix.device }})
-          echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
-          echo "LG_PLACE=+" >> $GITHUB_ENV
-          # Explicitly wait for allocation (reserve --wait can return before allocated in some labgrid forks)
-          timeout 180 uv run labgrid-client wait || {
-            echo "::error::labgrid reserve timed out after 3 min. Check: labgrid-client who (release acquired places), coordinator/exporter running, places have device tag."
-            exit 1
-          }
-          LOCK_OUT=$(uv run labgrid-client -v -p +$LG_TOKEN lock 2>&1) || {
-            echo "$LOCK_OUT"
-            echo "::error::labgrid lock failed"
-            exit 1
-          }
-          echo "$LOCK_OUT"
-          PLACE=$(echo "$LOCK_OUT" | sed -n 's/.*acquired place \([^ ]*\).*/\1/p')
-          if [ -n "$PLACE" ]; then
+          # linksys_e8450: force belkin_rt3200_2 only (belkin_rt3200_1 disabled for repair)
+          if [ "${{ matrix.device }}" = "linksys_e8450" ]; then
+            PLACE="labgrid-fcefyn-belkin_rt3200_2"
+            LOCK_OUT=$(uv run labgrid-client -v -p "$PLACE" lock 2>&1) || {
+              echo "$LOCK_OUT"
+              echo "::error::labgrid lock failed for $PLACE"
+              exit 1
+            }
             echo "LG_PLACE=$PLACE" >> $GITHUB_ENV
-            echo "Resolved LG_PLACE=$PLACE"
+            echo "Resolved LG_PLACE=$PLACE (forced)"
           else
-            echo "::warning::Could not parse place name from lock output"
+            # Create reservation and get token (reserve --shell returns immediately with token)
+            eval $(uv run labgrid-client reserve --shell device=${{ matrix.device }})
+            echo "LG_TOKEN=$LG_TOKEN" >> $GITHUB_ENV
+            echo "LG_PLACE=+" >> $GITHUB_ENV
+            # Explicitly wait for allocation (reserve --wait can return before allocated in some labgrid forks)
+            timeout 180 uv run labgrid-client wait || {
+              echo "::error::labgrid reserve timed out after 3 min. Check: labgrid-client who (release acquired places), coordinator/exporter running, places have device tag."
+              exit 1
+            }
+            LOCK_OUT=$(uv run labgrid-client -v -p +$LG_TOKEN lock 2>&1) || {
+              echo "$LOCK_OUT"
+              echo "::error::labgrid lock failed"
+              exit 1
+            }
+            echo "$LOCK_OUT"
+            PLACE=$(echo "$LOCK_OUT" | sed -n 's/.*acquired place \([^ ]*\).*/\1/p')
+            if [ -n "$PLACE" ]; then
+              echo "LG_PLACE=$PLACE" >> $GITHUB_ENV
+              echo "Resolved LG_PLACE=$PLACE"
+            else
+              echo "::warning::Could not parse place name from lock output"
+            fi
           fi
           echo "LG_ENV=targets/${{ matrix.device }}.yaml" >> $GITHUB_ENV
 
@@ -163,9 +175,13 @@ jobs:
       - name: Poweroff and unlock device
         if: always()
         run: |
-          if [ -n "${{ env.LG_TOKEN }}" ]; then
+          if [ -n "${{ env.LG_PLACE }}" ] || [ -n "${{ env.LG_TOKEN }}" ]; then
             uv run labgrid-client power off || true
-            uv run labgrid-client -p +$LG_TOKEN unlock
+            if [ -n "${{ env.LG_TOKEN }}" ]; then
+              uv run labgrid-client -p +$LG_TOKEN unlock
+            else
+              uv run labgrid-client -p $LG_PLACE unlock
+            fi
           fi
 
       - name: Upload results
