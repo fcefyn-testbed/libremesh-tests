@@ -13,6 +13,8 @@ This repository is a fork aimed at **LibreMesh** testing. It is intended for
 contributors who want to add their DUTs to **libremesh-tests** rather than
 upstream openwrt-tests.
 
+**Documentation index:** [CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) (lab admins) · [sharing-target-files.md](docs/sharing-target-files.md) (multiple devices) · [labs/fcefynlab.md](docs/labs/fcefynlab.md) (FCEFYN hardware)
+
 Currently, only the **labgrid-fcefyn** lab contributes DUTs to both libremesh-tests
 and openwrt-tests. In the future, we may facilitate a hybrid setup so that
 other labs can contribute to both projects—for now, new labs added to this project would contribute

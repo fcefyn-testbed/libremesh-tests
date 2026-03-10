@@ -27,22 +27,15 @@
 
 ## DUTs
 
-- **Belkin RT3200 #1, #2, #3** (linksys_e8450)
-    - Power: Arduino relay (channels 0–2)
-    - Target: mediatek-mt7622
+| Place           | Switch | VLAN | Power  | Serial symlink    | SSH alias        | Target              |
+|-----------------|--------|------|--------|-------------------|------------------|---------------------|
+| belkin_rt3200_1 | 11     | 100  | Relay  | belkin-rt3200-1   | dut-belkin-1     | mediatek-mt7622     |
+| belkin_rt3200_2 | 12     | 101  | Relay  | belkin-rt3200-2   | dut-belkin-2     | mediatek-mt7622     |
+| belkin_rt3200_3 | 13     | 102  | Relay  | belkin-rt3200-3   | dut-belkin-3     | mediatek-mt7622     |
+| bananapi_bpi-r4 | 14     | 103  | Relay  | bpi-r4            | dut-bananapi     | mediatek-filogic    |
+| openwrt_one     | 1      | 104  | PoE    | openwrt-one      | dut-openwrt-one  | mediatek-filogic    |
+| librerouter_1    | 2      | 105  | PoE    | librerouter-1     | dut-librerouter-1| ath79-generic       |
 
-- **Banana Pi R4** (bananapi_bpi-r4)
-    - Power: Arduino relay (channel 3)
-    - Target: mediatek-filogic
-
-- **OpenWrt One** (openwrt_one)
-    - Power: PoE (switch port 1)
-    - Target: mediatek-filogic
-
-- **LibreRouter #1** (librerouter_librerouter_v1)
-    - Power: PoE (switch port 2, via splitter 48V→12V)
-    - Target: ath79-generic
-    - Strategy: UBootTFTPStrategy (TFTP boot initramfs in RAM, same as other DUTs)
 
 ## Dual-mode topology (isolated + mesh)
 
@@ -55,14 +48,26 @@ The lab supports two network topologies controlled by the PoE switch and labgrid
 
 ## Misc Hardware / Notes
 
-- Default: each DUT in isolated VLAN (100–105)
-- LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Serial: `/dev/librerouter-1`
+- Default: each DUT in isolated VLAN (100–108). Mesh mode: VLAN 200 shared.
+- LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Uses UBootTFTPStrategy (TFTP boot initramfs in RAM).
 
 ## Maintainers
 
 - @javierbrk
 - @francoriba
 - @ccasanueva7
+
+## Consistency testing
+
+For: Lab admin. Run single-node tests in a loop to detect sporadic failures.
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/run_single_node_consistency.sh` | LibreRouter, 10 iterations (default) |
+| `./scripts/run_single_node_consistency.sh --place labgrid-fcefyn-librerouter_1 --iterations 5` | Custom iterations |
+| `./scripts/run_single_node_consistency.sh --place labgrid-fcefyn-belkin_rt3200_1 --env targets/linksys_e8450.yaml` | Belkin RT3200 |
+
+Excludes `tests/test_mesh.py` (multi-node). Image resolved from [firmware-catalog.yaml](../../configs/firmware-catalog.yaml) via `LG_ENV` basename. Run from repo root on the labgrid coordinator.
 
 ## Location
 
