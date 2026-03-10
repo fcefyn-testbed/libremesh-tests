@@ -262,6 +262,9 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
 
 @pytest.fixture
 def ssh_command(shell_command, target):
+    from mesh_boot_node import _ensure_batman_mesh
+
+    _ensure_batman_mesh(target)
     fixed_ip = _configure_fixed_ip(shell_command, target)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH", fixed_ip)
