@@ -124,7 +124,7 @@ jobs:
             echo "::error::labgrid reserve timed out after 3 min. Check: labgrid-client who (release acquired places), coordinator/exporter running, places have device tag."
             exit 1
           }
-          LOCK_OUT=$(uv run labgrid-client -p +$LG_TOKEN lock 2>&1) || {
+          LOCK_OUT=$(uv run labgrid-client -v -p +$LG_TOKEN lock 2>&1) || {
             echo "$LOCK_OUT"
             echo "::error::labgrid lock failed"
             exit 1
