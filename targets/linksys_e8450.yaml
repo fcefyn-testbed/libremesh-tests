@@ -21,6 +21,7 @@ targets:
       UBootDriver:
         prompt: "MT7622>"
         interrupt: "0\n"
+        login_timeout: 60
         init_commands:
           - dhcp
           - tftpboot $loadaddr
