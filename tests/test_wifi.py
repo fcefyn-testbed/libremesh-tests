@@ -47,13 +47,18 @@ def test_wifi_mesh_mode(ssh_command):
 
 @pytest.mark.lg_feature("wifi")
 def test_wifi_radio_present(ssh_command):
-    """Verify at least one physical WiFi radio exists."""
+    """Verify at least one physical WiFi radio exists.
+
+    Accepts phy* (standard) and wl* (MediaTek mt76) as valid radio entries.
+    """
     stdout, _, rc = ssh_command.run("ls /sys/class/ieee80211/")
     if rc != 0 or not stdout or not stdout[0].strip():
         pytest.skip("No WiFi radios found on this device (may be ethernet-only)")
 
-    phy_list = [p for p in stdout[0].split() if p.startswith("phy")]
-    assert len(phy_list) > 0, "No phy devices found in /sys/class/ieee80211/"
+    entries = [p for p in stdout[0].split() if p and (p.startswith("phy") or p.startswith("wl"))]
+    assert len(entries) > 0, (
+        f"No phy/wl devices found in /sys/class/ieee80211/. Got: {stdout[0]!r}"
+    )
 
 
 @pytest.mark.lg_feature("wifi")
