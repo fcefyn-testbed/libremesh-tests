@@ -1,10 +1,13 @@
 """
 Multi-node mesh fixtures for LibreMesh testing.
 
-Boots N DUTs in parallel via labgrid (one subprocess per node) and provides
-SSH access to each. This avoids labgrid's internal thread-safety issues
-(StepLogger, coordinator multi-session crashes) that prevent in-process
-parallel booting.
+Supports two modes:
+
+1. Physical (default): LG_MESH_PLACES, LG_IMAGE/LG_IMAGE_MAP.
+   Boots N DUTs in parallel via labgrid (one subprocess per node).
+
+2. Virtual: LG_VIRTUAL_MESH=1, VIRTUAL_MESH_IMAGE, VIRTUAL_MESH_NODES.
+   Launches N QEMU VMs with vwifi; no labgrid.
 
 Requires LG_MESH_PLACES (comma-separated place names) and either:
   - LG_IMAGE: single image path used for all nodes (backward compatible).
@@ -14,7 +17,7 @@ Requires LG_MESH_PLACES (comma-separated place names) and either:
 Optional: LG_MESH_KEEP_POWERED=1 to leave nodes powered on after tests (for SSH/serial debugging).
 The labgrid place is still released so other sessions can use it later.
 
-Usage (mixed device types):
+Usage (physical, mixed device types):
     export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
     export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/srv/tftp/firmwares/openwrt_one/openwrt-24.10.5-mediatek-filogic-openwrt_one-initramfs.itb,labgrid-fcefyn-bananapi_bpi-r4=/srv/tftp/firmwares/bananapi_bpi-r4/openwrt-24.10.5-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb"
     uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
@@ -29,6 +32,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -37,6 +41,11 @@ from typing import Optional
 
 import pytest
 import yaml
+
+# Allow importing scripts from repo root
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +61,12 @@ SUBPROCESS_SHUTDOWN_TIMEOUT = 30
 class SSHProxy:
     """Lightweight SSH client using subprocess, compatible with labgrid SSHDriver API.
 
-    Connects to a DUT via labgrid-bound-connect (socat) through a VLAN interface,
-    mirroring how labgrid's SSHDriver reaches DUTs in mesh mode.
+    Two modes:
+    - Physical (vlan_iface set): Connects via labgrid-bound-connect through a VLAN.
+    - Virtual (vlan_iface None): Direct SSH to host:port (e.g. 127.0.0.1:2222).
     """
 
-    def __init__(self, host: str, vlan_iface: str = "vlan200",
+    def __init__(self, host: str, vlan_iface: Optional[str] = "vlan200",
                  username: str = "root", port: int = 22):
         self._host = host
         self._vlan_iface = vlan_iface
@@ -64,17 +74,20 @@ class SSHProxy:
         self._port = port
 
     def _build_ssh_cmd(self, command: str) -> list[str]:
-        proxy_cmd = (f"sudo /usr/local/sbin/labgrid-bound-connect "
-                     f"{self._vlan_iface} {self._host} {self._port}")
-        return [
+        base = [
             "ssh",
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
             "-o", "LogLevel=ERROR",
-            "-o", f"ProxyCommand={proxy_cmd}",
-            f"{self._username}@{self._host}",
-            command,
         ]
+        if self._vlan_iface:
+            proxy_cmd = (f"sudo /usr/local/sbin/labgrid-bound-connect "
+                         f"{self._vlan_iface} {self._host} {self._port}")
+            base.extend(["-o", f"ProxyCommand={proxy_cmd}", f"{self._username}@{self._host}"])
+        else:
+            base.extend(["-p", str(self._port), f"{self._username}@{self._host}"])
+        base.append(command)
+        return base
 
     def run_check(self, command: str) -> list[str]:
         """Run a command and return stdout lines. Raises on non-zero exit."""
@@ -265,17 +278,128 @@ def _shutdown_subprocess(proc: subprocess.Popen, stop_file: str, place: str):
             proc.kill()
 
 
+def _configure_vwifi_node(ssh: SSHProxy, vwifi_server_ip: str, node_index: int):
+    """Configure vwifi-client and restart wireless on a virtual node.
+
+    Networking: LibreMesh absorbs eth0/eth1 into br-lan, breaking SLIRP. We use
+    a dedicated eth2 (10.99.0.0/24 SLIRP) that LibreMesh doesn't touch, and point
+    vwifi-client to the SLIRP gateway (10.99.0.2) where vwifi-server listens.
+
+    Wireless band override (root cause): LibreMesh defaults to 5GHz channel 48.
+    hostapd on mac80211_hwsim fails with "Could not determine operating frequency"
+    in 5GHz—the virtual driver does not provide the frequency info hostapd expects.
+    As a result, the phy never gets a channel set, wlan0-mesh stays NO-CARRIER,
+    no beacons are transmitted, and mesh nodes never discover each other.
+    We override to 2.4GHz channel 1 after lime-config so hostapd succeeds and
+    the mesh forms. See docs/dev/libremesh-testing-approach.md for full details.
+    """
+    mac_hex = f"{node_index:02x}"
+    eth2_ip = f"10.99.0.{10 + node_index}"
+    setup_script = (
+        "set -eu; "
+        f"ip link set eth2 nomaster 2>/dev/null || true; "
+        f"ip addr flush dev eth2 2>/dev/null || true; "
+        f"ip addr add {eth2_ip}/24 dev eth2; "
+        f"ip link set eth2 up; "
+        f"service vwifi-client stop 2>/dev/null || true; "
+        f"uci set vwifi.config.server_ip='{vwifi_server_ip}'; "
+        f"uci set vwifi.config.mac_prefix='02:00:00:00:00:{mac_hex}'; "
+        f"uci set vwifi.config.enabled='1'; "
+        f"uci commit vwifi; "
+        f"service vwifi-client start; "
+        f"sleep 5; "
+        f"lime-config; "
+        # Override to 2.4GHz ch1: hostapd fails "Could not determine operating
+        # frequency" on 5GHz with mac80211_hwsim; phy stays unchanneled, mesh
+        # NO-CARRIER, no beacons. 2.4GHz works. See docs root cause section.
+        f"uci set wireless.radio0.channel='1'; "
+        f"uci set wireless.radio0.band='2g'; "
+        f"uci set wireless.radio0.htmode='HT20'; "
+        f"uci commit wireless; "
+        f"wifi down; "
+        f"sleep 1; "
+        f"wifi up"
+    )
+    stdout, stderr, rc = ssh.run(setup_script)
+    return rc == 0
+
+
+def _mesh_nodes_virtual():
+    """Launch virtual mesh (QEMU + vwifi) and yield MeshNode list.
+
+    Uses LG_VIRTUAL_MESH=1, VIRTUAL_MESH_IMAGE, VIRTUAL_MESH_NODES.
+
+    If vwifi-server is running, configures each VM's vwifi-client to connect
+    to it, then runs lime-config + wifi up so nodes form a mesh over simulated
+    WiFi (802.11 via mac80211_hwsim + vwifi).
+    """
+    from scripts.virtual_mesh_launcher import launch_virtual_mesh
+
+    image = os.environ.get("VIRTUAL_MESH_IMAGE", "").strip()
+    if not image:
+        pytest.skip("VIRTUAL_MESH_IMAGE required when LG_VIRTUAL_MESH=1")
+
+    n_nodes = int(os.environ.get("VIRTUAL_MESH_NODES", "3"))
+    logger.info("Virtual mesh: launching %d nodes with image %s", n_nodes, image)
+
+    nodes_raw, cleanup = launch_virtual_mesh(n_nodes=n_nodes, image_path=image)
+
+    mesh_nodes_list = []
+    for n in nodes_raw:
+        ssh = SSHProxy(host=n.host, vlan_iface=None, port=n.port)
+        node = MeshNode(place=n.place_id, ssh=ssh, ip="")
+        mesh_nodes_list.append(node)
+
+    skip_vwifi = os.environ.get("VIRTUAL_MESH_SKIP_VWIFI", "").strip() == "1"
+    if not skip_vwifi:
+        # In user-mode networking, we use a dedicated eth2 interface on a separate
+        # SLIRP network (10.99.0.0/24) for vwifi-client connectivity. The gateway
+        # is 10.99.0.2. vwifi-server listens on 0.0.0.0:8214, reachable from guests
+        # via this gateway IP.
+        vwifi_server_ip = os.environ.get("VIRTUAL_MESH_VWIFI_HOST", "10.99.0.2")
+        logger.info("Configuring vwifi-client on %d nodes (server=%s)",
+                    len(mesh_nodes_list), vwifi_server_ip)
+        for i, node in enumerate(mesh_nodes_list, start=1):
+            ok = _configure_vwifi_node(node.ssh, vwifi_server_ip, i)
+            if ok:
+                logger.info("Node %s: vwifi-client configured", node.place)
+            else:
+                logger.warning("Node %s: vwifi-client setup failed (vwifi may not be in image)",
+                              node.place)
+
+        convergence_wait = int(os.environ.get("VIRTUAL_MESH_CONVERGENCE_WAIT", "60"))
+        logger.info("Waiting %ds for mesh convergence (batman-adv/babeld over vwifi)...",
+                    convergence_wait)
+        time.sleep(convergence_wait)
+    else:
+        logger.info("Skipping vwifi-client configuration (VIRTUAL_MESH_SKIP_VWIFI=1)")
+
+    logger.info("All %d virtual nodes booted, waiting %ds for network to settle",
+                len(mesh_nodes_list), NETWORK_SETTLE_TIMEOUT)
+    _wait_for_network(mesh_nodes_list, timeout=NETWORK_SETTLE_TIMEOUT)
+
+    yield mesh_nodes_list
+
+    logger.info("Tearing down %d virtual mesh nodes", len(mesh_nodes_list))
+    cleanup()
+
+
 @pytest.fixture(scope="session")
 def mesh_nodes(request):
-    """Boot mesh DUTs in parallel (one subprocess per node) and yield MeshNode list.
+    """Boot mesh DUTs and yield MeshNode list. Physical or virtual based on LG_VIRTUAL_MESH.
 
     Each MeshNode has:
       - .ssh (SSHProxy): run_check(cmd) -> list[str], run(cmd) -> (stdout, stderr, code)
-      - .place (str): labgrid place name
-      - .ip (str): node's br-lan IPv4 address
+      - .place (str): labgrid place name or virtual-mesh-N
+      - .ip (str): node's br-lan IPv4 address (empty for virtual until queried)
 
-    Set LG_MESH_PLACES as comma-separated list of labgrid place names.
+    Physical: LG_MESH_PLACES, LG_IMAGE/LG_IMAGE_MAP.
+    Virtual: LG_VIRTUAL_MESH=1, VIRTUAL_MESH_IMAGE, VIRTUAL_MESH_NODES.
     """
+    if os.environ.get("LG_VIRTUAL_MESH") == "1":
+        yield from _mesh_nodes_virtual()
+        return
+
     places_str = os.environ.get("LG_MESH_PLACES", "")
     if not places_str:
         pytest.skip("LG_MESH_PLACES not set")
