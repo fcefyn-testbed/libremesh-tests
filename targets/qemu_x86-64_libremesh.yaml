@@ -1,0 +1,39 @@
+targets:
+  main:
+    features:
+      - wan_port
+
+    resources:
+      - NetworkService:
+          address: ""
+          port: 22
+          username: root
+
+    drivers:
+      - QEMUDriver:
+          qemu_bin: qemu_bin
+          machine: pc
+          cpu: max
+          memory: 256M
+          extra_args: >-
+            -device virtio-rng-pci
+            -device virtio-net-pci,netdev=wan0
+            -netdev user,id=wan0
+          nic: user,model=virtio-net-pci,net=10.13.0.0/16,id=mesh0
+          disk: firmware
+          disk_opts: "if=virtio,format=raw,snapshot=on"
+      - ShellDriver:
+          login_prompt: Please press Enter to activate this console.
+          prompt: 'root@[-\w()]+:[^ ]+ '
+          await_login_timeout: 15
+          username: root
+      - SSHDriver:
+          connection_timeout: 120.0
+          explicit_scp_mode: True
+      - QEMUNetworkStrategyLibreMesh: {}
+
+tools:
+  qemu_bin: qemu-system-x86_64
+
+imports:
+  - ../strategies/qemunetworkstrategy_libremesh.py

@@ -217,6 +217,15 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
     time.sleep(5)
 
     fixed_ip = _get_ssh_target_ip(target)
+
+    if fixed_ip and fixed_ip in ("127.0.0.1", "::1", "localhost"):
+        logger.info(
+            "QEMU target detected (NetworkService address=%s); "
+            "skipping fixed IP configuration (strategy handles port forwarding)",
+            fixed_ip,
+        )
+        return None
+
     if not fixed_ip:
         place_name = getenv("LG_PLACE", "")
         if not place_name or place_name == "+":
@@ -260,11 +269,21 @@ def _configure_fixed_ip(shell_command, target) -> str | None:
             return None
 
 
+def _is_qemu_target(target) -> bool:
+    """Detect if the current target is a QEMU VM (not a physical DUT)."""
+    try:
+        ssh = target.get_driver("SSHDriver", activate=False)
+        return ssh.networkservice.address == "127.0.0.1"
+    except Exception:
+        return False
+
+
 @pytest.fixture
 def ssh_command(shell_command, target):
-    from mesh_boot_node import _ensure_batman_mesh
+    if not _is_qemu_target(target):
+        from mesh_boot_node import _ensure_batman_mesh
+        _ensure_batman_mesh(target)
 
-    _ensure_batman_mesh(target)
     fixed_ip = _configure_fixed_ip(shell_command, target)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH", fixed_ip)
