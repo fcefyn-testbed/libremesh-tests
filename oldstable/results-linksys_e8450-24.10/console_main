@@ -1,0 +1,1619 @@
+Labgrid Console Logfile for main
+Logfile started at 2026-03-11 21:13:51.560612
+=== Log starts here ===
+ÿ
+F0: 102B 0000
+F6: 0000 0000
+V0: 0000 0000 [0001]
+00: 0000 0000
+BP: 0400 0041 [0000]
+G0: 1190 0000
+T0: 0000 02AF [000F]
+Jump to BL
+
+NOTICE:  BL2: v2.4(release):OpenWrt v2021-05-08-d2c75b21-3 (mt7622-snand-1ddr)
+NOTICE:  BL2: Built : 22:25:54, Jul 15 2024
+NOTICE:  SPI-NAND: FM35Q1GA (128MB)
+NOTICE:  BL2: Booting BL31
+NOTICE:  BL31: v2.9(release):OpenWrt v2023-07-24-00ac6db3-2 (mt7622-snand-1ddr)
+NOTICE:  BL31: Built : 12:34:46, Sep 23 2024
+
+
+U-Boot 2023.07.02-OpenWrt-r24106-10cc5fcd00 (Sep 23 2024 - 12:34:46 +0000)
+
+CPU:   MediaTek MT7622
+Model: mt7622-linksys-e8450-ubi
+DRAM:  512 MiB
+Core:  48 devices, 21 uclasses, devicetree: separate
+MMC:   
+Loading Environment from UBI... SPI-NAND: FM35Q1GA (128MB)
+ubi0 warning: print_rsvd_warning: cannot reserve enough PEBs for bad PEB handling, reserved 18, need 20
+Read 126976 bytes from volume ubootenv to 000000005f7bf200
+Read 126976 bytes from volume ubootenv2 to 000000005f7de240
+OK
+In:    serial@11002000
+Out:   serial@11002000
+Err:   serial@11002000
+reset button found
+Loading Environment from UBI... UBI partition 'ubi' already selected
+Read 126976 bytes from volume ubootenv to 000000005f7bf200
+Read 126976 bytes from volume ubootenv2 to 000000005f7de240
+OK
+Net:   eth0: ethernet@1b100000
+7[r[999;999H[6n8No EFI system partition
+No EFI system partition
+Failed to persist EFI variables
+[?25l[2J[1;1H[1;1H[2K[2;3H      [0;34m( ( ( [1;39mOpenWrt[0;34m ) ) )[0m       [33mU-Boot 2021.10 (Nov 19 2021 - 22:51:20 +0000)[0m[0K[3;1H[2K[16;1H[2K[17;3HPress UP/DOWN to move, ENTER to select, ESC to quit[0K[18;1H[2K[4;7H[7m1. Run default boot command.[0m[5;7H2. Boot system via TFTP.[6;7H3. Boot production system from flash.[7;7H4. Boot recovery system from flash.[8;7H5. Load production system via TFTP then write to flash.[9;7H6. Load recovery system via TFTP then write to flash.[10;7H7. [31mLoad BL31+U-Boot FIP via TFTP then write to flash.[0m[11;7H8. [31mLoad BL2 preloader via TFTP then write to flash.[0m[12;7H9. Reboot.[13;7Ha. Reset all settings to factory defaults.[14;7H0. U-Boot console[16;3HHit any key to stop autoboot: 3 [16;1H[2K[1;1H[2K[2;3H      [0;34m( ( ( [1;39mOpenWrt[0;34m ) ) )[0m       [33mU-Boot 2021.10 (Nov 19 2021 - 22:51:20 +0000)[0m[0K[3;1H[2K[16;1H[2K[17;3HPress UP/DOWN to move, ENTER to select, ESC to quit[0K[18;1H[2K[4;7H1. Run default boot command.[5;7H2. Boot system via TFTP.[6;7H3. Boot production system from flash.[7;7H4. Boot recovery system from flash.[8;7H5. Load production system via TFTP then write to flash.[9;7H6. Load recovery system via TFTP then write to flash.[10;7H7. [31mLoad BL31+U-Boot FIP via TFTP then write to flash.[0m[11;7H8. [31mLoad BL2 preloader via TFTP then write to flash.[0m[12;7H9. Reboot.[13;7Ha. Reset all settings to factory defaults.[14;7H[7m0. U-Boot console[0m[?25h[2J[1;1HMT7622> 
+MT7622> echo 'JZNU''XOQBQO'
+JZNUXOQBQO
+MT7622> echo 'QJUZ''ZCLECA'; setenv serverip 192.168.200.1; echo "$?"; echo 'QJUZ''ZCLECA';
+QJUZZCLECA
+0
+QJUZZCLECA
+MT7622> echo 'SMMA''FJWMKW'; setenv ipaddr 192.168.200.2; echo "$?"; echo 'SMMA''FJWMKW';
+SMMAFJWMKW
+0
+SMMAFJWMKW
+MT7622> echo 'SWQU''MQHLOT'; setenv bootfile belkin_rt3200_2/openwrt-24.10-snapshot-r29135-6f55a70589-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin; echo "$?"; echo 'SWQU''MQHLOT';
+SWQUMQHLOT
+0
+SWQUMQHLOT
+MT7622> echo 'UCMH''UYOSJQ'; dhcp; echo "$?"; echo 'UCMH''UYOSJQ';
+UCMHUYOSJQ
+BOOTP broadcast 1
+DHCP client bound to address 192.168.101.179 (90 ms)
+Using ethernet@1b100000 device
+TFTP from server 192.168.101.1; our IP address is 192.168.101.179
+Filename 'belkin_rt3200_2/openwrt-24.10-snapshot-r29135-6f55a70589-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin'.
+Load address: 0x48000000
+Loading: *#################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 ####################
+	 9.5 MiB/s
+done
+Bytes transferred = 8866960 (874c90 hex)
+0
+UCMHUYOSJQ
+MT7622> echo 'UJBG''AZBSPQ'; tftpboot $loadaddr; echo "$?"; echo 'UJBG''AZBSPQ';
+UJBGAZBSPQ
+Using ethernet@1b100000 device
+TFTP from server 192.168.101.1; our IP address is 192.168.101.179
+Filename 'belkin_rt3200_2/openwrt-24.10-snapshot-r29135-6f55a70589-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin'.
+Load address: 0x48000000
+Loading: *#################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 ####################
+	 9.6 MiB/s
+done
+Bytes transferred = 8866960 (874c90 hex)
+0
+UJBGAZBSPQ
+MT7622> bootm $loadaddr#$bootconf
+## Loading kernel from FIT Image at 48000000 ...
+   Using 'config-1' configuration
+   Trying 'kernel-1' kernel subimage
+     Description:  ARM64 OpenWrt Linux-6.6.127
+     Type:         Kernel Image
+     Compression:  lzma compressed
+     Data Start:   0x480000e8
+     Data Size:    4160609 Bytes = 4 MiB
+     Architecture: AArch64
+     OS:           Linux
+     Load Address: 0x44000000
+     Entry Point:  0x44000000
+     Hash algo:    crc32
+     Hash value:   f80abe30
+     Hash algo:    sha1
+     Hash value:   ac64371ac54ab217224a7611782b1f8617798116
+   Verifying Hash Integrity ... crc32+ sha1+ OK
+## Loading ramdisk from FIT Image at 48000000 ...
+   Using 'config-1' configuration
+   Trying 'initrd-1' ramdisk subimage
+     Description:  ARM64 OpenWrt linksys_e8450 initrd
+     Type:         RAMDisk Image
+     Compression:  uncompressed
+     Data Start:   0x483f7e84
+     Data Size:    4672768 Bytes = 4.5 MiB
+     Architecture: AArch64
+     OS:           Linux
+     Load Address: unavailable
+     Entry Point:  unavailable
+     Hash algo:    crc32
+     Hash value:   07a432bf
+     Hash algo:    sha1
+     Hash value:   47d1445002f9adf626ad8e68aae615730dd6f586
+   Verifying Hash Integrity ... crc32+ sha1+ OK
+## Loading fdt from FIT Image at 48000000 ...
+   Using 'config-1' configuration
+   Trying 'fdt-1' fdt subimage
+     Description:  ARM64 OpenWrt linksys_e8450 device tree blob
+     Type:         Flat Device Tree
+     Compression:  uncompressed
+     Data Start:   0x4886cc90
+     Data Size:    31434 Bytes = 30.7 KiB
+     Architecture: AArch64
+     Hash algo:    crc32
+     Hash value:   1f343b01
+     Hash algo:    sha1
+     Hash value:   334d0b6d1b8d633bd0f173942a2d6abed8d40dcd
+   Verifying Hash Integrity ... crc32+ sha1+ OK
+   Booting using the fdt blob at 0x4886cc90
+Working FDT set to 4886cc90
+   Uncompressing Kernel Image
+   Loading Ramdisk to 5e372000, end 5e7e6d00 ... OK
+   Loading Device Tree to 000000005e367000, end 000000005e371ac9 ... OK
+Working FDT set to 5e367000
+Add 'ramoops@42ff0000' node failed: FDT_ERR_EXISTS
+
+Starting kernel ...
+
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd034]
+[    0.000000] Linux version 6.6.127 (builder@buildhost) (aarch64-openwrt-linux-musl-gcc (OpenWrt GCC 13.3.0 r29135-6f55a70589) 13.3.0, GNU ld (GNU Binutils) 2.42) #0 SMP Tue Mar 10 23:26:12 2026
+[    0.000000] Machine model: Linksys E8450
+[    0.000000] earlycon: uart8250 at MMIO32 0x0000000011002000 (options '')
+[    0.000000] printk: bootconsole [uart8250] enabled
+[    0.000000] OF: reserved mem: 0x0000000042ff0000..0x0000000042ffffff (64 KiB) map non-reusable ramoops@42ff0000
+[    0.000000] OF: reserved mem: 0x0000000043000000..0x000000004302ffff (192 KiB) nomap non-reusable secmon@43000000
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x0000000042ffffff]
+[    0.000000]   node   0: [mem 0x0000000043000000-0x000000004302ffff]
+[    0.000000]   node   0: [mem 0x0000000043030000-0x000000005fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000] psci: SMC Calling Convention v1.4
+[    0.000000] percpu: Embedded 18 pages/cpu s35112 r8192 d30424 u73728
+[    0.000000] pcpu-alloc: s35112 r8192 d30424 u73728 alloc=18*4096
+[    0.000000] pcpu-alloc: [0] 0 [0] 1 
+[    0.000000] Detected VIPT I-cache on CPU0
+[    0.000000] CPU features: kernel page table isolation disabled by kernel configuration
+[    0.000000] CPU features: detected: ARM erratum 843419
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: earlycon=uart8250,mmio32,0x11002000 console=ttyS0,115200n1 swiotlb=512
+[    0.000000] Dentry cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 129024
+[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] software IO TLB: area num 2.
+[    0.000000] software IO TLB: mapped [mem 0x000000005f4c0000-0x000000005f5c0000] (1MB)
+[    0.000000] Memory: 495412K/524288K available (9216K kernel code, 950K rwdata, 1624K rodata, 448K init, 310K bss, 28876K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.000000] rcu: Hierarchical RCU implementation.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: 0xffffffc080010000
+[    0.000000] GIC: Using split EOI/Deactivate mode
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 timer(s) running at 12.50MHz (phys).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x2e2049cda, max_idle_ns: 440795202628 ns
+[    0.000000] sched_clock: 56 bits at 13MHz, resolution 80ns, wraps every 4398046511080ns
+[    0.008284] Calibrating delay loop (skipped), value calculated using timer frequency.. 25.00 BogoMIPS (lpj=125000)
+[    0.018684] pid_max: default: 32768 minimum: 301
+[    0.026135] Mount-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.033484] Mountpoint-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.044015] RCU Tasks Trace: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.053427] rcu: Hierarchical SRCU implementation.
+[    0.058255] rcu: 	Max phase no-delay instances is 1000.
+[    0.064009] smp: Bringing up secondary CPUs ...
+[    0.068994] Detected VIPT I-cache on CPU1
+[    0.069006] CPU features: SANITY CHECK: Unexpected variation in SYS_CNTFRQ_EL0. Boot CPU: 0x00000000bebc20, CPU1: 0x00000000000000
+[    0.069028] CPU features: Unsupported CPU feature variation detected.
+[    0.069091] CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
+[    0.069165] smp: Brought up 1 node, 2 CPUs
+[    0.102099] SMP: Total of 2 processors activated.
+[    0.106817] CPU features: detected: 32-bit EL0 Support
+[    0.111973] CPU features: detected: CRC32 instructions
+[    0.117157] CPU features: emulated: Privileged Access Never (PAN) using TTBR0_EL1 switching
+[    0.125543] CPU: All CPU(s) started at EL2
+[    0.129648] alternatives: applying system-wide alternatives
+[    0.140076] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.149984] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+[    0.158029] pinctrl core: initialized pinctrl subsystem
+[    0.164505] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.170810] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.177936] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.185725] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.194135] thermal_sys: Registered thermal governor 'fair_share'
+[    0.194142] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.200254] thermal_sys: Registered thermal governor 'step_wise'
+[    0.206291] thermal_sys: Registered thermal governor 'user_space'
+[    0.212387] ASID allocator initialised with 65536 entries
+[    0.224635] pstore: Using crash dump compression: deflate
+[    0.230062] pstore: Registered ramoops as persistent store backend
+[    0.236262] ramoops: using 0x10000@0x42ff0000, ecc: 0
+[    0.251917] Modules: 29600 pages in range for non-PLT usage
+[    0.251931] Modules: 521120 pages in range for PLT usage
+[    0.258708] cryptd: max_cpu_qlen set to 1000
+[    0.269535] SCSI subsystem initialized
+[    0.273446] libata version 3.00 loaded.
+[    0.278933] clocksource: Switched to clocksource arch_sys_counter
+[    0.287402] NET: Registered PF_INET protocol family
+[    0.292480] IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.301164] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.309582] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.317358] TCP established hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.325161] TCP bind hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.332514] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.339261] MPTCP token hash table entries: 512 (order: 2, 12288 bytes, linear)
+[    0.346708] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.353280] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.360477] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.366179] PCI: CLS 0 bytes, default 64
+[    0.370360] Unpacking initramfs...
+[    0.381013] workingset: timestamp_bits=46 max_order=17 bucket_order=0
+[    0.392262] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.398135] jffs2: version 2.2 (NAND) (SUMMARY) (LZMA) (RTIME) (CMODE_PRIORITY) (c) 2001-2006 Red Hat, Inc.
+[    0.463518] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 251)
+[    0.472814] mt7622-pinctrl 10211000.pinctrl: invalid group "pwm_ch7_2" for function "pwm"
+[    0.492220] mt-pmic-pwrap 10001000.pwrap: unexpected interrupt int=0x1
+[    0.512521] Serial: 8250/16550 driver, 16 ports, IRQ sharing enabled
+[    0.522943] printk: console [ttyS0] disabled
+[    0.547718] 11002000.serial: ttyS0 at MMIO 0x11002000 (irq = 118, base_baud = 1562500) is a ST16650V2
+[    0.557078] printk: console [ttyS0] enabled
+[    0.557078] printk: console [ttyS0] enabled
+[    0.565480] printk: bootconsole [uart8250] disabled
+[    0.565480] printk: bootconsole [uart8250] disabled
+[    0.596870] 11004000.serial: ttyS1 at MMIO 0x11004000 (irq = 119, base_baud = 1562500) is a ST16650V2
+[    0.607504] mtk_rng 1020f000.rng: registered RNG driver
+[    0.613374] random: crng init done
+[    0.620068] loop: module loaded
+[    0.623693] mtk-ecc 1100e000.ecc: probed
+[    0.631896] spi-nand spi2.0: Fidelix SPI NAND was found.
+[    0.637220] spi-nand spi2.0: 128 MiB, block size: 128 KiB, page size: 2048, OOB size: 64
+[    0.645434] mtk-snand 1100d000.spi: ECC strength: 4 bits per 512 bytes
+[    0.695501] bbt_nand_read: 1 bitflips
+[    0.769283] bbt_nand_read: 1 bitflips
+[    0.788740] bbt_nand_read: 1 bitflips
+[    0.892506] bbt_nand_read: 1 bitflips
+[    0.901004] [BBT] 80 available blocks in BMT pool
+[    0.910495] [BBT] BMT.v2 is written into PBA:0x3ff
+[    1.653666] Freeing initrd memory: 4560K
+[    1.667637] 12 fixed-partitions partitions found on MTD device spi2.0
+[    1.674160] OF: Bad cell count for /spi@1100d000/flash@0/partitions
+[    1.680452] OF: Bad cell count for /spi@1100d000/flash@0/partitions
+[    1.686958] OF: Bad cell count for /spi@1100d000/flash@0/partitions
+[    1.693246] OF: Bad cell count for /spi@1100d000/flash@0/partitions
+[    1.699695] Creating 12 MTD partitions on "spi2.0":
+[    1.704580] 0x000000000000-0x000000080000 : "Preloader"
+[    1.710784] 0x000000080000-0x0000000c0000 : "ATF"
+[    1.716283] 0x0000000c0000-0x000000140000 : "u-boot"
+[    1.722306] 0x000000140000-0x0000001c0000 : "u-boot-env"
+[    1.728906] 0x0000001c0000-0x0000002c0000 : "factory"
+[    1.735662] OF: Bad cell count for /spi@1100d000/flash@0/partitions
+[    1.742234] 0x000000300000-0x000000320000 : "devinfo"
+[    1.747887] 0x000000320000-0x000000340000 : "senv"
+[    1.753357] 0x000000360000-0x000000380000 : "bootseq"
+[    1.759050] 0x000000500000-0x000002300000 : "firmware1"
+[    1.795710] 0x000002300000-0x000004100000 : "firmware2"
+[    1.832370] 0x000004100000-0x000005a00000 : "data"
+[    1.863455] 0x000005a00000-0x000006e00000 : "mfg"
+[    2.020564] mtk_soc_eth 1b100000.ethernet: generated random MAC address 65:74:68:25:64:00
+[    2.031881] mtk_soc_eth 1b100000.ethernet eth0: mediatek frame engine at 0xffffffc080fc0000, irq 126
+[    2.041950] i2c_dev: i2c /dev entries driver
+[    2.048047] mtk-wdt 10212000.watchdog: Watchdog enabled (timeout=31 sec, nowayout=0)
+[    2.058623] NET: Registered PF_INET6 protocol family
+[    2.064593] Segment Routing with IPv6
+[    2.068283] In-situ OAM (IOAM) with IPv6
+[    2.072293] NET: Registered PF_PACKET protocol family
+[    2.077388] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[    2.090810] 8021q: 802.1Q VLAN Support v1.8
+[    2.121535] mtk-pcie 1a143000.pcie: host bridge /pcie@1a143000 ranges:
+[    2.128096] mtk-pcie 1a143000.pcie: Parsing ranges property...
+[    2.133996] mtk-pcie 1a143000.pcie:      MEM 0x0020000000..0x0027ffffff -> 0x0020000000
+[    2.395700] mtk-pcie 1a143000.pcie: PCI host bridge to bus 0000:00
+[    2.401933] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    2.407425] pci_bus 0000:00: root bus resource [mem 0x20000000-0x27ffffff]
+[    2.414305] pci_bus 0000:00: scanning bus
+[    2.418498] pci 0000:00:00.0: [14c3:3258] type 01 class 0x060400
+[    2.424695] pci 0000:00:00.0: reg 0x10: [mem 0x00000000-0x1ffffffff 64bit pref]
+[    2.434917] pci_bus 0000:00: fixups for bus
+[    2.439153] pci 0000:00:00.0: scanning [bus 00-00] behind bridge, pass 0
+[    2.445851] pci 0000:00:00.0: bridge configuration invalid ([bus 00-00]), reconfiguring
+[    2.453929] pci 0000:00:00.0: scanning [bus 00-00] behind bridge, pass 1
+[    2.461062] pci_bus 0000:01: scanning bus
+[    2.465230] pci 0000:01:00.0: [14c3:7915] type 00 class 0x000280
+[    2.471426] pci 0000:01:00.0: reg 0x10: [mem 0x00000000-0x000fffff 64bit pref]
+[    2.478752] pci 0000:01:00.0: reg 0x18: [mem 0x00000000-0x00003fff 64bit pref]
+[    2.486082] pci 0000:01:00.0: reg 0x20: [mem 0x00000000-0x00000fff 64bit pref]
+[    2.494067] pci 0000:01:00.0: supports D1 D2
+[    2.498332] pci 0000:01:00.0: PME# supported from D0 D1 D2 D3hot D3cold
+[    2.504978] pci 0000:01:00.0: PME# disabled
+[    2.509506] pci 0000:01:00.0: 2.000 Gb/s available PCIe bandwidth, limited by 2.5 GT/s PCIe x1 link at 0000:00:00.0 (capable of 4.000 Gb/s with 5.0 GT/s PCIe x1 link)
+[    2.549200] pci_bus 0000:01: fixups for bus
+[    2.553405] pci_bus 0000:01: bus scan returning with max=01
+[    2.559004] pci_bus 0000:01: busn_res: [bus 01-ff] end is updated to 01
+[    2.565633] pci_bus 0000:00: bus scan returning with max=01
+[    2.571239] pci 0000:00:00.0: BAR 0: no space for [mem size 0x200000000 64bit pref]
+[    2.578901] pci 0000:00:00.0: BAR 0: failed to assign [mem size 0x200000000 64bit pref]
+[    2.586922] pci 0000:00:00.0: BAR 8: assigned [mem 0x20000000-0x201fffff]
+[    2.593731] pci 0000:01:00.0: BAR 0: assigned [mem 0x20000000-0x200fffff 64bit pref]
+[    2.601583] pci 0000:01:00.0: BAR 2: assigned [mem 0x20100000-0x20103fff 64bit pref]
+[    2.609435] pci 0000:01:00.0: BAR 4: assigned [mem 0x20104000-0x20104fff 64bit pref]
+[    2.617270] pci 0000:00:00.0: PCI bridge to [bus 01]
+[    2.622262] pci 0000:00:00.0:   bridge window [mem 0x20000000-0x201fffff]
+[    2.629297] pcieport 0000:00:00.0: assign IRQ: got 130
+[    2.634451] pcieport 0000:00:00.0: enabling device (0000 -> 0002)
+[    2.640584] pcieport 0000:00:00.0: enabling bus mastering
+[    2.646102] mtk-pcie 1a143000.pcie: msi#0 address_hi 0x0 address_lo 0x44e8d0c0
+[    2.653681] pcieport 0000:00:00.0: PME: Signaling with IRQ 130
+[    2.659720] pcieport 0000:00:00.0: save config 0x00: 0x325814c3
+[    2.665656] pcieport 0000:00:00.0: save config 0x04: 0x00100006
+[    2.671608] pcieport 0000:00:00.0: save config 0x08: 0x06040000
+[    2.677534] pcieport 0000:00:00.0: save config 0x0c: 0x00010000
+[    2.683467] pcieport 0000:00:00.0: save config 0x10: 0x0000000c
+[    2.689411] pcieport 0000:00:00.0: save config 0x14: 0x00000000
+[    2.695336] pcieport 0000:00:00.0: save config 0x18: 0x40010100
+[    2.701269] pcieport 0000:00:00.0: save config 0x1c: 0x04200000
+[    2.707192] pcieport 0000:00:00.0: save config 0x20: 0x20102000
+[    2.713128] pcieport 0000:00:00.0: save config 0x24: 0x00000000
+[    2.719061] pcieport 0000:00:00.0: save config 0x28: 0x00000000
+[    2.724984] pcieport 0000:00:00.0: save config 0x2c: 0x00000000
+[    2.730922] pcieport 0000:00:00.0: save config 0x30: 0x00000000
+[    2.736845] pcieport 0000:00:00.0: save config 0x34: 0x00000050
+[    2.742777] pcieport 0000:00:00.0: save config 0x38: 0x00000000
+[    2.748699] pcieport 0000:00:00.0: save config 0x3c: 0x00020182
+[    2.755445] mtk-pcie 1a145000.pcie: host bridge /pcie@1a145000 ranges:
+[    2.762044] mtk-pcie 1a145000.pcie: Parsing ranges property...
+[    2.767894] mtk-pcie 1a145000.pcie:      MEM 0x0028000000..0x002fffffff -> 0x0028000000
+[    3.108983] mtk-pcie 1a145000.pcie: Port1 link down
+[    3.114090] mtk-pcie 1a145000.pcie: PCI host bridge to bus 0001:00
+[    3.120302] pci_bus 0001:00: root bus resource [bus 00-ff]
+[    3.125794] pci_bus 0001:00: root bus resource [mem 0x28000000-0x2fffffff]
+[    3.132672] pci_bus 0001:00: scanning bus
+[    3.138151] pci_bus 0001:00: fixups for bus
+[    3.142339] pci_bus 0001:00: bus scan returning with max=00
+[    3.148626] mtk_hsdma 1b007000.dma-controller: MediaTek HSDMA driver registered
+[    3.264786] mt7530-mdio mdio-bus:1f: configuring for fixed/2500base-x link mode
+[    3.274336] mt7530-mdio mdio-bus:1f: Link is Up - 2.5Gbps/Full - flow control rx/tx
+[    3.285085] mt7530-mdio mdio-bus:1f lan1 (uninitialized): PHY [mt7530-0:00] driver [MediaTek MT7531 PHY] (irq=133)
+[    3.307706] mt7530-mdio mdio-bus:1f lan2 (uninitialized): PHY [mt7530-0:01] driver [MediaTek MT7531 PHY] (irq=134)
+[    3.329960] mt7530-mdio mdio-bus:1f lan3 (uninitialized): PHY [mt7530-0:02] driver [MediaTek MT7531 PHY] (irq=135)
+[    3.352215] mt7530-mdio mdio-bus:1f lan4 (uninitialized): PHY [mt7530-0:03] driver [MediaTek MT7531 PHY] (irq=136)
+[    3.374707] mt7530-mdio mdio-bus:1f wan (uninitialized): PHY [mt7530-0:04] driver [MediaTek MT7531 PHY] (irq=137)
+[    3.386085] mtk_soc_eth 1b100000.ethernet eth0: entered promiscuous mode
+[    3.392892] DSA: tree 0 setup
+[    3.396457] UBI: auto-attach mtd10
+[    3.399896] ubi0: default fastmap pool size: 10
+[    3.404421] ubi0: default fastmap WL pool size: 5
+[    3.409122] ubi0: attaching mtd10
+[    3.471111] ubi0: scanning is finished
+[    3.474883] ubi0 error: 0xffffffc0805cb484: the layout volume was not found
+[    3.481909] ubi0 error: 0xffffffc0805cf2e4: failed to attach mtd10, error -22
+[    3.489112] UBI error: cannot attach mtd10
+[    3.493364] clk: Disabling unused clocks
+[    3.498059] Freeing unused kernel memory: 448K
+[    3.502806] Run /init as init process
+[    3.506465]   with arguments:
+[    3.509442]     /init
+[    3.511709]   with environment:
+[    3.514841]     HOME=/
+[    3.517194]     TERM=linux
+[    3.726964] init: Console is alive
+[    3.730674] init: - watchdog -
+[    3.739460] kmodloader: loading kernel modules from /etc/modules-boot.d/*
+[    3.752922] usbcore: registered new interface driver usbfs
+[    3.758485] usbcore: registered new interface driver hub
+[    3.763883] usbcore: registered new device driver usb
+[    3.769521] gpio_button_hotplug: loading out-of-tree module taints kernel.
+[    3.782511] xhci-mtk 1a0c0000.usb: xHCI Host Controller
+[    3.787772] xhci-mtk 1a0c0000.usb: new USB bus registered, assigned bus number 1
+[    3.796911] xhci-mtk 1a0c0000.usb: hcc params 0x01403198 hci version 0x96 quirks 0x0000000000200010
+[    3.806148] xhci-mtk 1a0c0000.usb: irq 138, io mem 0x1a0c0000
+[    3.812035] xhci-mtk 1a0c0000.usb: xHCI Host Controller
+[    3.817261] xhci-mtk 1a0c0000.usb: new USB bus registered, assigned bus number 2
+[    3.824680] xhci-mtk 1a0c0000.usb: Host supports USB 3.0 SuperSpeed
+[    3.831685] hub 1-0:1.0: USB hub found
+[    3.835524] hub 1-0:1.0: 2 ports detected
+[    3.840246] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    3.848971] hub 2-0:1.0: USB hub found
+[    3.852800] hub 2-0:1.0: 1 port detected
+[    3.862012] kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+[    3.870033] init: - preinit -
+[    3.944014] mtk_soc_eth 1b100000.ethernet eth0: configuring for fixed/2500base-x link mode
+[    3.954134] mtk_soc_eth 1b100000.ethernet eth0: Link is Up - 2.5Gbps/Full - flow control rx/tx
+[    3.965045] mt7530-mdio mdio-bus:1f lan1: configuring for phy/gmii link mode
+Press the [f] key and hit [enter] to enter failsafe mode
+Press the [1], [2], [3] or [4] key and hit [enter] to select the debug level
+[    8.179009] procd: - early -
+[    8.182021] procd: - watchdog -
+[    8.721540] procd: - watchdog -
+[    8.725050] procd: - ubus -
+[    8.879869] procd: - init -
+Please press Enter to activate this console.
+root
+login[944]: root login on 'ttyS0'
+
+
+BusyBox v1.36.1 (2026-03-10 23:26:12 UTC) built-in shell (ash)
+
+  _______                     ________        __
+ |       |.-----.-----.-----.|  |  |  |.----.|  |_
+ |   -   ||  _  |  -__|     ||  |  |  ||   _||   _|
+ |_______||   __|_____|__|__||________||__|  |____|
+          |__| W I R E L E S S   F R E E D O M
+ -----------------------------------------------------
+ OpenWrt 24.10-SNAPSHOT, r29135-6f55a70589
+ -----------------------------------------------------
+=== WARNING! =====================================
+There is no root password defined on this device!
+Use the "passwd" command to set up a new password
+in order to prevent unauthorized SSH logins.
+--------------------------------------------------
+root@(none):~# dmesg [    9.108162] kmodloader: loading kernel modules from /etc/modules.d/*
+-[    9.120017] Loading modules backported from Linux version v6.12.61-0-gdcbeffaf66d0
+[    9.127641] Backport generated by backports.git v6.1.110-1-35-g410656ef
+n 1
+root@(none):~# echo 'GCKH''PXVTCU'
+GCKHPXVTCU
+root@OpenWrt:~# run() { echo -n "$MARKER"; sh -c "$@"; echo "$MARKER $?"; }
+root@OpenWrt:~# echo 'FPLM''NSVOMF'
+FPLMNSVOMF
+root@OpenWrt:~# MARKER='NEYP''YVQGSZ' run true
+NEYPYVQGSZNEYPYVQGSZ 0
+root@OpenWrt:~# echo 'GBJY''NQAOZU'
+GBJYNQAOZU
+root@OpenWrt:~# MARKER='PXSC''WXXEVB' run 'source /etc/os-release; echo $BUILD_I
+D'
+PXSCWXXEVBr29135-6f55a70589
+PXSCWXXEVB 0
+root@OpenWrt:~# echo 'OCXO''XEPXXJ'
+OCXOXEPXXJ
+root@OpenWrt:~# MARKER='SKOH''SQQEHL' run 'ls /etc/dropbear/dropbear_rsa_host_ke
+y'
+SKOHSQQEHL[0;0m/etc/dropbear/dropbear_rsa_host_key[m
+SKOHSQQEHL 0
+root@OpenWrt:~# echo 'AEZZ''UFQKSP'
+AEZZUFQKSP
+root@OpenWrt:~# MARKER='OTHO''GSZNWY' run 'netstat -tlpn | grep 0.0.0.0:22'
+OTHOGSZNWYnetstat: showing only processes with your user ID
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      1740/dropbear
+OTHOGSZNWY 0
+root@OpenWrt:~# echo 'GHNS''VBZFLX'
+GHNSVBZFLX
+root@OpenWrt:~# MARKER='LVGQ''PNTETN' run 'dmesg | grep br-lan | grep forwarding
+'
+LVGQPNTETN[   21.244658] br-lan: port 4(lan4) entered forwarding state
+LVGQPNTETN 0
+root@OpenWrt:~# echo 'CJYJ''ECWHZN'
+CJYJECWHZN
+root@OpenWrt:~# MARKER='QYWU''QMMUKE' run 'ubus call network.interface.lan statu
+s '"'"'{}'"'"''
+QYWUQMMUKE{
+	"up": true,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"uptime": 739,
+	"l3_device": "br-lan",
+	"proto": "static",
+	"device": "br-lan",
+	"updated": [
+		"addresses"
+	],
+	"metric": 0,
+	"dns_metric": 0,
+	"delegation": true,
+	"ipv4-address": [
+		{
+			"address": "192.168.1.1",
+			"mask": 24
+		}
+	],
+	"ipv6-address": [
+		
+	],
+	"ipv6-prefix": [
+		
+	],
+	"ipv6-prefix-assignment": [
+		{
+			"address": "fdb5:89b2:f3f3::",
+			"mask": 60,
+			"local-address": {
+				"address": "fdb5:89b2:f3f3::1",
+				"mask": 60
+			}
+		}
+	],
+	"route": [
+		
+	],
+	"dns-server": [
+		
+	],
+	"dns-search": [
+		
+	],
+	"neighbors": [
+		
+	],
+	"inactive": {
+		"ipv4-address": [
+			
+		],
+		"ipv6-address": [
+			
+		],
+		"route": [
+			
+		],
+		"dns-server": [
+			
+		],
+		"dns-search": [
+			
+		],
+		"neighbors": [
+			
+		]
+	},
+	"data": {
+		
+	}
+}
+QYWUQMMUKE 0
+root@OpenWrt:~# echo 'VXPT''CVECKY'
+VXPTCVECKY
+root@OpenWrt:~# MARKER='WQPT''OAMJWO' run 'ip -o addr show dev br-lan'
+WQPTOAMJWO8: br-lan    inet 192.168.1.1/24 brd 192.168.1.255 scope global br-lan\       valid_lft forever preferred_lft forever
+8: br-lan    inet6 fdb5:89b2:f3f3::1/60 scope global noprefixroute \       valid_lft forever preferred_lft forever
+8: br-lan    inet6 fe80::94c3:41ff:fe6d:29b4/64 scope link \       valid_lft forever preferred_lft forever
+WQPTOAMJWO 0
+root@OpenWrt:~# echo 'KYWM''UAOAWB'
+KYWMUAOAWB
+root@OpenWrt:~# MARKER='UBAO''GUWHON' run 'ping -c 3 ff02::1%br-lan'
+UBAOGUWHONPING ff02::1%br-lan (ff02::1%8): 56 data bytes
+64 bytes from fe80::94c3:41ff:fe6d:29b4: seq=0 ttl=64 time=0.382 ms
+64 bytes from fe80::221:ccff:fec4:253b: seq=0 ttl=64 time=0.768 ms (DUP!)
+64 bytes from fe80::94c3:41ff:fe6d:29b4: seq=1 ttl=64 time=0.486 ms
+64 bytes from fe80::221:ccff:fec4:253b: seq=1 ttl=64 time=0.823 ms (DUP!)
+64 bytes from fe80::94c3:41ff:fe6d:29b4: seq=2 ttl=64 time=0.438 ms
+
+--- ff02::1%br-lan ping statistics ---
+3 packets transmitted, 3 packets received, 2 duplicates, 0% packet loss
+round-trip min/avg/max = 0.382/0.579/0.823 ms
+UBAOGUWHON 0
+root@OpenWrt:~# echo 'EPTG''BTGALV'
+EPTGBTGALV
+root@OpenWrt:~# MARKER='PKUK''HZOFOP' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+PKUKHZOFOP{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+PKUKHZOFOP 0
+root@OpenWrt:~# echo 'AUEJ''FOPUJX'
+AUEJFOPUJX
+root@OpenWrt:~# MARKER='EHOW''LFAOEO' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+EHOWLFAOEO{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+EHOWLFAOEO 0
+root@OpenWrt:~# echo 'FBXV''MUZPQU'
+FBXVMUZPQU
+root@OpenWrt:~# MARKER='CAYC''FCCACH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+CAYCFCCACH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+CAYCFCCACH 0
+root@OpenWrt:~# echo 'YOSO''TTSAVU'
+YOSOTTSAVU
+root@OpenWrt:~# MARKER='KWSL''YXWGKW' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+KWSLYXWGKW{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+KWSLYXWGKW 0
+root@OpenWrt:~# echo 'MMOB''FWXQOO'
+MMOBFWXQOO
+root@OpenWrt:~# MARKER='QNBH''MSMJMB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+QNBHMSMJMB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+QNBHMSMJMB 0
+root@OpenWrt:~# echo 'KWXN''BEJAKB'
+KWXNBEJAKB
+root@OpenWrt:~# MARKER='BNMB''FEFAFX' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+BNMBFEFAFX{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+BNMBFEFAFX 0
+root@OpenWrt:~# echo 'NKTA''ESMBBW'
+NKTAESMBBW
+root@OpenWrt:~# MARKER='FKPM''BNMKKC' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+FKPMBNMKKC{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+FKPMBNMKKC 0
+root@OpenWrt:~# echo 'CCWZ''OEXWCC'
+CCWZOEXWCC
+root@OpenWrt:~# MARKER='XLTZ''JMXMYA' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+XLTZJMXMYA{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+XLTZJMXMYA 0
+root@OpenWrt:~# echo 'ZVNE''MJAXFA'
+ZVNEMJAXFA
+root@OpenWrt:~# MARKER='EKLP''XKKTGC' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+EKLPXKKTGC{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+EKLPXKKTGC 0
+root@OpenWrt:~# echo 'CVVL''TUWYPB'
+CVVLTUWYPB
+root@OpenWrt:~# MARKER='ZBZC''ONYOXJ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ZBZCONYOXJ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ZBZCONYOXJ 0
+root@OpenWrt:~# echo 'ZSZB''ASEZFT'
+ZSZBASEZFT
+root@OpenWrt:~# MARKER='KZZY''MBQGAM' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+KZZYMBQGAM{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+KZZYMBQGAM 0
+root@OpenWrt:~# echo 'LVTB''XCVVPA'
+LVTBXCVVPA
+root@OpenWrt:~# MARKER='CMWC''MFBYPN' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+CMWCMFBYPN{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+CMWCMFBYPN 0
+root@OpenWrt:~# echo 'LYPV''VZNWCA'
+LYPVVZNWCA
+root@OpenWrt:~# MARKER='OPZY''HMJOKL' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+OPZYHMJOKL{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+OPZYHMJOKL 0
+root@OpenWrt:~# echo 'KGPN''XENGHS'
+KGPNXENGHS
+root@OpenWrt:~# MARKER='YQGU''XFGGBM' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YQGUXFGGBM{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YQGUXFGGBM 0
+root@OpenWrt:~# echo 'XUSP''TYXWGB'
+XUSPTYXWGB
+root@OpenWrt:~# MARKER='BVSN''TPPZAJ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+BVSNTPPZAJ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+BVSNTPPZAJ 0
+root@OpenWrt:~# echo 'OCCA''EJMBTK'
+OCCAEJMBTK
+root@OpenWrt:~# MARKER='YMPA''BWJKNP' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YMPABWJKNP{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YMPABWJKNP 0
+root@OpenWrt:~# echo 'TAJY''VAKGKN'
+TAJYVAKGKN
+root@OpenWrt:~# MARKER='YMSN''HMMSFH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YMSNHMMSFH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YMSNHMMSFH 0
+root@OpenWrt:~# echo 'FWGZ''WPXLEF'
+FWGZWPXLEF
+root@OpenWrt:~# MARKER='ABAV''FQGHJT' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ABAVFQGHJT{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ABAVFQGHJT 0
+root@OpenWrt:~# echo 'BSTK''ACOSFK'
+BSTKACOSFK
+root@OpenWrt:~# MARKER='PSBM''YNWZTC' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+PSBMYNWZTC{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+PSBMYNWZTC 0
+root@OpenWrt:~# echo 'BTAE''NUHQWM'
+BTAENUHQWM
+root@OpenWrt:~# MARKER='BLSL''OQWTLX' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+BLSLOQWTLX{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+BLSLOQWTLX 0
+root@OpenWrt:~# echo 'UUQG''CCHEJP'
+UUQGCCHEJP
+root@OpenWrt:~# MARKER='JSVQ''NYTAYA' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+JSVQNYTAYA{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+JSVQNYTAYA 0
+root@OpenWrt:~# echo 'KHYH''XJOFSB'
+KHYHXJOFSB
+root@OpenWrt:~# MARKER='ONBT''AEHGLB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ONBTAEHGLB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ONBTAEHGLB 0
+root@OpenWrt:~# echo 'NSZO''BGKGXH'
+NSZOBGKGXH
+root@OpenWrt:~# MARKER='LPKK''APVXGQ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+LPKKAPVXGQ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+LPKKAPVXGQ 0
+root@OpenWrt:~# echo 'SPZO''BZFAQF'
+SPZOBZFAQF
+root@OpenWrt:~# MARKER='EPQA''SOKVJK' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+EPQASOKVJK{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+EPQASOKVJK 0
+root@OpenWrt:~# echo 'QFJU''XJMTYZ'
+QFJUXJMTYZ
+root@OpenWrt:~# MARKER='VVFA''YHYWLJ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+VVFAYHYWLJ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+VVFAYHYWLJ 0
+root@OpenWrt:~# echo 'NAQO''PACSPO'
+NAQOPACSPO
+root@OpenWrt:~# MARKER='UEGX''HHHAZH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+UEGXHHHAZH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+UEGXHHHAZH 0
+root@OpenWrt:~# echo 'NXCK''ASVWPZ'
+NXCKASVWPZ
+root@OpenWrt:~# MARKER='KXQA''GEHOFZ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+KXQAGEHOFZ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+KXQAGEHOFZ 0
+root@OpenWrt:~# echo 'YEEO''ZAPGUA'
+YEEOZAPGUA
+root@OpenWrt:~# MARKER='CZQS''JSWWCH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+CZQSJSWWCH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+CZQSJSWWCH 0
+root@OpenWrt:~# echo 'MXFO''ZOPGHM'
+MXFOZOPGHM
+root@OpenWrt:~# MARKER='MEVA''OYJGOB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+MEVAOYJGOB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+MEVAOYJGOB 0
+root@OpenWrt:~# echo 'GCMU''QMQPCM'
+GCMUQMQPCM
+root@OpenWrt:~# MARKER='WXLM''EVWYZL' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+WXLMEVWYZL{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+WXLMEVWYZL 0
+root@OpenWrt:~# echo 'YMSY''XPEJVB'
+YMSYXPEJVB
+root@OpenWrt:~# MARKER='SYSJ''KYZANS' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+SYSJKYZANS{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+SYSJKYZANS 0
+root@OpenWrt:~# echo 'YFTC''ZXJXNS'
+YFTCZXJXNS
+root@OpenWrt:~# MARKER='OOEG''JEBZPF' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+OOEGJEBZPF{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+OOEGJEBZPF 0
+root@OpenWrt:~# echo 'OPJB''KTYVLQ'
+OPJBKTYVLQ
+root@OpenWrt:~# MARKER='JOMO''MMUPNU' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+JOMOMMUPNU{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+JOMOMMUPNU 0
+root@OpenWrt:~# echo 'UHYT''EPKPUY'
+UHYTEPKPUY
+root@OpenWrt:~# MARKER='HMMK''GYUQYB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+HMMKGYUQYB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+HMMKGYUQYB 0
+root@OpenWrt:~# echo 'GMBP''FVVMEK'
+GMBPFVVMEK
+root@OpenWrt:~# MARKER='EVNP''CSZTMY' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+EVNPCSZTMY{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+EVNPCSZTMY 0
+root@OpenWrt:~# echo 'MSBP''UMAWNA'
+MSBPUMAWNA
+root@OpenWrt:~# MARKER='ATTT''HTYMYL' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ATTTHTYMYL{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ATTTHTYMYL 0
+root@OpenWrt:~# echo 'FOME''LTQMHA'
+FOMELTQMHA
+root@OpenWrt:~# MARKER='BTQV''XOVKCJ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+BTQVXOVKCJ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+BTQVXOVKCJ 0
+root@OpenWrt:~# echo 'AXBT''QSJKJL'
+AXBTQSJKJL
+root@OpenWrt:~# MARKER='WQQV''CGUXUL' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+WQQVCGUXUL{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+WQQVCGUXUL 0
+root@OpenWrt:~# echo 'QVMQ''QFKAYX'
+QVMQQFKAYX
+root@OpenWrt:~# MARKER='ABGP''CZEYFM' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ABGPCZEYFM{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ABGPCZEYFM 0
+root@OpenWrt:~# echo 'FHMX''GHKGHO'
+FHMXGHKGHO
+root@OpenWrt:~# MARKER='TAXY''SVTAYP' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+TAXYSVTAYP{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+TAXYSVTAYP 0
+root@OpenWrt:~# echo 'EGBU''JNNOAM'
+EGBUJNNOAM
+root@OpenWrt:~# MARKER='GAUS''CGFXYB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+GAUSCGFXYB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+GAUSCGFXYB 0
+root@OpenWrt:~# echo 'NUCW''YCNTBO'
+NUCWYCNTBO
+root@OpenWrt:~# MARKER='JMNJ''NVCXVF' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+JMNJNVCXVF{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+JMNJNVCXVF 0
+root@OpenWrt:~# echo 'VJHY''HXCNXC'
+VJHYHXCNXC
+root@OpenWrt:~# MARKER='MJQH''YVUNEA' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+MJQHYVUNEA{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+MJQHYVUNEA 0
+root@OpenWrt:~# echo 'JTWQ''OPQSVV'
+JTWQOPQSVV
+root@OpenWrt:~# MARKER='PHMN''VMCJAB' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+PHMNVMCJAB{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+PHMNVMCJAB 0
+root@OpenWrt:~# echo 'VZOL''QWCBJV'
+VZOLQWCBJV
+root@OpenWrt:~# MARKER='SASU''KMMOGU' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+SASUKMMOGU{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+SASUKMMOGU 0
+root@OpenWrt:~# echo 'HTCK''BNHEHL'
+HTCKBNHEHL
+root@OpenWrt:~# MARKER='GACM''TEWSSK' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+GACMTEWSSK{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+GACMTEWSSK 0
+root@OpenWrt:~# echo 'AVPO''XFWFLE'
+AVPOXFWFLE
+root@OpenWrt:~# MARKER='MWLT''APBPCG' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+MWLTAPBPCG{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+MWLTAPBPCG 0
+root@OpenWrt:~# echo 'LWNX''CMMJOQ'
+LWNXCMMJOQ
+root@OpenWrt:~# MARKER='UKFB''CBLAKP' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+UKFBCBLAKP{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+UKFBCBLAKP 0
+root@OpenWrt:~# echo 'EKJA''FPTHHC'
+EKJAFPTHHC
+root@OpenWrt:~# MARKER='FWUC''QLNWJK' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+FWUCQLNWJK{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+FWUCQLNWJK 0
+root@OpenWrt:~# echo 'ZOHG''WMTBPS'
+ZOHGWMTBPS
+root@OpenWrt:~# MARKER='CJYY''LBOHTK' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+CJYYLBOHTK{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+CJYYLBOHTK 0
+root@OpenWrt:~# echo 'SVEC''QNYCYL'
+SVECQNYCYL
+root@OpenWrt:~# MARKER='OUAU''JPWMKN' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+OUAUJPWMKN{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+OUAUJPWMKN 0
+root@OpenWrt:~# echo 'SQMW''SWUXFC'
+SQMWSWUXFC
+root@OpenWrt:~# MARKER='BGPM''PTOTUU' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+BGPMPTOTUU{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+BGPMPTOTUU 0
+root@OpenWrt:~# echo 'PBST''SLJBOF'
+PBSTSLJBOF
+root@OpenWrt:~# MARKER='NTBW''QMMAFU' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+NTBWQMMAFU{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+NTBWQMMAFU 0
+root@OpenWrt:~# echo 'GUQQ''GAJALX'
+GUQQGAJALX
+root@OpenWrt:~# MARKER='ZHBK''XAEEQM' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+ZHBKXAEEQM{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+ZHBKXAEEQM 0
+root@OpenWrt:~# echo 'SNYH''AEWZWA'
+SNYHAEWZWA
+root@OpenWrt:~# MARKER='YPWV''QYXFON' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YPWVQYXFON{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YPWVQYXFON 0
+root@OpenWrt:~# echo 'OYAJ''JHGUFK'
+OYAJJHGUFK
+root@OpenWrt:~# MARKER='YGWT''VHEEXQ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YGWTVHEEXQ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YGWTVHEEXQ 0
+root@OpenWrt:~# echo 'BGAW''MCUWOG'
+BGAWMCUWOG
+root@OpenWrt:~# MARKER='HEKV''TAVSFH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+HEKVTAVSFH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+HEKVTAVSFH 0
+root@OpenWrt:~# echo 'CEYS''WPSMMN'
+CEYSWPSMMN
+root@OpenWrt:~# MARKER='HEVV''OJESEQ' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+HEVVOJESEQ{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+HEVVOJESEQ 0
+root@OpenWrt:~# echo 'ZWPK''ELFSQJ'
+ZWPKELFSQJ
+root@OpenWrt:~# MARKER='XSMZ''OWJOXH' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+XSMZOWJOXH{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+XSMZOWJOXH 0
+root@OpenWrt:~# echo 'PJPW''KWZXSK'
+PJPWKWZXSK
+root@OpenWrt:~# MARKER='YUBB''KPVFBS' run 'ubus call network.interface.wan statu
+s '"'"'{}'"'"''
+YUBBKPVFBS{
+	"up": false,
+	"pending": false,
+	"available": true,
+	"autostart": true,
+	"dynamic": false,
+	"proto": "dhcp",
+	"device": "wan",
+	"data": {
+		
+	}
+}
+YUBBKPVFBS 0
+root@OpenWrt:~# 
