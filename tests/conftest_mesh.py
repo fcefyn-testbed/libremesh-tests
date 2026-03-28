@@ -40,17 +40,14 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-import yaml
+from lime_helpers import REPO_ROOT, resolve_target_yaml
 
 # Allow importing scripts from repo root
-_repo_root = Path(__file__).resolve().parent.parent
-if str(_repo_root) not in sys.path:
-    sys.path.insert(0, str(_repo_root))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).parent.parent
-LABNET_PATH = REPO_ROOT / "labnet.yaml"
 BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 
 BOOT_TIMEOUT = 420
@@ -126,37 +123,6 @@ class MeshNode:
     _stop_file: str = field(default="", repr=False)
 
 
-def _resolve_target_yaml(place_name: str) -> str:
-    """Resolve target YAML path from place name via labnet.yaml."""
-    parts = place_name.split("-", 2)
-    if len(parts) < 3:
-        raise ValueError(f"Cannot parse device instance from place: {place_name}")
-    device_instance = parts[2]
-
-    with open(LABNET_PATH) as f:
-        labnet = yaml.safe_load(f)
-
-    if device_instance in labnet.get("devices", {}):
-        device_config = labnet["devices"][device_instance]
-        target_name = device_config.get("target_file", device_instance)
-        target_file = REPO_ROOT / f"targets/{target_name}.yaml"
-        if target_file.exists():
-            return str(target_file)
-
-    for lab_config in labnet.get("labs", {}).values():
-        device_instances = lab_config.get("device_instances", {})
-        for base_device, instances in device_instances.items():
-            if device_instance in instances:
-                if base_device in labnet.get("devices", {}):
-                    device_config = labnet["devices"][base_device]
-                    target_name = device_config.get("target_file", base_device)
-                    target_file = REPO_ROOT / f"targets/{target_name}.yaml"
-                    if target_file.exists():
-                        return str(target_file)
-
-    raise FileNotFoundError(
-        f"No target YAML found for place {place_name} (instance: {device_instance})"
-    )
 
 
 def _get_coordinator_address() -> str:
@@ -291,7 +257,7 @@ def _configure_vwifi_node(ssh: SSHProxy, vwifi_server_ip: str, node_index: int):
     As a result, the phy never gets a channel set, wlan0-mesh stays NO-CARRIER,
     no beacons are transmitted, and mesh nodes never discover each other.
     We override to 2.4GHz channel 1 after lime-config so hostapd succeeds and
-    the mesh forms. See docs/dev/libremesh-testing-approach.md for full details.
+    the mesh forms.
     """
     mac_hex = f"{node_index:02x}"
     eth2_ip = f"10.99.0.{10 + node_index}"
@@ -429,7 +395,7 @@ def mesh_nodes(request):
         if not image_path:
             pytest.fail(f"No image configured for place {place} "
                         "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
-        target_yaml = _resolve_target_yaml(place)
+        target_yaml = resolve_target_yaml(place)
         logger.info("Node %s: target YAML %s, image %s", place, target_yaml, image_path)
         proc, sf, stf, lf = _launch_boot_subprocess(
             place, image_path, target_yaml, coordinator, tmpdir,

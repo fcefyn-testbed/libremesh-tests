@@ -28,8 +28,7 @@ def test_wifi_mesh_mode(ssh_command):
     stdout, _, rc = ssh_command.run("iw dev")
     output = "\n".join(stdout)
 
-    mesh_modes = ["mesh point", "IBSS", "managed"]
-    found_mesh = any(mode.lower() in output.lower() for mode in ["mesh point", "IBSS"])
+    found_mesh = any(mode.lower() in output.lower() for mode in ("mesh point", "IBSS"))
 
     if not found_mesh:
         # Some devices may show batman interfaces but not 802.11s/IBSS directly.
@@ -73,7 +72,6 @@ def test_wifi_not_in_ap_mode(ssh_command):
     if rc != 0:
         pytest.skip("iw dev not available")
 
-    output = "\n".join(stdout)
     interfaces = []
     current_iface = None
 

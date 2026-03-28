@@ -44,11 +44,11 @@ def test_https_download(ssh_command):
     try:
         stdout, stderr, rc = ssh_command.run(
             "wget -q -O /tmp/test_download.txt "
-            "https://downloads.openwrt.org/releases/21.02.2/targets/armvirt/64/config.buildinfo"
+            "https://downloads.openwrt.org/releases/index.html"
         )
         assert rc == 0, f"wget failed with rc={rc}. stderr: {stderr}"
 
-        content, _, cat_rc = ssh_command.run("cat /tmp/test_download.txt | head -1")
+        content, _, cat_rc = ssh_command.run("head -1 /tmp/test_download.txt")
         assert cat_rc == 0 and content, "Downloaded file is empty or unreadable"
     finally:
         ssh_command.run("rm -f /tmp/test_download.txt")

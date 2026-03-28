@@ -1,4 +1,4 @@
-"""System health monitoring tests for OpenWrt."""
+"""System health monitoring tests for OpenWrt and LibreMesh."""
 
 
 class TestSystemHealth:
