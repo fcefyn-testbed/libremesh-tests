@@ -19,7 +19,8 @@ from os import getenv
 
 import pytest
 from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
-                          is_qemu_target, resolve_target_yaml)
+                          is_qemu_target, resolve_target_yaml,
+                          suppress_kernel_console)
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,9 @@ def setup_env(pytestconfig):
 def shell_command(strategy):
     try:
         strategy.transition("shell")
-        return strategy.shell
+        shell = strategy.shell
+        suppress_kernel_console(shell)
+        return shell
     except Exception:
         logger.exception("Failed to transition to state shell")
         pytest.exit("Failed to transition to state shell", returncode=3)
