@@ -28,7 +28,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from lime_helpers import configure_fixed_ip, ensure_batman_mesh, query_node_ip
+from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
+                          query_node_ip, suppress_kernel_console)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,9 +107,10 @@ def boot_node(place: str, image: str, target_yaml: str,
     strategy.transition("shell")
     logger.info("Shell ready on %s", place)
 
-    ensure_batman_mesh(target)
-
     shell = target.get_driver("ShellDriver")
+    suppress_kernel_console(shell)
+
+    ensure_batman_mesh(target)
     fixed_ip = configure_fixed_ip(shell, target, place_name=place)
     if fixed_ip:
         node_ip = fixed_ip

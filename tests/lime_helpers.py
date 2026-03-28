@@ -23,6 +23,24 @@ LABNET_PATH = REPO_ROOT / "labnet.yaml"
 
 
 # ---------------------------------------------------------------------------
+# Serial console helpers
+# ---------------------------------------------------------------------------
+
+def suppress_kernel_console(shell) -> None:
+    """Set kernel console log level to ALERT-only (``dmesg -n 1``).
+
+    Kernel messages (e.g. batman-adv interface activation) printed to the
+    serial console interfere with pexpect prompt detection, causing TIMEOUT
+    errors in ShellDriver.run().  Must be called once after the shell is
+    ready and before any other serial commands.
+    """
+    try:
+        shell.run("dmesg -n 1")
+    except Exception:
+        logger.debug("dmesg -n 1 failed (non-critical)")
+
+
+# ---------------------------------------------------------------------------
 # Fixed IP helpers
 # ---------------------------------------------------------------------------
 
