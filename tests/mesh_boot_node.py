@@ -26,6 +26,10 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from lime_helpers import configure_fixed_ip, ensure_batman_mesh, query_node_ip
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
@@ -33,53 +37,6 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
-FIXED_IP_PREFIX = "10.13.200"
-
-
-def _generate_fixed_ip(place_name: str) -> str:
-    """Generate a deterministic fixed IP for a place name.
-
-    Must match conftest._generate_fixed_ip so exporter, labgrid-dut-proxy,
-    and mesh tests all use the same IP. Enables manual SSH after mesh tests.
-    """
-    import hashlib
-    md5_hash = hashlib.md5(place_name.encode()).hexdigest()
-    hash_value = int(md5_hash[:8], 16) % 253 + 1
-    return f"{FIXED_IP_PREFIX}.{hash_value}"
-
-
-def _configure_fixed_ip(target, place_name: str) -> str | None:
-    """Configure fixed IP on br-lan via serial for stable SSH access.
-
-    Adds 10.13.200.x as secondary address so manual SSH (labgrid-dut-proxy)
-    and mesh tests use the same IP. Returns the IP if configured, None otherwise.
-    """
-    if not place_name:
-        return None
-
-    fixed_ip = _generate_fixed_ip(place_name)
-    shell = target.get_driver("ShellDriver")
-
-    try:
-        # Check if already configured (grep -q returns 0 if found)
-        shell.run_check(f"ip addr show br-lan | grep -q '{fixed_ip}'")
-        logger.info("Fixed IP %s already on %s", fixed_ip, place_name)
-        return fixed_ip
-    except Exception:
-        pass  # Not found, need to add it
-
-    try:
-        logger.info("Configuring fixed IP %s on %s", fixed_ip, place_name)
-        shell.run_check(f"ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null || true")
-
-        # Verify
-        shell.run_check(f"ip addr show br-lan | grep -q '{fixed_ip}'")
-        logger.info("Fixed IP %s configured on %s", fixed_ip, place_name)
-        return fixed_ip
-    except Exception as e:
-        logger.warning("Failed to configure fixed IP %s: %s", fixed_ip, e)
-
-    return None
 
 
 def _patch_reg_driver_idempotent():
@@ -105,157 +62,6 @@ def _write_status(path: str, data: dict):
     with open(tmp, "w") as f:
         json.dump(data, f)
     os.replace(tmp, path)
-
-
-def _query_node_ip(target, timeout: int = 120) -> str:
-    """Query the booted node's br-lan IPv4 address via serial console (ShellDriver).
-
-    Uses serial instead of SSH because LibreMesh may reassign the IP
-    (e.g. from 192.168.1.1 to 10.13.x.x), making the exporter's
-    NetworkService address stale. Serial is always reachable.
-    """
-    import re
-
-    shell = target.get_driver("ShellDriver")
-    deadline = time.time() + timeout
-
-    # Wait for console to fully settle before running commands
-    # Some devices (BananaPi R4) output kernel messages after login
-    time.sleep(5)
-
-    ip_cmd = ("ip -4 -o addr show br-lan 2>/dev/null || "
-              "ip -4 -o addr show eth0 2>/dev/null || "
-              "ip -4 -o addr show dev $(ip route show default "
-              "| awk '{print $5}' | head -1) 2>/dev/null")
-
-    while time.time() < deadline:
-        try:
-            output = shell.run_check(ip_cmd)
-            text = "\n".join(output)
-            match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", text)
-            if match:
-                return match.group(1)
-        except Exception:
-            pass
-        time.sleep(5)
-
-    logger.warning("Could not determine IP for node, returning empty")
-    return ""
-
-
-def _ensure_batman_mesh(target) -> bool:
-    """Ensure batman-adv has at least one active mesh interface.
-
-    If batman has no active interfaces, detect ports with carrier
-    and configure batman on them. This handles devices like BananaPi R4
-    where LibreMesh misconfigures mesh on SFP ports instead of DSA ports.
-
-    Returns True if batman is active (either already or after fix).
-    """
-    shell = target.get_driver("ShellDriver")
-
-    try:
-        output = shell.run_check("batctl if 2>/dev/null || echo 'batctl_not_found'")
-        batctl_output = "\n".join(output)
-    except Exception as e:
-        logger.warning("Failed to run batctl if: %s", e)
-        return False
-
-    if "batctl_not_found" in batctl_output:
-        logger.info("batctl not available on this device, skipping batman fix")
-        return False
-
-    active_lines = [line for line in batctl_output.splitlines()
-                    if line.strip() and "active" in line.lower()]
-    if active_lines:
-        logger.info("Batman-adv already has active interfaces: %s", active_lines)
-        return True
-
-    logger.warning("Batman-adv has no active interfaces, attempting auto-fix")
-
-    try:
-        output = shell.run_check("ls /sys/class/net/ | grep -E '^(lan|eth)[0-9]+$'")
-        all_ifaces = [iface.strip() for iface in output if iface.strip()]
-        logger.info("All matching interfaces: %s", all_ifaces)
-    except Exception as e:
-        logger.warning("Failed to list interfaces: %s", e)
-        all_ifaces = []
-
-    dsa_ports = [i for i in all_ifaces if i.startswith("lan") or i.startswith("wan")]
-    eth_ports = [i for i in all_ifaces if i.startswith("eth")]
-
-    dsa_conduits = set()
-    for iface in eth_ports:
-        try:
-            out = shell.run_check(
-                f"ls /sys/class/net/{iface}/dsa 2>/dev/null && echo 'is_dsa_conduit' "
-                f"|| echo 'not_dsa_conduit'"
-            )
-            if "is_dsa_conduit" in "\n".join(out):
-                dsa_conduits.add(iface)
-                logger.info("Interface %s is a DSA conduit (master), excluding", iface)
-        except Exception:
-            pass
-
-    candidates = dsa_ports + [i for i in eth_ports if i not in dsa_conduits]
-    logger.info("Candidate interfaces (DSA ports first, conduits excluded): %s", candidates)
-
-    if not candidates:
-        logger.warning("No candidate interfaces found")
-        return False
-
-    fixed = False
-    for iface in candidates:
-        try:
-            carrier_out = shell.run_check(f"cat /sys/class/net/{iface}/carrier 2>/dev/null || echo 0")
-            carrier = carrier_out[0].strip() if carrier_out else "0"
-        except Exception:
-            carrier = "0"
-
-        if carrier != "1":
-            logger.info("Interface %s has no carrier, skipping", iface)
-            continue
-
-        logger.info("Configuring batman-adv on %s (has carrier)", iface)
-        batadv_dev = f"lm_net_{iface}_batadv_dev"
-        batadv_if = f"lm_net_{iface}_batadv_if"
-        try:
-            shell.run_check(f"uci set network.{batadv_dev}=device")
-            shell.run_check(f"uci set network.{batadv_dev}.name={iface}_29")
-            shell.run_check(f"uci set network.{batadv_dev}.type=8021ad")
-            shell.run_check(f"uci set network.{batadv_dev}.ifname={iface}")
-            shell.run_check(f"uci set network.{batadv_dev}.vid=29")
-            shell.run_check(f"uci set network.{batadv_if}=interface")
-            shell.run_check(f"uci set network.{batadv_if}.proto=batadv_hardif")
-            shell.run_check(f"uci set network.{batadv_if}.master=bat0")
-            shell.run_check(f"uci set network.{batadv_if}.mtu=1500")
-            shell.run_check(f"uci set network.{batadv_if}.device={iface}_29")
-            shell.run_check("uci commit network")
-            logger.info("UCI config applied for %s, restarting network...", iface)
-            shell.run_check("/etc/init.d/network restart")
-            time.sleep(15)
-            fixed = True
-            break
-        except Exception as e:
-            logger.warning("Failed to configure batman on %s: %s", iface, e)
-            continue
-
-    if fixed:
-        try:
-            output = shell.run_check("batctl if 2>/dev/null")
-            batctl_output = "\n".join(output)
-            active_lines = [line for line in batctl_output.splitlines()
-                            if line.strip() and "active" in line.lower()]
-            if active_lines:
-                logger.info("Batman-adv now has active interfaces: %s", active_lines)
-                return True
-            else:
-                logger.warning("Batman still has no active interfaces after fix")
-        except Exception as e:
-            logger.warning("Failed to verify batman status: %s", e)
-
-    logger.warning("Could not activate batman-adv mesh")
-    return False
 
 
 def boot_node(place: str, image: str, target_yaml: str,
@@ -296,52 +102,19 @@ def boot_node(place: str, image: str, target_yaml: str,
 
     strategy = target.get_driver("Strategy")
 
-    # #region agent log
-    import json as _json, time as _time
-    _dbg_log = "/tmp/mesh_debug_033974.log"
-    try:
-        _uboot = target.get_driver("UBootDriver")
-        _dbg = {"sessionId": "033974", "hypothesisId": "A", "location": "mesh_boot_node.py:251",
-                "message": "UBootDriver attrs before transition", "timestamp": int(_time.time() * 1000),
-                "data": {"place": place, "login_timeout": _uboot.login_timeout,
-                         "prompt": _uboot.prompt, "interrupt": repr(_uboot.interrupt)}}
-        with open(_dbg_log, "a") as _f:
-            _f.write(_json.dumps(_dbg) + "\n")
-    except Exception as _e:
-        with open(_dbg_log, "a") as _f:
-            _f.write(_json.dumps({"sessionId": "033974", "hypothesisId": "A", "location": "mesh_boot_node.py:251",
-                "message": "Failed to get UBootDriver", "timestamp": int(_time.time() * 1000),
-                "data": {"place": place, "error": str(_e)}}) + "\n")
-    # #endregion
-
-    # #region agent log
-    try:
-        _pdu = target.get_driver("PDUDaemonDriver")
-        _dbg2 = {"sessionId": "033974", "hypothesisId": "B", "location": "mesh_boot_node.py:252",
-                 "message": "PDUDaemonDriver attrs", "timestamp": int(_time.time() * 1000),
-                 "data": {"place": place, "pdu": str(_pdu)}}
-        with open(_dbg_log, "a") as _f:
-            _f.write(_json.dumps(_dbg2) + "\n")
-    except Exception as _e2:
-        with open(_dbg_log, "a") as _f:
-            _f.write(_json.dumps({"sessionId": "033974", "hypothesisId": "B", "location": "mesh_boot_node.py:252",
-                "message": "Failed to get PDUDaemonDriver", "timestamp": int(_time.time() * 1000),
-                "data": {"place": place, "error": str(_e2)}}) + "\n")
-    # #endregion
-
     logger.info("Booting %s to shell...", place)
     strategy.transition("shell")
     logger.info("Shell ready on %s", place)
 
-    _ensure_batman_mesh(target)
+    ensure_batman_mesh(target)
 
-    # Configure fixed IP (10.13.200.x) so manual SSH via labgrid-dut-proxy works
-    fixed_ip = _configure_fixed_ip(target, place)
+    shell = target.get_driver("ShellDriver")
+    fixed_ip = configure_fixed_ip(shell, target, place_name=place)
     if fixed_ip:
         node_ip = fixed_ip
         logger.info("Node %s using fixed IP %s", place, node_ip)
     else:
-        node_ip = _query_node_ip(target)
+        node_ip = query_node_ip(target)
         logger.info("Node %s has IP %s (fixed IP not configured)", place, node_ip)
 
     return {

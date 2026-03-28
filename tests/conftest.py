@@ -15,94 +15,35 @@
 import json
 import logging
 import os
-import sys
 from os import getenv
-from pathlib import Path
 
 import pytest
+from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
+                          is_qemu_target, resolve_target_yaml)
 
 logger = logging.getLogger(__name__)
 
-# Base network for fixed test IPs. The last octet is derived from a hash
-# of the place name, ensuring each DUT gets a unique, deterministic IP.
-# Range: 10.13.200.1 - 10.13.200.254
-FIXED_IP_PREFIX = "10.13.200"
+pytest_plugins = ["conftest_mesh"]
+
+device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
 
 
-def _get_ssh_target_ip(target) -> str | None:
-    """Extract the IP that the SSHDriver will connect to from the target's NetworkService.
-
-    The SSHDriver binds to a NetworkService resource whose address comes from
-    the exporter config (e.g. "10.13.200.169%vlan200"). We must configure the
-    DUT with that same IP so SSH can reach it.
-    """
-    try:
-        ssh = target.get_driver("SSHDriver", activate=False)
-        addr = ssh.networkservice.address
-        logger.info("NetworkService address for SSH: %s", addr)
-        if "%" in addr:
-            addr = addr.split("%")[0]
-        return addr if addr else None
-    except Exception as e:
-        logger.warning("Could not read NetworkService address: %s", e)
-        return None
-
-
-def _generate_fixed_ip(place_name: str) -> str:
-    """Generate a deterministic fixed IP for a place name (hash fallback)."""
-    import hashlib
-    md5_hash = hashlib.md5(place_name.encode()).hexdigest()
-    hash_value = int(md5_hash[:8], 16) % 253 + 1
-    return f"{FIXED_IP_PREFIX}.{hash_value}"
-
-
-def _resolve_target_from_place():
+def _resolve_target_from_place() -> str | None:
+    """Auto-set LG_ENV from LG_PLACE when LG_ENV is not provided."""
     lg_env = getenv("LG_ENV")
     lg_place = getenv("LG_PLACE")
 
     if lg_env or not lg_place:
         return lg_env
 
-    parts = lg_place.split("-", 2)
-    if len(parts) < 3:
+    try:
+        return resolve_target_yaml(lg_place)
+    except (ValueError, FileNotFoundError):
         return None
 
-    device_instance = parts[2]
 
-    try:
-        repo_root = Path(__file__).parent.parent
-        labnet_path = repo_root / "labnet.yaml"
-
-        if not labnet_path.exists():
-            return None
-
-        import yaml
-
-        with open(labnet_path, "r") as f:
-            labnet = yaml.safe_load(f)
-
-        if device_instance in labnet.get("devices", {}):
-            device_config = labnet["devices"][device_instance]
-            target_name = device_config.get("target_file", device_instance)
-            target_file = f"targets/{target_name}.yaml"
-            if (repo_root / target_file).exists():
-                return str(repo_root / target_file)
-
-        for lab_name, lab_config in labnet.get("labs", {}).items():
-            device_instances = lab_config.get("device_instances", {})
-            for base_device, instances in device_instances.items():
-                if device_instance in instances:
-                    if base_device in labnet.get("devices", {}):
-                        device_config = labnet["devices"][base_device]
-                        target_name = device_config.get("target_file", base_device)
-                        target_file = f"targets/{target_name}.yaml"
-                        if (repo_root / target_file).exists():
-                            return str(repo_root / target_file)
-
-    except Exception:
-        pass
-
-    return None
+def pytest_addoption(parser):
+    parser.addoption("--firmware", action="store", default="firmware.bin")
 
 
 def pytest_configure(config):
@@ -117,13 +58,6 @@ def pytest_configure(config):
         os.environ["LG_ENV"] = resolved_env
 
 
-device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
-
-
-def pytest_addoption(parser):
-    parser.addoption("--firmware", action="store", default="firmware.bin")
-
-
 def ubus_call(command, namespace, method, params={}):
     output = command.run_check(f"ubus call {namespace} {method} '{json.dumps(params)}'")
 
@@ -134,16 +68,10 @@ def ubus_call(command, namespace, method, params={}):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_env(pytestconfig):
-    try:
-        from labgrid.pytestplugin.hooks import LABGRID_ENV_KEY
-        env = pytestconfig.stash.get(LABGRID_ENV_KEY, None)
-    except (ImportError, KeyError):
-        env = None
-    if env is not None:
-        env.config.data.setdefault("images", {})["firmware"] = pytestconfig.getoption(
-            "firmware"
-        )
+def setup_env(env, pytestconfig):
+    env.config.data.setdefault("images", {})["firmware"] = pytestconfig.getoption(
+        "firmware"
+    )
 
 
 @pytest.fixture
@@ -156,141 +84,14 @@ def shell_command(strategy):
         pytest.exit("Failed to transition to state shell", returncode=3)
 
 
-def _find_lan_interface(shell_command, max_wait: int = 60) -> str | None:
-    """Wait for an UP LAN interface suitable for IP assignment.
-
-    Waits up to max_wait seconds for br-lan (created by LibreMesh after
-    wifi/batman init, can take 50+ seconds on slow devices like LibreRouter).
-    Only falls back to eth0 or default-route interface if they are UP.
-    """
-    import time
-
-    deadline = time.time() + max_wait
-    attempt = 0
-    while time.time() < deadline:
-        stdout, _, rc = shell_command.run(
-            "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
-        )
-        if rc == 0:
-            return "br-lan"
-
-        for iface in ("eth0",):
-            stdout, _, rc = shell_command.run(
-                f"ip -o link show {iface} 2>/dev/null | grep -q 'state UP'"
-            )
-            if rc == 0:
-                return iface
-
-        stdout, _, rc = shell_command.run(
-            "ip route show default 2>/dev/null | awk '{print $5}' | head -1"
-        )
-        if rc == 0 and stdout and stdout[0].strip():
-            iface = stdout[0].strip()
-            # Verify interface exists before using (avoids "can't find device" on early boot)
-            _, _, rc2 = shell_command.run(
-                f"ip -o link show {iface} 2>/dev/null | grep -q ."
-            )
-            if rc2 == 0:
-                return iface
-
-        attempt += 1
-        remaining = int(deadline - time.time())
-        if remaining > 0:
-            logger.info("Waiting for LAN interface to come UP (%ds remaining)", remaining)
-            time.sleep(5)
-    return None
-
-
-def _configure_fixed_ip(shell_command, target) -> str | None:
-    """Configure a fixed IP on the LAN interface via serial for stable SSH access.
-
-    Reads the IP from the target's SSHDriver NetworkService binding, which
-    is the exact address SSH will connect to. This ensures the DUT has the
-    IP that labgrid expects, regardless of LG_PLACE expansion.
-
-    Falls back to a hash-based IP from LG_PLACE if NetworkService is unavailable.
-
-    Returns the fixed IP if configured, None otherwise.
-    """
-    import time
-
-    time.sleep(5)
-
-    fixed_ip = _get_ssh_target_ip(target)
-
-    if fixed_ip and fixed_ip in ("127.0.0.1", "::1", "localhost"):
-        logger.info(
-            "QEMU target detected (NetworkService address=%s); "
-            "skipping fixed IP configuration (strategy handles port forwarding)",
-            fixed_ip,
-        )
-        return None
-
-    if not fixed_ip:
-        place_name = getenv("LG_PLACE", "")
-        if not place_name or place_name == "+":
-            logger.warning("Cannot determine SSH target IP (no NetworkService, LG_PLACE=%s)", place_name)
-            return None
-        fixed_ip = _generate_fixed_ip(place_name)
-        logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
-    logger.info("SSH target IP resolved to %s", fixed_ip)
-
-    max_attempts = 3
-    retry_delay = 15
-    for attempt in range(1, max_attempts + 1):
-        iface = _find_lan_interface(shell_command)
-        if not iface:
-            logger.error("No suitable network interface found for fixed IP")
-            return None
-        logger.info("Using interface %s for fixed IP (attempt %d/%d)", iface, attempt, max_attempts)
-
-        _, _, rc = shell_command.run(f"ip addr show {iface} | grep -q '{fixed_ip}'")
-        if rc == 0:
-            logger.info("Fixed IP %s already configured on %s", fixed_ip, iface)
-            return fixed_ip
-
-        logger.info("Configuring fixed IP %s on %s", fixed_ip, iface)
-        shell_command.run(f"ip addr add {fixed_ip}/16 dev {iface} 2>/dev/null || true")
-
-        stdout, stderr, rc = shell_command.run(f"ip addr show {iface} | grep '{fixed_ip}'")
-        if rc == 0:
-            logger.info("Fixed IP %s configured successfully on %s", fixed_ip, iface)
-            return fixed_ip
-
-        if attempt < max_attempts:
-            err_msg = " ".join(stderr) if stderr else " ".join(stdout) if stdout else "exit %d" % rc
-            logger.warning(
-                "Failed to verify IP on %s (attempt %d/%d): %s; retrying in %ds",
-                iface, attempt, max_attempts, err_msg, retry_delay,
-            )
-            time.sleep(retry_delay)
-        else:
-            logger.error("Failed to configure fixed IP %s on %s after %d attempts", fixed_ip, iface, max_attempts)
-            return None
-
-
-def _is_qemu_target(target) -> bool:
-    """Detect if the current target is a QEMU VM (not a physical DUT)."""
-    try:
-        ssh = target.get_driver("SSHDriver", activate=False)
-        return ssh.networkservice.address == "127.0.0.1"
-    except Exception:
-        return False
-
-
 @pytest.fixture
 def ssh_command(shell_command, target):
-    if not _is_qemu_target(target):
-        from mesh_boot_node import _ensure_batman_mesh
-        _ensure_batman_mesh(target)
+    if not is_qemu_target(target):
+        ensure_batman_mesh(target)
 
-    fixed_ip = _configure_fixed_ip(shell_command, target)
+    fixed_ip = configure_fixed_ip(shell_command, target)
     if fixed_ip:
         logger.info("Using fixed IP %s for SSH", fixed_ip)
 
     ssh = target.get_driver("SSHDriver")
     return ssh
-
-
-sys.path.insert(0, str(Path(__file__).parent))
-from conftest_mesh import mesh_nodes  # noqa: F811

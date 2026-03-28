@@ -58,31 +58,74 @@ make tests/setup V=s
 
 ## Running tests
 
-You can run tests via the Makefile or directly using `pytest`.
+Tests support both **physical DUTs** (via labgrid) and **QEMU virtual machines**.
+Single-node and multi-node (mesh) tests can each run in either mode.
 
-### Using the Makefile
+| | Physical DUT | QEMU VM |
+|---|---|---|
+| **Single-node** | `LG_PLACE` + labgrid | `--lg-env targets/qemu_*.yaml` + labgrid |
+| **Multi-node mesh** | `LG_MESH_PLACES` + labgrid | `LG_VIRTUAL_MESH=1` (no labgrid) |
 
-You can start runtime and shell tests via the Makefile.
+### Single-node tests on QEMU (virtual)
 
-#### Runtime tests
+Run LibreMesh single-node tests against a QEMU x86-64 VM. No hardware required.
+
+```shell
+uv run pytest tests/test_base.py tests/test_lan.py tests/test_libremesh.py \
+    --lg-env targets/qemu_x86-64_libremesh.yaml \
+    --firmware /path/to/lime-x86-64-generic-ext4-combined.img \
+    --lg-log --log-cli-level=CONSOLE --lg-colored-steps -v
+```
+
+For vanilla OpenWrt (non-LibreMesh) images, use the upstream targets instead:
+
+```shell
+uv run pytest tests/test_base.py \
+    --lg-env targets/qemu_x86-64.yaml \
+    --firmware /path/to/openwrt-x86-64-generic-squashfs-combined.img \
+    --lg-log --log-cli-level=CONSOLE --lg-colored-steps -v
+```
+
+### Single-node tests on physical DUTs
+
+```shell
+export LG_PLACE=labgrid-fcefyn-belkin_rt3200_2
+export LG_PROXY=labgrid-fcefyn
+export LG_IMAGE=/srv/tftp/firmwares/belkin_rt3200/lime-...itb
+
+uv run labgrid-client lock
+uv run pytest tests/test_libremesh.py --log-cli-level=CONSOLE -v
+uv run labgrid-client unlock
+```
+
+### Multi-node mesh tests on QEMU (virtual)
+
+Launches N QEMU VMs with vwifi for mesh simulation. No labgrid needed.
+
+```shell
+export LG_VIRTUAL_MESH=1
+export VIRTUAL_MESH_IMAGE=/path/to/lime-vwifi-x86-64-ext4-combined.img
+export VIRTUAL_MESH_NODES=3
+
+uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
+```
+
+### Multi-node mesh tests on physical DUTs
+
+```shell
+export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
+export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/path/to/img1,labgrid-fcefyn-bananapi_bpi-r4=/path/to/img2"
+
+uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
+```
+
+### Using the Makefile (OpenWrt upstream)
+
+For running upstream OpenWrt tests from inside the `openwrt.git` tree:
 
 ```shell
 cd /path/to/openwrt.git
 make tests/x86-64 V=s
-```
-
-### Standalone usage
-
-If you don't plan to clone this repository inside the `openwrt.git` repository,
-you can still run the tests. Use this command to run tests on `malta/be` image:
-
-```shell
-pytest tests/ \
-    --lg-env targets/qemu_malta-be.yaml \
-    --lg-log \
-    --log-cli-level=CONSOLE \
-    --lg-colored-steps \
-    --firmware ../../openwrt/bin/targets/malta/be/openwrt-malta-be-vmlinux-initramfs.elf
 ```
 
 ## Writing tests

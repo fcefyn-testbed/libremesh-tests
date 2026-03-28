@@ -1,4 +1,7 @@
 # firmwares_folder: subdir under /srv/tftp/firmwares/ for each device (Labgrid stage() creates symlink in place folder)
+# url (optional): source URL for auto-download; if empty the image must be placed manually.
+#   When set, a future refresh job could download missing/outdated images automatically.
+#   See: fcefyn_testbed_utils/docs/design/ci-use-cases-proposal.md §4.4
 devices:
   linksys_e8450:
     firmwares_folder: "belkin_rt3200"
@@ -7,12 +10,15 @@ devices:
       openwrt-24.10.5:
         filename: "openwrt-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin"
         label: "LibreMesh 24.10.5 (Belkin RT3200)"
+        url: ""
       lime:
         filename: "lime-mediatek-mt7622-linksys_e8450-ubi-initramfs-recovery.itb"
         label: "LibreMesh lime UBI (Belkin RT3200, fallback)"
+        url: ""
       openwrt-23.05.5:
         filename: "openwrt-23.05.5-mediatek-mt7622-linksys_e8450-ubi-initramfs-recovery.itb"
         label: "LibreMesh 23.05.5 UBI (Belkin RT3200)"
+        url: ""
 
   openwrt_one:
     firmwares_folder: "openwrt_one"
@@ -21,6 +27,7 @@ devices:
       openwrt-24.10.5:
         filename: "openwrt-24.10.5-mediatek-filogic-openwrt_one-initramfs.itb"
         label: "LibreMesh 24.10.5 (OpenWrt One)"
+        url: ""
 
   bananapi_bpi-r4:
     firmwares_folder: "bananapi_bpi-r4"
@@ -29,6 +36,7 @@ devices:
       openwrt-24.10.5:
         filename: "openwrt-24.10.5-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb"
         label: "LibreMesh 24.10.5 (BananaPi R4)"
+        url: ""
 
   librerouter_librerouter_v1:
     firmwares_folder: "librerouter_librerouter_v1"
@@ -37,6 +45,8 @@ devices:
       openwrt-24.10.5:
         filename: "openwrt-24.10.5-ath79-generic-librerouter_librerouter-v1-initramfs-kernel.bin"
         label: "LibreMesh 24.10.5 (LibreRouter v1)"
+        url: ""
       openwrt-legacy:
         filename: "openwrt-ath79-generic-librerouter_librerouter-v1-initramfs-kernel.bin"
         label: "LibreMesh legacy (LibreRouter v1)"
+        url: ""

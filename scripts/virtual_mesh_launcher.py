@@ -47,8 +47,6 @@ DEFAULT_MAX_NODES_CI = 3
 DEFAULT_MAX_NODES_SELFHOSTED = 5
 VWIFI_SERVER_DEFAULT = "vwifi-server"
 QEMU_BIN = "qemu-system-x86_64"
-# Host IP as seen from QEMU user-mode networking
-QEMU_HOST_IP = "10.0.2.2"
 
 # TAP mode (same as libremesh_node.sh)
 TAP_BRIDGE = "br0"

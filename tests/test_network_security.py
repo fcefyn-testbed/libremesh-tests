@@ -45,5 +45,3 @@ def test_ssh_supported_algorithms(ssh_command):
         assert "aes256-ctr" in algorithms["encryption_algorithms"]
 
         assert "hmac-sha2-256" in algorithms["mac_algorithms"]
-
-        print(algorithms)
