@@ -68,10 +68,25 @@ def ubus_call(command, namespace, method, params={}):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_env(env, pytestconfig):
-    env.config.data.setdefault("images", {})["firmware"] = pytestconfig.getoption(
-        "firmware"
-    )
+def setup_env(pytestconfig):
+    """Inject --firmware into labgrid's env config when labgrid is active.
+
+    Unlike upstream, this fixture does NOT take labgrid's ``env`` fixture as a
+    parameter.  Reason: multi-node mesh tests (conftest_mesh.py) run without
+    ``--lg-env`` and therefore labgrid never creates an ``env``.  If this
+    fixture depended on ``env``, pytest would skip or error on every mesh test.
+    We resolve the env from pytestconfig.stash instead, which is a no-op when
+    labgrid is inactive.
+    """
+    try:
+        from labgrid.pytestplugin.hooks import LABGRID_ENV_KEY
+        env = pytestconfig.stash.get(LABGRID_ENV_KEY, None)
+    except (ImportError, KeyError):
+        env = None
+    if env is not None:
+        env.config.data.setdefault("images", {})["firmware"] = pytestconfig.getoption(
+            "firmware"
+        )
 
 
 @pytest.fixture
