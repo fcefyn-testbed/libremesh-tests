@@ -220,9 +220,9 @@ labs:
   labgrid-fcefyn:
     proxy: labgrid-fcefyn
     maintainers:
-      - "@javierbrk"
       - "@francoriba"
       - "@ccasanueva7"
+      - "@javierbrk"
     devices:
       - linksys_e8450
       - openwrt_one
@@ -236,7 +236,8 @@ labs:
       librerouter_librerouter_v1:
         - librerouter_1
     developers:
-      - fcefyn-lab
+      - francoriba
+      - aparcar
 
 developers:
   aparcar:
@@ -249,5 +250,5 @@ developers:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG8vcHMKcl6W6OuzSdjOhQ0ZehtH+McjLB7WzgP9P4Ls
   hauke:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDhbJDeGBfpn8vkd1wjHgOWvN9WGWS3mRgqqFqNqgpNE
-  fcefyn-lab:
-    sshkey: # To be created
+  francoriba:
+    sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaNY9LyGgQlwlMaWxSWq5xD++UGCJtdqxHPHDADFACi
