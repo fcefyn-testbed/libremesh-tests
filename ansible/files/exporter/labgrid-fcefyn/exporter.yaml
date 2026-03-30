@@ -73,7 +73,7 @@ labgrid-fcefyn-openwrt_one:
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-poe-port1
+    pdu: fcefyn-poe
     index: 1
   TFTPProvider:
     internal: "/srv/tftp/openwrt_one/"
@@ -90,7 +90,7 @@ labgrid-fcefyn-librerouter_1:
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-poe-port2
+    pdu: fcefyn-poe
     index: 2
   TFTPProvider:
     internal: "/srv/tftp/librerouter_1/"
