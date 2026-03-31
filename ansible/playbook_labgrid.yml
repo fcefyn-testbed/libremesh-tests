@@ -336,40 +336,6 @@
         dest: /usr/local/sbin/labgrid-bound-connect
         mode: "0755"
 
-    - name: Stat host specific dut-proxy configuration
-      ansible.builtin.stat:
-        path: files/exporter/{{ inventory_hostname }}/dut-proxy.yaml
-      register: host_specific_dut_proxy_conf
-      delegate_to: localhost
-      become: false
-      tags:
-        - export
-
-    - name: Copy dut-proxy config to labgrid host
-      ansible.builtin.copy:
-        src: files/exporter/{{ inventory_hostname }}/dut-proxy.yaml
-        dest: /etc/labgrid/dut-proxy.yaml
-        mode: "0644"
-      when: host_specific_dut_proxy_conf.stat.exists
-      tags:
-        - export
-
-    - name: Install labgrid-dut-proxy
-      copy:
-        src: files/labgrid-dut-proxy
-        dest: /usr/local/sbin/labgrid-dut-proxy
-        mode: "0755"
-      when: host_specific_dut_proxy_conf.stat.exists
-      tags:
-        - export
-
-    - name: Add labgrid-dut-proxy to sudoers
-      lineinfile:
-        path: /etc/sudoers
-        line: "ALL ALL = NOPASSWD: /usr/local/sbin/labgrid-dut-proxy"
-        validate: "visudo -cf %s"
-      when: host_specific_dut_proxy_conf.stat.exists
-
     - name: Create /var/cache/labgrid/labgrid-dev
       file:
         path: /var/cache/labgrid/labgrid-dev
