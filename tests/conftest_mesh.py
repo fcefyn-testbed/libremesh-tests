@@ -351,8 +351,11 @@ def _mesh_nodes_virtual():
 
 
 @pytest.fixture(scope="session")
-def mesh_nodes(request):
+def mesh_nodes(request, mesh_vlan_multi):
     """Boot mesh DUTs and yield MeshNode list. Physical or virtual based on LG_VIRTUAL_MESH.
+
+    Depends on mesh_vlan_multi to ensure all DUT ports are switched to
+    VLAN 200 before booting nodes (and restored on session teardown).
 
     Each MeshNode has:
       - .ssh (SSHProxy): run_check(cmd) -> list[str], run(cmd) -> (stdout, stderr, code)

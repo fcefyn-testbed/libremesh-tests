@@ -24,7 +24,7 @@ from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
 
 logger = logging.getLogger(__name__)
 
-pytest_plugins = ["conftest_mesh"]
+pytest_plugins = ["conftest_mesh", "conftest_vlan"]
 
 device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
 
