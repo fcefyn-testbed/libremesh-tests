@@ -123,6 +123,42 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
     return None
 
 
+def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
+    """Start a background script on the DUT that keeps the fixed IP reachable.
+
+    When the IP is initially placed on a non-bridge interface (e.g. eth0),
+    LibreMesh may later create br-lan and absorb eth0 as a bridge port,
+    removing the IP. Additionally, LibreMesh init scripts may reconfigure
+    br-lan multiple times, removing the IP again.
+
+    The watchdog runs for 180 seconds, checking every 3 seconds. On each
+    iteration it ensures the IP exists on the best available interface
+    (br-lan if UP, otherwise the original interface).
+    """
+    watchdog_script = (
+        f'END=$(($(date +%s)+180)); '
+        f'while [ "$(date +%s)" -lt "$END" ]; do '
+        f'  FOUND=0; '
+        f'  for IFACE in br-lan {original_iface}; do '
+        f'    ip addr show "$IFACE" 2>/dev/null | grep -q "{fixed_ip}" && FOUND=1 && break; '
+        f'  done; '
+        f'  if [ "$FOUND" = "0" ]; then '
+        f'    if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
+        f'      ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null; '
+        f'    else '
+        f'      ip addr add {fixed_ip}/16 dev {original_iface} 2>/dev/null; '
+        f'    fi; '
+        f'  fi; '
+        f'  sleep 3; '
+        f'done'
+    )
+    shell.run(f"({watchdog_script}) &")
+    logger.info(
+        "Started IP watchdog (180s): will keep %s reachable, preferring br-lan (was on %s)",
+        fixed_ip, original_iface,
+    )
+
+
 def configure_fixed_ip(shell, target, place_name: str | None = None) -> str | None:
     """Configure a fixed IP on the LAN interface via serial for stable SSH.
 
@@ -177,6 +213,8 @@ def configure_fixed_ip(shell, target, place_name: str | None = None) -> str | No
         stdout, stderr, rc = shell.run(f"ip addr show {iface} | grep '{fixed_ip}'")
         if rc == 0:
             logger.info("Fixed IP %s configured successfully on %s", fixed_ip, iface)
+            if iface != "br-lan":
+                _start_ip_watchdog(shell, fixed_ip, iface)
             return fixed_ip
 
         if attempt < max_attempts:
