@@ -27,18 +27,24 @@ uv run pytest tests/test_multinode.py -v --log-cli-level=INFO
 
 ## How it works
 
-1. `conftest_multinode.py` reads `LG_MULTI_PLACES` and spawns one `multinode_boot.py` subprocess per place
-2. Each subprocess acquires the labgrid place, boots the DUT to shell, and writes a status JSON
-3. The parent fixture collects all statuses, creates `MultiNode` objects with SSH access
-4. Tests receive the `multi_nodes` fixture (list of `MultiNode`)
-5. On teardown, each subprocess powers off its DUT and releases the place
+1. If `conftest_vlan` is loaded and `VLAN_SWITCH_ENABLED=1`, all DUT ports are switched to a shared VLAN
+2. `conftest_multinode.py` reads `LG_MULTI_PLACES` and spawns one `multinode_boot.py` subprocess per place
+3. Each subprocess acquires the labgrid place, boots the DUT to shell via serial, and assigns a unique test IP (`10.200.0.<N+1>/24` on `br-lan`) via the serial console
+4. The parent fixture collects all statuses, creates `MultiNode` objects with SSH access to the test IPs
+5. Tests receive the `multi_nodes` fixture (list of `MultiNode`)
+6. On teardown, each subprocess powers off its DUT and releases the place
 
 ```
 conftest_multinode.py (parent)
-├── multinode_boot.py --place device_a  (subprocess 1)
-├── multinode_boot.py --place device_b  (subprocess 2)
+├── [optional] shared_vlan_multi → switches DUT ports to shared VLAN
+├── multinode_boot.py --place device_a --node-index 0  (subprocess 1)
+│   └── assigns 10.200.0.1/24 on br-lan
+├── multinode_boot.py --place device_b --node-index 1  (subprocess 2)
+│   └── assigns 10.200.0.2/24 on br-lan
 └── ...
 ```
+
+The test subnet `10.200.0.0/24` avoids conflicts with OpenWrt's default `192.168.1.1`. IPs are assigned as secondary addresses via the serial console (no network dependency during assignment).
 
 ## Golden device pattern
 
