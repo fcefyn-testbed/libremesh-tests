@@ -18,6 +18,8 @@ from os import getenv
 
 import pytest
 
+pytest_plugins = ["conftest_multinode"]
+
 logger = logging.getLogger(__name__)
 
 device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
