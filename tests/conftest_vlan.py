@@ -133,23 +133,11 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
         return
 
     logger.info("Switching %d mesh DUTs to VLAN %d in batch: %s", len(valid_duts), VLAN_MESH, valid_duts)
-
-    has_batch = hasattr(vlan_manager_mod, "set_ports_vlan_batch")
-    if has_batch:
-        ok = vlan_manager_mod.set_ports_vlan_batch(valid_duts, VLAN_MESH, dut_map=dut_map)
-        if not ok:
-            pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")
-    else:
-        for dut_name in valid_duts:
-            ok = vlan_manager_mod.set_port_vlan(dut_name, VLAN_MESH, dut_map=dut_map)
-            if not ok:
-                pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
+    ok = vlan_manager_mod.set_ports_vlan_batch(valid_duts, VLAN_MESH, dut_map=dut_map)
+    if not ok:
+        pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")
 
     yield dut_names
 
     logger.info("Restoring %d mesh DUTs to isolated VLANs in batch", len(valid_duts))
-    if has_batch:
-        vlan_manager_mod.restore_ports_vlan_batch(valid_duts, dut_map=dut_map)
-    else:
-        for dut_name in valid_duts:
-            vlan_manager_mod.restore_port_vlan(dut_name, dut_map=dut_map)
+    vlan_manager_mod.restore_ports_vlan_batch(valid_duts, dut_map=dut_map)
