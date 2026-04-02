@@ -64,14 +64,17 @@ class TestMultiNodeConnectivity:
             assert ips, f"Node {node.place}: no IPv4 address"
 
     def test_l3_connectivity(self, multi_nodes):
-        """First node can ping every other node."""
+        """First node can ping every other node via test subnet."""
         if len(multi_nodes) < 2:
             pytest.skip("Need at least 2 nodes for connectivity test")
 
         src = multi_nodes[0]
         for dst in multi_nodes[1:]:
-            dst_ip = _get_first_ipv4(dst)
-            logger.info("Ping %s -> %s (%s)", src.place, dst.place, dst_ip)
+            dst_ip = dst.ip
+            if not dst_ip:
+                pytest.fail(f"Node {dst.place}: no test IP assigned")
+            logger.info("Ping %s (%s) -> %s (%s)",
+                        src.place, src.ip, dst.place, dst_ip)
             output = src.ssh.run_check(f"ping -c 5 -W 5 {dst_ip}")
             joined = "\n".join(output)
             assert "0% packet loss" in joined, (
@@ -132,7 +135,9 @@ class TestWifiPerformance:
         server.ssh.run("killall iperf3 2>/dev/null; true")
         server.ssh.run("iperf3 -s -D")
 
-        server_ip = _get_first_ipv4(server)
+        server_ip = server.ip
+        if not server_ip:
+            pytest.fail(f"Server node {server.place}: no test IP assigned")
         logger.info("iperf3: %s (client) -> %s (server @ %s), %ds",
                      client.place, server.place, server_ip, IPERF_DURATION)
 
