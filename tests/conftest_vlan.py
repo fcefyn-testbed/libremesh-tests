@@ -110,6 +110,9 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
 
     Activates based on LG_MESH_PLACES. Session-scoped: switches VLANs once
     for all mesh tests, restores on session teardown.
+
+    Uses batch functions to send all VLAN commands in a single SSH session,
+    avoiding one connection per DUT.
     """
     if _is_disabled() or vlan_manager_mod is None:
         yield []
@@ -129,20 +132,24 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
         yield dut_names
         return
 
-    switched = []
-    for dut_name in valid_duts:
-        logger.info("Switching mesh DUT '%s' to VLAN %d", dut_name, VLAN_MESH)
-        ok = vlan_manager_mod.set_port_vlan(dut_name, VLAN_MESH, dut_map=dut_map)
-        if ok:
-            switched.append(dut_name)
-        else:
-            logger.error("Failed to switch DUT '%s', restoring already switched", dut_name)
-            for prev in switched:
-                vlan_manager_mod.restore_port_vlan(prev, dut_map=dut_map)
-            pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
+    logger.info("Switching %d mesh DUTs to VLAN %d in batch: %s", len(valid_duts), VLAN_MESH, valid_duts)
+
+    has_batch = hasattr(vlan_manager_mod, "set_ports_vlan_batch")
+    if has_batch:
+        ok = vlan_manager_mod.set_ports_vlan_batch(valid_duts, VLAN_MESH, dut_map=dut_map)
+        if not ok:
+            pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")
+    else:
+        for dut_name in valid_duts:
+            ok = vlan_manager_mod.set_port_vlan(dut_name, VLAN_MESH, dut_map=dut_map)
+            if not ok:
+                pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
 
     yield dut_names
 
-    for dut_name in switched:
-        logger.info("Restoring mesh DUT '%s' to isolated VLAN", dut_name)
-        vlan_manager_mod.restore_port_vlan(dut_name, dut_map=dut_map)
+    logger.info("Restoring %d mesh DUTs to isolated VLANs in batch", len(valid_duts))
+    if has_batch:
+        vlan_manager_mod.restore_ports_vlan_batch(valid_duts, dut_map=dut_map)
+    else:
+        for dut_name in valid_duts:
+            vlan_manager_mod.restore_port_vlan(dut_name, dut_map=dut_map)
