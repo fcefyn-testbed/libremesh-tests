@@ -41,6 +41,7 @@ LABNET_PATH = REPO_ROOT / "labnet.yaml"
 BOOT_TIMEOUT = 420
 NETWORK_SETTLE_TIMEOUT = 90
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
+TEST_SUBNET = "10.200.0"
 
 
 class SSHProxy:
@@ -180,7 +181,8 @@ def _resolve_image_map() -> dict[str, str]:
 
 
 def _launch_boot_subprocess(place: str, image: str, target_yaml: str,
-                            coordinator: str, tmpdir: str) -> tuple[subprocess.Popen, str, str, str]:
+                            coordinator: str, tmpdir: str,
+                            node_index: int = 0) -> tuple[subprocess.Popen, str, str, str]:
     """Launch multinode_boot.py as a subprocess for one place."""
     status_file = os.path.join(tmpdir, f"status_{place}.json")
     stop_file = os.path.join(tmpdir, f"stop_{place}")
@@ -192,6 +194,7 @@ def _launch_boot_subprocess(place: str, image: str, target_yaml: str,
         "--image", image,
         "--target-yaml", target_yaml,
         "--coordinator", coordinator,
+        "--node-index", str(node_index),
         "--status-file", status_file,
         "--stop-file", stop_file,
     ]
@@ -290,10 +293,21 @@ def multi_nodes(request):
     Each MultiNode has:
       - .ssh: SSHProxy with run_check(cmd) and run(cmd)
       - .place: labgrid place name
-      - .ip: node's IPv4 address
+      - .ip: node's test IPv4 address (10.200.0.<index+1>)
+
+    Each node gets a unique IP assigned via serial console after boot,
+    on a dedicated test subnet (10.200.0.0/24).
+
+    If conftest_vlan is loaded and VLAN_SWITCH_ENABLED=1, VLAN switching
+    happens before nodes boot (shared_vlan_multi fixture).
 
     Triggered by LG_MULTI_PLACES env var.
     """
+    try:
+        request.getfixturevalue("shared_vlan_multi")
+    except pytest.FixtureLookupError:
+        pass
+
     places_str = os.environ.get("LG_MULTI_PLACES", "")
     if not places_str:
         pytest.skip("LG_MULTI_PLACES not set")
@@ -311,6 +325,7 @@ def multi_nodes(request):
     vlan_iface = _get_vlan_iface()
 
     logger.info("Multi-node test: booting %d nodes in parallel: %s", len(places), places)
+    logger.info("Each node gets test IP %s.<index+1>/%d", TEST_SUBNET, 24)
 
     tmpdir = tempfile.mkdtemp(prefix="multinode_boot_")
     procs = {}
@@ -318,15 +333,17 @@ def multi_nodes(request):
     stop_files = {}
     log_files = {}
 
-    for place in places:
+    for idx, place in enumerate(places):
         image_path = image_map.get(place, default_image)
         if not image_path:
             pytest.fail(f"No image for place {place} "
                         "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
         target_yaml = _resolve_target_yaml(place)
-        logger.info("Node %s: target %s, image %s", place, target_yaml, image_path)
+        logger.info("Node %s (index %d): target %s, image %s",
+                    place, idx, target_yaml, image_path)
         proc, sf, stf, lf = _launch_boot_subprocess(
             place, image_path, target_yaml, coordinator, tmpdir,
+            node_index=idx,
         )
         procs[place] = proc
         status_files[place] = sf
@@ -342,14 +359,16 @@ def multi_nodes(request):
             log_file=log_files[place],
         )
         if status.get("ok"):
-            node_ip = status.get("ip", "192.168.1.1")
+            node_ip = status.get("ip", "")
+            if not node_ip:
+                logger.warning("Node %s: no test IP assigned, SSH may not work", place)
             ssh = SSHProxy(host=node_ip, vlan_iface=vlan_iface)
             node = MultiNode(
                 place=place, ssh=ssh, ip=node_ip,
                 _process=procs[place], _stop_file=stop_files[place],
             )
             nodes.append(node)
-            logger.info("Node %s booted (IP: %s)", place, node_ip)
+            logger.info("Node %s booted (test IP: %s)", place, node_ip)
         else:
             error = status.get("error", "unknown")
             logger.error("Node %s failed to boot: %s", place, error)
