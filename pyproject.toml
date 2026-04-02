@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "ansible<12.0.0",
     "labgrid>=25.0",
+    "labgrid-switch-abstraction>=0.1.0",
     "pytest>=8.4.1",
     "pytest-check>=2.5.3",
     "pytest-harvest>=1.10.5",
@@ -14,6 +15,7 @@ dependencies = [
 
 [tool.uv.sources]
 labgrid = { git = "https://github.com/aparcar/labgrid.git", branch = "aparcar/staging" }
+labgrid-switch-abstraction = { git = "https://github.com/fcefyn-testbed/labgrid-switch-abstraction.git", branch = "master" }
 
 [dependency-groups]
 dev = ["isort>=6.0.1", "ruff>=0.12.0"]
