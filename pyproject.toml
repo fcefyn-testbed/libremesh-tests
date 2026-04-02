@@ -12,8 +12,12 @@ dependencies = [
     "pytest-harvest>=1.10.5",
 ]
 
+[project.optional-dependencies]
+switch = ["labgrid-switch-abstraction"]
+
 [tool.uv.sources]
 labgrid = { git = "https://github.com/aparcar/labgrid.git", branch = "aparcar/staging" }
+labgrid-switch-abstraction = { git = "https://github.com/fcefyn-testbed/labgrid-switch-abstraction.git" }
 
 [dependency-groups]
 dev = ["isort>=6.0.1", "ruff>=0.12.0"]

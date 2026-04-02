@@ -51,8 +51,13 @@ class SSHProxy:
     directly when vlan_iface is None.
     """
 
-    def __init__(self, host: str, vlan_iface: Optional[str] = "vlan200",
-                 username: str = "root", port: int = 22):
+    def __init__(
+        self,
+        host: str,
+        vlan_iface: Optional[str] = "vlan200",
+        username: str = "root",
+        port: int = 22,
+    ):
         self._host = host
         self._vlan_iface = vlan_iface
         self._username = username
@@ -61,18 +66,23 @@ class SSHProxy:
     def _build_ssh_cmd(self, command: str) -> list[str]:
         base = [
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",
         ]
         if self._vlan_iface:
-            proxy_cmd = (f"sudo /usr/local/sbin/labgrid-bound-connect "
-                         f"{self._vlan_iface} {self._host} {self._port}")
-            base.extend(["-o", f"ProxyCommand={proxy_cmd}",
-                         f"{self._username}@{self._host}"])
+            proxy_cmd = (
+                f"sudo /usr/local/sbin/labgrid-bound-connect "
+                f"{self._vlan_iface} {self._host} {self._port}"
+            )
+            base.extend(
+                ["-o", f"ProxyCommand={proxy_cmd}", f"{self._username}@{self._host}"]
+            )
         else:
-            base.extend(["-p", str(self._port),
-                         f"{self._username}@{self._host}"])
+            base.extend(["-p", str(self._port), f"{self._username}@{self._host}"])
         base.append(command)
         return base
 
@@ -80,12 +90,16 @@ class SSHProxy:
         """Run a command and return stdout lines. Raises on non-zero exit."""
         result = subprocess.run(
             self._build_ssh_cmd(command),
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if result.returncode != 0:
             raise subprocess.CalledProcessError(
-                result.returncode, command,
-                output=result.stdout, stderr=result.stderr,
+                result.returncode,
+                command,
+                output=result.stdout,
+                stderr=result.stderr,
             )
         return [line for line in result.stdout.splitlines() if line]
 
@@ -94,7 +108,9 @@ class SSHProxy:
         try:
             result = subprocess.run(
                 self._build_ssh_cmd(command),
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             stdout = [line for line in result.stdout.splitlines() if line]
             stderr = [line for line in result.stderr.splitlines() if line]
@@ -106,6 +122,7 @@ class SSHProxy:
 @dataclass
 class MultiNode:
     """Represents a booted DUT with SSH access."""
+
     place: str
     ssh: SSHProxy
     ip: str = ""
@@ -137,7 +154,9 @@ def _resolve_target_yaml(place_name: str) -> str:
                 return str(target_file)
 
         for lab_config in labnet.get("labs", {}).values():
-            for base_device, instances in lab_config.get("device_instances", {}).items():
+            for base_device, instances in lab_config.get(
+                "device_instances", {}
+            ).items():
                 if device_instance in instances and base_device in devices:
                     target_name = devices[base_device].get("target_file", base_device)
                     target_file = REPO_ROOT / f"targets/{target_name}.yaml"
@@ -180,36 +199,57 @@ def _resolve_image_map() -> dict[str, str]:
     return result
 
 
-def _launch_boot_subprocess(place: str, image: str, target_yaml: str,
-                            coordinator: str, tmpdir: str,
-                            node_index: int = 0) -> tuple[subprocess.Popen, str, str, str]:
+def _launch_boot_subprocess(
+    place: str,
+    image: str,
+    target_yaml: str,
+    coordinator: str,
+    tmpdir: str,
+    node_index: int = 0,
+) -> tuple[subprocess.Popen, str, str, str]:
     """Launch multinode_boot.py as a subprocess for one place."""
     status_file = os.path.join(tmpdir, f"status_{place}.json")
     stop_file = os.path.join(tmpdir, f"stop_{place}")
     log_file = os.path.join(tmpdir, f"boot_{place}.log")
 
     cmd = [
-        sys.executable, str(BOOT_SCRIPT),
-        "--place", place,
-        "--image", image,
-        "--target-yaml", target_yaml,
-        "--coordinator", coordinator,
-        "--node-index", str(node_index),
-        "--status-file", status_file,
-        "--stop-file", stop_file,
+        sys.executable,
+        str(BOOT_SCRIPT),
+        "--place",
+        place,
+        "--image",
+        image,
+        "--target-yaml",
+        target_yaml,
+        "--coordinator",
+        coordinator,
+        "--node-index",
+        str(node_index),
+        "--status-file",
+        status_file,
+        "--stop-file",
+        stop_file,
     ]
 
     logger.info("Launching boot subprocess for %s", place)
     log_fh = open(log_file, "w")
     proc = subprocess.Popen(
-        cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-        text=True, cwd=str(REPO_ROOT),
+        cmd,
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        text=True,
+        cwd=str(REPO_ROOT),
     )
     return proc, status_file, stop_file, log_file
 
 
-def _wait_for_status(status_file: str, proc: subprocess.Popen,
-                     place: str, timeout: int, log_file: str = "") -> dict:
+def _wait_for_status(
+    status_file: str,
+    proc: subprocess.Popen,
+    place: str,
+    timeout: int,
+    log_file: str = "",
+) -> dict:
     """Wait for a boot subprocess to write its status file."""
     deadline = time.time() + timeout
 
@@ -239,8 +279,9 @@ def _dump_boot_log(place: str, log_file: str):
         with open(log_file) as f:
             content = f.read()
         if content.strip():
-            logger.info("=== Boot log for %s ===\n%s\n=== End ===",
-                        place, content[-3000:])
+            logger.info(
+                "=== Boot log for %s ===\n%s\n=== End ===", place, content[-3000:]
+            )
     except Exception:
         pass
 
@@ -324,7 +365,9 @@ def multi_nodes(request):
     coordinator = _get_coordinator_address()
     vlan_iface = _get_vlan_iface()
 
-    logger.info("Multi-node test: booting %d nodes in parallel: %s", len(places), places)
+    logger.info(
+        "Multi-node test: booting %d nodes in parallel: %s", len(places), places
+    )
     logger.info("Each node gets test IP %s.<index+1>/%d", TEST_SUBNET, 24)
 
     tmpdir = tempfile.mkdtemp(prefix="multinode_boot_")
@@ -336,13 +379,23 @@ def multi_nodes(request):
     for idx, place in enumerate(places):
         image_path = image_map.get(place, default_image)
         if not image_path:
-            pytest.fail(f"No image for place {place} "
-                        "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
+            pytest.fail(
+                f"No image for place {place} (set LG_IMAGE or add it to LG_IMAGE_MAP)"
+            )
         target_yaml = _resolve_target_yaml(place)
-        logger.info("Node %s (index %d): target %s, image %s",
-                    place, idx, target_yaml, image_path)
+        logger.info(
+            "Node %s (index %d): target %s, image %s",
+            place,
+            idx,
+            target_yaml,
+            image_path,
+        )
         proc, sf, stf, lf = _launch_boot_subprocess(
-            place, image_path, target_yaml, coordinator, tmpdir,
+            place,
+            image_path,
+            target_yaml,
+            coordinator,
+            tmpdir,
             node_index=idx,
         )
         procs[place] = proc
@@ -355,7 +408,10 @@ def multi_nodes(request):
 
     for place in places:
         status = _wait_for_status(
-            status_files[place], procs[place], place, BOOT_TIMEOUT,
+            status_files[place],
+            procs[place],
+            place,
+            BOOT_TIMEOUT,
             log_file=log_files[place],
         )
         if status.get("ok"):
@@ -364,8 +420,11 @@ def multi_nodes(request):
                 logger.warning("Node %s: no test IP assigned, SSH may not work", place)
             ssh = SSHProxy(host=node_ip, vlan_iface=vlan_iface)
             node = MultiNode(
-                place=place, ssh=ssh, ip=node_ip,
-                _process=procs[place], _stop_file=stop_files[place],
+                place=place,
+                ssh=ssh,
+                ip=node_ip,
+                _process=procs[place],
+                _stop_file=stop_files[place],
             )
             nodes.append(node)
             logger.info("Node %s booted (test IP: %s)", place, node_ip)
@@ -381,14 +440,16 @@ def multi_nodes(request):
             if procs[place].poll() is None:
                 procs[place].terminate()
         pytest.fail(
-            f"Not all nodes booted: {len(nodes)}/{len(places)} "
-            f"(failed: {failed})"
+            f"Not all nodes booted: {len(nodes)}/{len(places)} (failed: {failed})"
         )
 
     nodes.sort(key=lambda n: places.index(n.place))
 
-    logger.info("All %d nodes booted, waiting %ds for network",
-                len(nodes), NETWORK_SETTLE_TIMEOUT)
+    logger.info(
+        "All %d nodes booted, waiting %ds for network",
+        len(nodes),
+        NETWORK_SETTLE_TIMEOUT,
+    )
     _wait_for_network(nodes, timeout=NETWORK_SETTLE_TIMEOUT)
 
     yield nodes

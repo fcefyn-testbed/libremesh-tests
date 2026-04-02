@@ -18,6 +18,8 @@ from os import getenv
 
 import pytest
 
+pytest_plugins = ["conftest_vlan"]
+
 pytest_plugins = ["conftest_multinode"]
 
 logger = logging.getLogger(__name__)
