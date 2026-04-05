@@ -20,7 +20,8 @@ uv run pytest tests/test_multinode.py -v --log-cli-level=INFO
 | `LG_IMAGE` | yes* | - | Firmware image path (used for all nodes) |
 | `LG_IMAGE_MAP` | no | - | Per-place images: `place1=/path/img1,place2=/path/img2` |
 | `LG_COORDINATOR` | no | `localhost:20408` | Labgrid coordinator address |
-| `LG_MULTI_VLAN_IFACE` | no | `vlan200` | VLAN interface for SSH proxy |
+| `LG_MULTI_VLAN_IFACE` | no | `vlan200` | VLAN interface for SSH proxy (fallback) |
+| `LG_MULTI_TEST_SUBNET` | no | `192.168.1` | Subnet prefix for test IPs |
 | `LG_MULTI_KEEP_POWERED` | no | `0` | Set to `1` to leave DUTs on after tests |
 
 *Either `LG_IMAGE` or `LG_IMAGE_MAP` must be set.
@@ -29,8 +30,8 @@ uv run pytest tests/test_multinode.py -v --log-cli-level=INFO
 
 1. If `conftest_vlan` is loaded and `VLAN_SWITCH_ENABLED=1`, all DUT ports are switched to a shared VLAN
 2. `conftest_multinode.py` reads `LG_MULTI_PLACES` and spawns one `multinode_boot.py` subprocess per place
-3. Each subprocess acquires the labgrid place, boots the DUT to shell via serial, and assigns a unique test IP (`10.200.0.<N+1>/24` on `br-lan`) via the serial console
-4. The parent fixture collects all statuses, creates `MultiNode` objects with SSH access to the test IPs
+3. Each subprocess acquires the labgrid place, boots the DUT to shell via serial, and assigns a unique test IP (`192.168.1.<10+N>` on `br-lan`) via the serial console. The VLAN interface is auto-detected from NetworkService
+4. The parent fixture collects all statuses, creates `MultiNode` objects with per-node SSH proxy (VLAN interface + test IP)
 5. Tests receive the `multi_nodes` fixture (list of `MultiNode`)
 6. On teardown, each subprocess powers off its DUT and releases the place
 
@@ -38,13 +39,13 @@ uv run pytest tests/test_multinode.py -v --log-cli-level=INFO
 conftest_multinode.py (parent)
 ├── [optional] shared_vlan_multi → switches DUT ports to shared VLAN
 ├── multinode_boot.py --place device_a --node-index 0  (subprocess 1)
-│   └── assigns 10.200.0.1/24 on br-lan
+│   └── assigns 192.168.1.10/24 on br-lan, detects vlan_iface from NetworkService
 ├── multinode_boot.py --place device_b --node-index 1  (subprocess 2)
-│   └── assigns 10.200.0.2/24 on br-lan
+│   └── assigns 192.168.1.11/24 on br-lan, detects vlan_iface from NetworkService
 └── ...
 ```
 
-The test subnet `10.200.0.0/24` avoids conflicts with OpenWrt's default `192.168.1.1`. IPs are assigned as secondary addresses via the serial console (no network dependency during assignment).
+Each node replaces OpenWrt's default `192.168.1.1` with a unique IP (`192.168.1.<10+N>`) so multiple nodes on the same VLAN don't conflict. The VLAN interface for SSH proxy is auto-detected from Labgrid's NetworkService resource (zone ID suffix like `%vlan200`), falling back to `LG_MULTI_VLAN_IFACE`. Subnet is configurable via `LG_MULTI_TEST_SUBNET`.
 
 ## Golden device pattern
 

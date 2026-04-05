@@ -73,8 +73,7 @@ class TestMultiNodeConnectivity:
             dst_ip = dst.ip
             if not dst_ip:
                 pytest.fail(f"Node {dst.place}: no test IP assigned")
-            logger.info("Ping %s (%s) -> %s (%s)",
-                        src.place, src.ip, dst.place, dst_ip)
+            logger.info("Ping %s (%s) -> %s (%s)", src.place, src.ip, dst.place, dst_ip)
             output = src.ssh.run_check(f"ping -c 5 -W 5 {dst_ip}")
             joined = "\n".join(output)
             assert "0% packet loss" in joined, (
@@ -138,8 +137,13 @@ class TestWifiPerformance:
         server_ip = server.ip
         if not server_ip:
             pytest.fail(f"Server node {server.place}: no test IP assigned")
-        logger.info("iperf3: %s (client) -> %s (server @ %s), %ds",
-                     client.place, server.place, server_ip, IPERF_DURATION)
+        logger.info(
+            "iperf3: %s (client) -> %s (server @ %s), %ds",
+            client.place,
+            server.place,
+            server_ip,
+            IPERF_DURATION,
+        )
 
         try:
             output = client.ssh.run_check(
@@ -149,19 +153,19 @@ class TestWifiPerformance:
             server.ssh.run("killall iperf3 2>/dev/null; true")
 
         import json
+
         raw = "\n".join(output)
         try:
             result = json.loads(raw)
         except json.JSONDecodeError:
             pytest.fail(f"iperf3 output not valid JSON:\n{raw[:500]}")
 
-        bits_per_second = result.get("end", {}).get(
-            "sum_received", {}
-        ).get("bits_per_second", 0)
+        bits_per_second = (
+            result.get("end", {}).get("sum_received", {}).get("bits_per_second", 0)
+        )
         mbps = bits_per_second / 1_000_000
 
         logger.info("iperf3 result: %.2f Mbps", mbps)
         assert mbps >= IPERF_MIN_MBPS, (
-            f"WiFi throughput {mbps:.2f} Mbps below threshold "
-            f"{IPERF_MIN_MBPS} Mbps"
+            f"WiFi throughput {mbps:.2f} Mbps below threshold {IPERF_MIN_MBPS} Mbps"
         )

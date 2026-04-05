@@ -5,9 +5,10 @@ Launched as a subprocess by conftest_multinode.py. Each node runs in its
 own process to avoid labgrid's internal thread-safety issues with
 concurrent sessions (StepLogger, coordinator multi-session crashes).
 
-After booting to shell, assigns a unique test IP (10.200.0.<node_index+1>/24)
-on br-lan via the serial console, so multiple nodes on the same VLAN don't
-conflict (vanilla OpenWrt defaults all to 192.168.1.1).
+After booting to shell, assigns a unique test IP on br-lan via serial
+console, so multiple nodes on the same VLAN don't conflict (OpenWrt
+defaults all to 192.168.1.1). Default subnet: 192.168.1.0/24, configurable
+via LG_MULTI_TEST_SUBNET. IPs start at .10 (192.168.1.10, .11, .12...).
 
 Usage:
     python multinode_boot.py \
@@ -38,8 +39,9 @@ logging.basicConfig(
 logger = logging.getLogger("multinode_boot")
 
 STOP_POLL_INTERVAL = 2
-TEST_SUBNET = "10.200.0"
+TEST_SUBNET_DEFAULT = "192.168.1"
 TEST_NETMASK = 24
+TEST_IP_START = 10
 
 
 def _patch_reg_driver_idempotent():
@@ -67,27 +69,55 @@ def _write_status(path: str, data: dict):
     os.replace(tmp, path)
 
 
+def _query_network_service(target) -> tuple[str, str]:
+    """Get the DUT's IP and VLAN interface from its NetworkService binding.
+
+    Labgrid NetworkService address may include a '%iface' zone suffix
+    (e.g. '10.13.200.120%vlan200'). Returns (ip, vlan_iface) tuple.
+    """
+    try:
+        from labgrid.resource import NetworkService
+
+        for resource in target.resources:
+            if isinstance(resource, NetworkService):
+                addr = resource.address or ""
+                if "%" in addr:
+                    ip, iface = addr.split("%", 1)
+                    return ip, iface
+                return addr, ""
+    except Exception:
+        pass
+    return "", ""
+
+
 def _assign_test_ip(shell, node_index: int) -> str:
     """Assign a unique test IP on br-lan via serial console.
 
-    Uses a dedicated subnet (10.200.0.0/24) to avoid conflicts with
-    OpenWrt's default 192.168.1.1. The IP is added as a secondary address
-    so the default config stays intact.
+    Replaces OpenWrt's default 192.168.1.1 with a unique address on the same
+    subnet so multiple nodes can coexist on a shared VLAN. The host octet
+    is TEST_IP_START + node_index (e.g. .10, .11, .12...).
+
+    Subnet is configurable via LG_MULTI_TEST_SUBNET env var (default: 192.168.1).
     """
-    test_ip = f"{TEST_SUBNET}.{node_index + 1}"
+    subnet = os.environ.get("LG_MULTI_TEST_SUBNET", TEST_SUBNET_DEFAULT)
+    test_ip = f"{subnet}.{TEST_IP_START + node_index}"
     iface = "br-lan"
 
     try:
-        shell.run(f"ip addr add {test_ip}/{TEST_NETMASK} dev {iface} 2>/dev/null || true")
+        shell.run(f"ip addr flush dev {iface} 2>/dev/null || true")
+        shell.run(f"ip addr add {test_ip}/{TEST_NETMASK} dev {iface}")
         shell.run(f"ip link set {iface} up")
         logger.info("Assigned test IP %s/%d on %s", test_ip, TEST_NETMASK, iface)
     except Exception:
         logger.warning("Failed to assign test IP on %s, trying eth0", iface)
         iface = "eth0"
         try:
-            shell.run(f"ip addr add {test_ip}/{TEST_NETMASK} dev {iface} 2>/dev/null || true")
+            shell.run(f"ip addr flush dev {iface} 2>/dev/null || true")
+            shell.run(f"ip addr add {test_ip}/{TEST_NETMASK} dev {iface}")
             shell.run(f"ip link set {iface} up")
-            logger.info("Assigned test IP %s/%d on %s (fallback)", test_ip, TEST_NETMASK, iface)
+            logger.info(
+                "Assigned test IP %s/%d on %s (fallback)", test_ip, TEST_NETMASK, iface
+            )
         except Exception:
             logger.error("Could not assign test IP on any interface")
             return ""
@@ -95,8 +125,9 @@ def _assign_test_ip(shell, node_index: int) -> str:
     return test_ip
 
 
-def boot_node(place: str, image: str, target_yaml: str,
-              coordinator: str, node_index: int = 0) -> dict:
+def boot_node(
+    place: str, image: str, target_yaml: str, coordinator: str, node_index: int = 0
+) -> dict:
     """Boot a node via labgrid and return session state."""
     _patch_reg_driver_idempotent()
 
@@ -114,7 +145,9 @@ def boot_node(place: str, image: str, target_yaml: str,
         initial_state=None,
         allow_unmatched=False,
     )
-    session = start_session(coordinator, extra={"env": env, "role": "main", "args": args})
+    session = start_session(
+        coordinator, extra={"env": env, "role": "main", "args": args}
+    )
     loop = session.loop
 
     try:
@@ -143,14 +176,25 @@ def boot_node(place: str, image: str, target_yaml: str,
     except Exception:
         pass
 
+    ns_ip, ns_iface = _query_network_service(target)
+    vlan_iface = ns_iface or os.environ.get("LG_MULTI_VLAN_IFACE", "vlan200")
+
     node_ip = _assign_test_ip(shell, node_index)
-    logger.info("Node %s has test IP %s", place, node_ip or "(none)")
+    logger.info(
+        "Node %s: test IP %s, SSH via %s (NetworkService: %s%%%s)",
+        place,
+        node_ip,
+        vlan_iface,
+        ns_ip,
+        ns_iface,
+    )
 
     return {
         "session": session,
         "target": target,
         "strategy": strategy,
         "ip": node_ip,
+        "vlan_iface": vlan_iface,
     }
 
 
@@ -201,16 +245,21 @@ def main():
     strategy = None
 
     try:
-        state = boot_node(args.place, args.image, args.target_yaml,
-                          args.coordinator, args.node_index)
+        state = boot_node(
+            args.place, args.image, args.target_yaml, args.coordinator, args.node_index
+        )
         session = state["session"]
         strategy = state["strategy"]
 
-        _write_status(args.status_file, {
-            "place": args.place,
-            "ok": True,
-            "ip": state.get("ip", ""),
-        })
+        _write_status(
+            args.status_file,
+            {
+                "place": args.place,
+                "ok": True,
+                "ip": state.get("ip", ""),
+                "vlan_iface": state.get("vlan_iface", ""),
+            },
+        )
         logger.info("Status written, waiting for stop signal at %s", args.stop_file)
 
         while not stopping:
@@ -221,11 +270,14 @@ def main():
 
     except Exception:
         logger.exception("Failed to boot %s", args.place)
-        _write_status(args.status_file, {
-            "place": args.place,
-            "ok": False,
-            "error": "boot failed",
-        })
+        _write_status(
+            args.status_file,
+            {
+                "place": args.place,
+                "ok": False,
+                "error": "boot failed",
+            },
+        )
         sys.exit(1)
     finally:
         if session and strategy:
