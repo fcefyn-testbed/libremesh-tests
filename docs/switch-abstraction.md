@@ -22,23 +22,9 @@ export VLAN_SWITCH_ENABLED=1
 
 Without this variable (or set to `0`), VLAN switching is completely skipped.
 
-## Fixtures
+## How it works
 
-### `shared_vlan_multi` (session-scoped)
-
-Active when `LG_MULTI_PLACES` is set. Switches all listed DUT ports to the shared VLAN (`switch.vlan_topology` from `dut-config.yaml`, default 200) in a single SSH session. Restores isolated VLANs on teardown.
-
-### `shared_vlan_single` (autouse, per-test)
-
-For single-DUT tests that need the shared VLAN. Mark the test:
-
-```python
-@pytest.mark.shared_vlan
-def test_something_on_shared_network(ssh_command):
-    ...
-```
-
-Only activates when `LG_PLACE` is set and `LG_MULTI_PLACES` is not.
+When `LG_MULTI_PLACES` is set, the `shared_vlan_multi` fixture (session-scoped) switches all listed DUT ports to the shared VLAN (`switch.vlan_topology` from `dut-config.yaml`, default 200) in a single SSH session. Isolated VLANs are restored on teardown.
 
 ## Place name mapping
 
