@@ -18,9 +18,16 @@ from os import getenv
 
 import pytest
 
-pytest_plugins = ["conftest_vlan"]
-
 pytest_plugins = ["conftest_multinode"]
+
+def pytest_configure(config):
+    config._metadata = getattr(config, "_metadata", {})
+    config._metadata["version"] = "12.3.4"
+    config._metadata["environment"] = "staging"
+    try:
+        config.pluginmanager.import_plugin("conftest_vlan")
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +36,6 @@ device = getenv("LG_ENV", "Unknown").split("/")[-1].split(".")[0]
 
 def pytest_addoption(parser):
     parser.addoption("--firmware", action="store", default="firmware.bin")
-
-
-def pytest_configure(config):
-    config._metadata = getattr(config, "_metadata", {})
-    config._metadata["version"] = "12.3.4"
-    config._metadata["environment"] = "staging"
 
 
 def ubus_call(command, namespace, method, params={}):
@@ -47,7 +48,11 @@ def ubus_call(command, namespace, method, params={}):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_env(env, pytestconfig):
+def setup_env(pytestconfig, request):
+    try:
+        env = request.getfixturevalue("env")
+    except pytest.FixtureLookupError:
+        return
     env.config.data.setdefault("images", {})["firmware"] = pytestconfig.getoption(
         "firmware"
     )

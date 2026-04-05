@@ -11,6 +11,7 @@ Requires:
 Optional:
     LG_MULTI_KEEP_POWERED=1: leave nodes powered on after tests
     LG_MULTI_VLAN_IFACE: VLAN interface for SSH proxy (default: vlan200)
+    LG_MULTI_TEST_SUBNET: subnet prefix for test IPs (default: 192.168.1)
 
 Usage:
     export LG_MULTI_PLACES="labgrid-mylab-device_a,labgrid-mylab-device_b"
@@ -41,7 +42,6 @@ LABNET_PATH = REPO_ROOT / "labnet.yaml"
 BOOT_TIMEOUT = 420
 NETWORK_SETTLE_TIMEOUT = 90
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
-TEST_SUBNET = "10.200.0"
 
 
 class SSHProxy:
@@ -334,10 +334,12 @@ def multi_nodes(request):
     Each MultiNode has:
       - .ssh: SSHProxy with run_check(cmd) and run(cmd)
       - .place: labgrid place name
-      - .ip: node's test IPv4 address (10.200.0.<index+1>)
+      - .ip: node's unique test IPv4 address
 
-    Each node gets a unique IP assigned via serial console after boot,
-    on a dedicated test subnet (10.200.0.0/24).
+    Each node gets a unique IP assigned via serial console after boot
+    (default: 192.168.1.10, .11, .12... - configurable via LG_MULTI_TEST_SUBNET).
+    VLAN interface per node is auto-detected from NetworkService or
+    falls back to LG_MULTI_VLAN_IFACE.
 
     If conftest_vlan is loaded and VLAN_SWITCH_ENABLED=1, VLAN switching
     happens before nodes boot (shared_vlan_multi fixture).
@@ -363,12 +365,10 @@ def multi_nodes(request):
         pytest.skip("LG_IMAGE or LG_IMAGE_MAP must be set")
 
     coordinator = _get_coordinator_address()
-    vlan_iface = _get_vlan_iface()
 
     logger.info(
         "Multi-node test: booting %d nodes in parallel: %s", len(places), places
     )
-    logger.info("Each node gets test IP %s.<index+1>/%d", TEST_SUBNET, 24)
 
     tmpdir = tempfile.mkdtemp(prefix="multinode_boot_")
     procs = {}
@@ -416,9 +416,10 @@ def multi_nodes(request):
         )
         if status.get("ok"):
             node_ip = status.get("ip", "")
+            node_vlan = status.get("vlan_iface") or _get_vlan_iface()
             if not node_ip:
                 logger.warning("Node %s: no test IP assigned, SSH may not work", place)
-            ssh = SSHProxy(host=node_ip, vlan_iface=vlan_iface)
+            ssh = SSHProxy(host=node_ip, vlan_iface=node_vlan)
             node = MultiNode(
                 place=place,
                 ssh=ssh,
@@ -427,7 +428,7 @@ def multi_nodes(request):
                 _stop_file=stop_files[place],
             )
             nodes.append(node)
-            logger.info("Node %s booted (test IP: %s)", place, node_ip)
+            logger.info("Node %s booted (IP: %s, VLAN: %s)", place, node_ip, node_vlan)
         else:
             error = status.get("error", "unknown")
             logger.error("Node %s failed to boot: %s", place, error)
