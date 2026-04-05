@@ -32,6 +32,7 @@ def _is_enabled() -> bool:
 def _try_import_switch_abstraction():
     try:
         from switch_abstraction import vlan_manager
+
         return vlan_manager
     except ImportError:
         return None
@@ -50,7 +51,7 @@ def _place_to_dut_name(place: str) -> str:
     """
     prefix = os.environ.get("PLACE_PREFIX", "")
     if prefix and place.startswith(prefix):
-        return place[len(prefix):]
+        return place[len(prefix) :]
     parts = place.split("-", 2)
     if len(parts) == 3:
         return parts[2]
@@ -99,8 +100,8 @@ def shared_vlan_multi(vlan_manager_mod, dut_config, dut_map):
     Session-scoped: switches VLANs once, restores on teardown.
     Uses batch operations for a single SSH session.
 
-    The shared VLAN ID comes from dut-config.yaml (switch.vlan_topology)
-    or defaults to 200.
+    The shared VLAN ID comes from dut-config.yaml (`switch.vlan_topology`)
+    via `get_vlan_shared()`, defaulting to 200.
     """
     if vlan_manager_mod is None:
         yield []
@@ -120,22 +121,29 @@ def shared_vlan_multi(vlan_manager_mod, dut_config, dut_map):
         yield dut_names
         return
 
-    vlan_mesh = vlan_manager_mod.get_vlan_mesh(dut_config)
+    vlan_shared = vlan_manager_mod.get_vlan_shared(dut_config)
     logger.info(
         "Switching %d DUTs to shared VLAN %d (batch): %s",
-        len(valid_duts), vlan_mesh, valid_duts,
+        len(valid_duts),
+        vlan_shared,
+        valid_duts,
     )
     ok = vlan_manager_mod.set_ports_vlan_batch(
-        valid_duts, vlan_mesh, dut_map=dut_map, config=dut_config,
+        valid_duts,
+        vlan_shared,
+        dut_map=dut_map,
+        config=dut_config,
     )
     if not ok:
-        pytest.fail(f"Batch VLAN switch to {vlan_mesh} failed for: {valid_duts}")
+        pytest.fail(f"Batch VLAN switch to {vlan_shared} failed for: {valid_duts}")
 
     yield dut_names
 
     logger.info("Restoring %d DUTs to isolated VLANs (batch)", len(valid_duts))
     vlan_manager_mod.restore_ports_vlan_batch(
-        valid_duts, dut_map=dut_map, config=dut_config,
+        valid_duts,
+        dut_map=dut_map,
+        config=dut_config,
     )
 
 
@@ -166,17 +174,22 @@ def shared_vlan_single(request, vlan_manager_mod, dut_config, dut_map):
 
     dut_name = _place_to_dut_name(place)
     if dut_name not in dut_map:
-        logger.warning("DUT '%s' not in dut-config.yaml, skipping VLAN switch", dut_name)
+        logger.warning(
+            "DUT '%s' not in dut-config.yaml, skipping VLAN switch", dut_name
+        )
         yield
         return
 
-    vlan_mesh = vlan_manager_mod.get_vlan_mesh(dut_config)
-    logger.info("Switching DUT '%s' to shared VLAN %d", dut_name, vlan_mesh)
+    vlan_shared = vlan_manager_mod.get_vlan_shared(dut_config)
+    logger.info("Switching DUT '%s' to shared VLAN %d", dut_name, vlan_shared)
     ok = vlan_manager_mod.set_port_vlan(
-        dut_name, vlan_mesh, dut_map=dut_map, config=dut_config,
+        dut_name,
+        vlan_shared,
+        dut_map=dut_map,
+        config=dut_config,
     )
     if not ok:
-        pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {vlan_mesh}")
+        pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {vlan_shared}")
 
     yield
 
