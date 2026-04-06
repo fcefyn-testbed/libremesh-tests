@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../fcefyn_testbed_utils" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../fork-libremesh-virtual-mesh" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../fork-libremesh-virtual-mesh/vwifi" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../labgrid-switch-abstraction" vcs="Git" />
+  </component>
+</project>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../fcefyn_testbed_utils/.idea/fcefyn_testbed_utils.iml" filepath="$PROJECT_DIR$/../fcefyn_testbed_utils/.idea/fcefyn_testbed_utils.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../labgrid-switch-abstraction/.idea/labgrid-switch-abstraction.iml" filepath="$PROJECT_DIR$/../labgrid-switch-abstraction/.idea/labgrid-switch-abstraction.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/libremesh-tests.iml" filepath="$PROJECT_DIR$/.idea/libremesh-tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../fork-libremesh-virtual-mesh/.idea/libremesh-virtual-mesh.iml" filepath="$PROJECT_DIR$/../fork-libremesh-virtual-mesh/.idea/libremesh-virtual-mesh.iml" />
+      <module fileurl="file://$USER_HOME$/openwrt/.idea/openwrt.iml" filepath="$USER_HOME$/openwrt/.idea/openwrt.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../fcefyn_testbed_utils/.idea/pi-hil-testing-utils.iml" filepath="$PROJECT_DIR$/../fcefyn_testbed_utils/.idea/pi-hil-testing-utils.iml" />
+    </modules>
+  </component>
+</project>

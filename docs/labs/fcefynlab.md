@@ -2,7 +2,7 @@
 
 ## Coordinator/Exporter
 
-- Lenovo T430 (Ubuntu)
+- Ubuntu Host
     - Ethernet: VLAN trunk to switch
     - USB serial adapters via hub (udev symlinks)
     - Arduino relay control (barrel-jack DUTs)
@@ -13,17 +13,17 @@
 
 - **Model:** TP-Link SG2016P (16-port Gigabit, 8 PoE)
 
-| Port | Device           | Power  |
-|------|------------------|--------|
-| 1    | OpenWRT One      | PoE    |
-| 2    | LibreRouter #1   | PoE (splitter 48V→12V) |
+| Port | Device           | Power |
+|------|------------------|-------|
+| 1    | OpenWRT One      | PoE   |
+| 2    | LibreRouter #1   | PoE   |
 | 3    | LibreRouter #2   | Relay |
-| 9    | Host             | Trunk  |
-| 10   | MikroTik         | Trunk  |
-| 11   | Belkin RT3200 #1 | Relay  |
-| 12   | Belkin RT3200 #2 | Relay  |
-| 13   | Belkin RT3200 #3 | Relay  |
-| 14   | Banana Pi R4     | Relay  |
+| 9    | Host             | Trunk |
+| 10   | MikroTik         | Trunk |
+| 11   | Belkin RT3200 #1 | Relay |
+| 12   | Belkin RT3200 #2 | Relay |
+| 13   | Belkin RT3200 #3 | Relay |
+| 14   | Banana Pi R4     | Relay |
 
 ## DUTs
 
@@ -42,12 +42,6 @@
 - **LibreRouter #1** (librerouter_librerouter_v1)
     - Power: PoE (switch port 2, via splitter 48V→12V)
     - Target: ath79-generic
-    - Strategy: UBootTFTPStrategy (TFTP boot initramfs in RAM, same as other DUTs)
-
-## Misc Hardware / Notes
-
-- Each DUT in isolated VLAN
-- LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Serial: `/dev/librerouter-1`
 
 ## Maintainers
 
