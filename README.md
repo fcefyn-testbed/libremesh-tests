@@ -102,9 +102,7 @@ global-coordinator -> labgrid-aparcar -> openwrt-one
 ```
 
 You can request access to existing labs or contribute your own. To do this,
-submit a pull request modifying the `labnet.yaml` file. If you have multiple
-devices of the same model, see [docs/sharing-target-files.md](docs/sharing-target-files.md)
-for how to avoid duplicate target files.
+submit a pull request modifying the `labnet.yaml` file.
 
 To access a remote device, configure the following environment variables.
 Notably, `LG_PROXY` sets the proxy host (always the lab name):
@@ -113,10 +111,8 @@ Notably, `LG_PROXY` sets the proxy host (always the lab name):
 export LG_IMAGE=~/firmware/openwrt-ath79-generic-tplink_tl-wdr3600-v1-initramfs-kernel.bin # Firmware to boot
 export LG_PLACE=aparcar-tplink_tl-wdr3600-v1 # Target device, formatted as <lab>-<device>
 export LG_PROXY=labgrid-aparcar # Proxy to use, typically the lab name
-export LG_ENV=targets/tplink_tl-wdr3600-v1.yaml # Environment definition (optional when using device_instances)
+export LG_ENV=targets/tplink_tl-wdr3600-v1.yaml # Environment definition
 ```
-
-**Note**: `LG_ENV` is optional when using `device_instances`. If not set, pytest automatically resolves the target file from `LG_PLACE`. Explicitly setting `LG_ENV` takes precedence over automatic resolution. See [docs/sharing-target-files.md](docs/sharing-target-files.md) for details.
 
 To avoid interference from CI or other developers, lock the device before use:
 

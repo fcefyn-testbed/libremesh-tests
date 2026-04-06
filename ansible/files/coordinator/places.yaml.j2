@@ -1,7 +1,5 @@
 {% for device in labnet["labs"][inventory_hostname]["devices"] %}
-{% set device_instances = labnet["labs"][inventory_hostname].get("device_instances", {}).get(device, [device]) %}
-{% for instance in device_instances %}
-{{ inventory_hostname }}-{{ instance }}:
+{{ inventory_hostname }}-{{ device }}:
   acquired: null
   acquired_resources: []
   aliases: []
@@ -12,10 +10,9 @@
   matches:
   - cls: '*'
     exporter: '*'
-    group: {{ inventory_hostname }}-{{ instance }}
+    group: {{ inventory_hostname }}-{{ device }}
     name: null
     rename: null
   tags:
     device: {{ device }}
-{% endfor %}
 {% endfor %}

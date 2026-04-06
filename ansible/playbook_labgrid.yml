@@ -123,27 +123,14 @@
         recurse: yes
         mode: "0755"
 
-
-    - name: Build TFTP device instance mapping
-      set_fact:
-        tftp_device_instances: "{{ tftp_device_instances | default([]) + [{
-          'device': item,
-          'instances': hostvars[inventory_hostname]['labs'][inventory_hostname].get('device_instances', {}).get(item, [item])
-        }] }}"
-      loop: "{{ hostvars[inventory_hostname]['labs'][inventory_hostname]['devices'] }}"
-      tags:
-        - export
-
-    - name: Create tftp subfolders (one per device instance)
+    - name: Create tftp subfolders
       file:
-        path: /srv/tftp/{{ item[1] }}
+        path: /srv/tftp/{{ item }}
         state: directory
         owner: "labgrid-dev"
         group: "labgrid-dev"
         mode: "0755"
-      loop: "{{ tftp_device_instances | subelements('instances') }}"
-      loop_control:
-        label: "{{ item[1] }}"
+      loop: "{{ hostvars[inventory_hostname]['labs'][inventory_hostname]['devices'] }}"
       tags:
         - export
 
