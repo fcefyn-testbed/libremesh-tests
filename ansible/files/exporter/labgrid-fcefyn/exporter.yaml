@@ -1,0 +1,101 @@
+labgrid-fcefyn-belkin_rt3200_1:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/belkin-rt3200-1"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 0
+  TFTPProvider:
+    internal: "/srv/tftp/belkin_rt3200_1/"
+    external: "belkin_rt3200_1/"
+    external_ip: "192.168.100.1"
+  NetworkService:
+    address: "192.168.1.1%vlan100"
+    username: "root"
+
+labgrid-fcefyn-belkin_rt3200_2:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/belkin-rt3200-2"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 1
+  TFTPProvider:
+    internal: "/srv/tftp/belkin_rt3200_2/"
+    external: "belkin_rt3200_2/"
+    external_ip: "192.168.101.1"
+  NetworkService:
+    address: "192.168.1.1%vlan101"
+    username: "root"
+
+labgrid-fcefyn-belkin_rt3200_3:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/belkin-rt3200-3"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 2
+  TFTPProvider:
+    internal: "/srv/tftp/belkin_rt3200_3/"
+    external: "belkin_rt3200_3/"
+    external_ip: "192.168.102.1"
+  NetworkService:
+    address: "192.168.1.1%vlan102"
+    username: "root"
+
+labgrid-fcefyn-bananapi_bpi-r4:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/bpi-r4"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-arduino
+    index: 3
+  TFTPProvider:
+    internal: "/srv/tftp/bananapi_bpi-r4/"
+    external: "bananapi_bpi-r4/"
+    external_ip: "192.168.103.1"
+  NetworkService:
+    address: "192.168.1.1%vlan103"
+    username: "root"
+
+labgrid-fcefyn-openwrt_one:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/openwrt-one"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-poe
+    index: 1
+  TFTPProvider:
+    internal: "/srv/tftp/openwrt_one/"
+    external: "openwrt_one/"
+    external_ip: "192.168.104.1"
+  NetworkService:
+    address: "192.168.1.1%vlan104"
+    username: "root"
+
+labgrid-fcefyn-librerouter_1:
+  location: fcefyn-testbed
+  RawSerialPort:
+    port: "/dev/librerouter-1"
+    speed: 115200
+  PDUDaemonPort:
+    host: localhost:16421
+    pdu: fcefyn-poe
+    index: 2
+  TFTPProvider:
+    internal: "/srv/tftp/librerouter_1/"
+    external: "librerouter_1/"
+    external_ip: "192.168.105.1"
+  NetworkService:
+    address: "192.168.1.1%vlan105"
+    username: "root"
