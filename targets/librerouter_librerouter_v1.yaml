@@ -12,10 +12,11 @@ targets:
       - SerialDriver:
           txdelay: 0.01
       - UBootDriver:
-          login_timeout: 60
-          interrupt: "\n"
+          login_timeout: 90
+          interrupt: "\x00"
           prompt: "ath>"
           init_commands:
+            - setenv ethact eth1
             - tftp 0x82000000
           boot_command: bootm 0x82000000
       - ShellDriver:
