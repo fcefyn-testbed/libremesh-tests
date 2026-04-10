@@ -22,6 +22,7 @@ import pytest
 logger = logging.getLogger(__name__)
 
 VLAN_MESH = 200
+MESH_TFTP_IP_DEFAULT = "192.168.200.1"
 PLACE_PREFIX = "labgrid-fcefyn-"
 
 
@@ -98,8 +99,13 @@ def mesh_vlan_single(request, vlan_manager_mod, dut_map):
     if not ok:
         pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
 
+    mesh_tftp_ip = os.environ.get("LG_MESH_TFTP_IP", MESH_TFTP_IP_DEFAULT)
+    os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
+    logger.info("Set TFTP_SERVER_IP=%s for VLAN %d", mesh_tftp_ip, VLAN_MESH)
+
     yield
 
+    os.environ.pop("TFTP_SERVER_IP", None)
     logger.info("Restoring DUT '%s' to isolated VLAN", dut_name)
     vlan_manager_mod.restore_port_vlan(dut_name, dut_map=dut_map)
 
@@ -137,7 +143,12 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
     if not ok:
         pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")
 
+    mesh_tftp_ip = os.environ.get("LG_MESH_TFTP_IP", MESH_TFTP_IP_DEFAULT)
+    os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
+    logger.info("Set TFTP_SERVER_IP=%s for VLAN %d", mesh_tftp_ip, VLAN_MESH)
+
     yield dut_names
 
+    os.environ.pop("TFTP_SERVER_IP", None)
     logger.info("Restoring %d mesh DUTs to isolated VLANs in batch", len(valid_duts))
     vlan_manager_mod.restore_ports_vlan_batch(valid_duts, dut_map=dut_map)
