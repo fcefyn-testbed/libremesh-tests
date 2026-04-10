@@ -133,6 +133,11 @@ def _get_vlan_iface() -> str:
     return os.environ.get("LG_MESH_VLAN_IFACE", "vlan200")
 
 
+def _get_mesh_tftp_ip() -> str:
+    """TFTP server IP on the mesh VLAN (host address on vlan200)."""
+    return os.environ.get("LG_MESH_TFTP_IP", "192.168.200.1")
+
+
 def _resolve_image_map() -> dict[str, str]:
     """Parse LG_IMAGE_MAP into {place: image_path}.
 
@@ -385,7 +390,10 @@ def mesh_nodes(request, mesh_vlan_multi):
     coordinator = _get_coordinator_address()
     vlan_iface = _get_vlan_iface()
 
-    logger.info("Mesh test: booting %d nodes in parallel: %s", len(places), places)
+    mesh_tftp_ip = _get_mesh_tftp_ip()
+    os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
+    logger.info("Mesh test: booting %d nodes in parallel (TFTP_SERVER_IP=%s): %s",
+                len(places), mesh_tftp_ip, places)
 
     tmpdir = tempfile.mkdtemp(prefix="mesh_boot_")
     procs = {}
@@ -455,6 +463,7 @@ def mesh_nodes(request, mesh_vlan_multi):
     logger.info("Tearing down %d mesh nodes", len(nodes))
     for node in nodes:
         _shutdown_subprocess(node._process, node._stop_file, node.place)
+    os.environ.pop("TFTP_SERVER_IP", None)
 
 
 def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEOUT):
