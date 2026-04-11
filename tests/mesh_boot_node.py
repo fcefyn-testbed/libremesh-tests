@@ -28,9 +28,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
-                          generate_mesh_ssh_ip, query_node_ip,
-                          suppress_kernel_console)
+from lime_helpers import (
+    _read_int_env,
+    configure_fixed_ip,
+    ensure_batman_mesh,
+    generate_mesh_ssh_ip,
+    query_node_ip,
+    suppress_kernel_console,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,14 +46,22 @@ logger = logging.getLogger("mesh_boot_node")
 STOP_POLL_INTERVAL = 2
 DEFAULT_BOOT_ATTEMPTS = 1
 DEFAULT_RETRY_COOLDOWN = 8
+DEFAULT_COORDINATOR = "localhost:20408"
+EXCEPTION_SUMMARY_MAX_LEN = 240
 STOP_REQUESTED = False
 
 
 class BootFailure(RuntimeError):
     """Structured boot failure that can be reported back to the parent fixture."""
 
-    def __init__(self, stage: str, error_type: str, summary: str,
-                 retriable: bool = True, attempts_used: int = 1):
+    def __init__(
+        self,
+        stage: str,
+        error_type: str,
+        summary: str,
+        retriable: bool = True,
+        attempts_used: int = 1,
+    ):
         super().__init__(summary)
         self.stage = stage
         self.error_type = error_type
@@ -68,28 +81,15 @@ class BootFailure(RuntimeError):
         }
 
 
-def _read_int_env(name: str, default: int) -> int:
-    """Return a non-negative integer from the environment."""
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        logger.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
-        return default
-    if value < 0:
-        logger.warning("Negative integer for %s=%r, using default %d", name, raw, default)
-        return default
-    return value
-
-
 def _boot_attempt_limit() -> int:
     return max(1, _read_int_env("LG_MESH_BOOT_ATTEMPTS", DEFAULT_BOOT_ATTEMPTS))
 
 
 def _boot_retry_cooldown() -> int:
-    return _read_int_env("LG_MESH_UBOOT_RETRY_COOLDOWN", DEFAULT_RETRY_COOLDOWN)
+    for env_name in ("LG_MESH_BOOT_RETRY_COOLDOWN", "LG_MESH_UBOOT_RETRY_COOLDOWN"):
+        if os.environ.get(env_name, "").strip():
+            return _read_int_env(env_name, DEFAULT_RETRY_COOLDOWN)
+    return DEFAULT_RETRY_COOLDOWN
 
 
 def _check_stop_requested():
@@ -103,7 +103,7 @@ def _check_stop_requested():
         )
 
 
-def _summarize_exception(exc: Exception, limit: int = 240) -> str:
+def _summarize_exception(exc: Exception, limit: int = EXCEPTION_SUMMARY_MAX_LEN) -> str:
     text = str(exc).strip()
     if not text:
         text = type(exc).__name__
@@ -220,7 +220,9 @@ def _boot_node_once(place: str, target, strategy) -> dict:
             logger.info("Node %s mesh IP %s", place, mesh_ip)
         else:
             mesh_ip = ssh_ip
-            logger.info("Node %s mesh IP unavailable, falling back to %s", place, mesh_ip)
+            logger.info(
+                "Node %s mesh IP unavailable, falling back to %s", place, mesh_ip
+            )
     except Exception as exc:
         _raise_stage_failure("post_shell", exc, retriable=False)
 
@@ -239,8 +241,9 @@ def _reset_after_failed_attempt(strategy, place: str):
         logger.warning("Failed to reset %s to off before retry", place, exc_info=True)
 
 
-def _run_boot_attempts(place: str, target, strategy,
-                       boot_attempts: int, retry_cooldown: int) -> dict:
+def _run_boot_attempts(
+    place: str, target, strategy, boot_attempts: int, retry_cooldown: int
+) -> dict:
     """Run staged boot attempts until one succeeds or the retry budget is exhausted."""
     last_failure = None
 
@@ -256,7 +259,12 @@ def _run_boot_attempts(place: str, target, strategy,
             last_failure = exc
             logger.warning(
                 "Boot attempt %d/%d for %s failed at %s (%s): %s",
-                attempt, boot_attempts, place, exc.stage, exc.error_type, exc.summary,
+                attempt,
+                boot_attempts,
+                place,
+                exc.stage,
+                exc.error_type,
+                exc.summary,
             )
             if not exc.retriable or attempt >= boot_attempts:
                 raise
@@ -277,8 +285,7 @@ def _run_boot_attempts(place: str, target, strategy,
     )
 
 
-def boot_node(place: str, image: str, target_yaml: str,
-              coordinator: str) -> dict:
+def boot_node(place: str, image: str, target_yaml: str, coordinator: str) -> dict:
     """Boot a node via labgrid and return session state needed by the parent."""
     _patch_reg_driver_idempotent()
 
@@ -297,7 +304,9 @@ def boot_node(place: str, image: str, target_yaml: str,
             initial_state=None,
             allow_unmatched=False,
         )
-        session = start_session(coordinator, extra={"env": env, "role": "main", "args": args})
+        session = start_session(
+            coordinator, extra={"env": env, "role": "main", "args": args}
+        )
         loop = session.loop
 
         try:
@@ -320,11 +329,13 @@ def boot_node(place: str, image: str, target_yaml: str,
     boot_attempts = _boot_attempt_limit()
     retry_cooldown = _boot_retry_cooldown()
     result = _run_boot_attempts(place, target, strategy, boot_attempts, retry_cooldown)
-    result.update({
-        "session": session,
-        "target": target,
-        "strategy": strategy,
-    })
+    result.update(
+        {
+            "session": session,
+            "target": target,
+            "strategy": strategy,
+        }
+    )
     return result
 
 
@@ -343,7 +354,10 @@ def shutdown_node(session, strategy, place: str):
         except Exception:
             logger.warning("Power off failed for %s", place, exc_info=True)
     else:
-        logger.info("LG_MESH_KEEP_POWERED set: leaving %s powered on (place will be released)", place)
+        logger.info(
+            "LG_MESH_KEEP_POWERED set: leaving %s powered on (place will be released)",
+            place,
+        )
     try:
         session.loop.run_until_complete(session.release())
         logger.info("Released %s", place)
@@ -356,19 +370,20 @@ def main():
     parser.add_argument("--place", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--target-yaml", required=True)
-    parser.add_argument("--coordinator", default="localhost:20408")
+    parser.add_argument("--coordinator", default=DEFAULT_COORDINATOR)
     parser.add_argument("--status-file", required=True)
     parser.add_argument("--stop-file", required=True)
     args = parser.parse_args()
 
     stopping = False
+    received_signal = None
 
-    def handle_signal(signum, frame):
+    def handle_signal(signum, _frame):
         global STOP_REQUESTED
-        nonlocal stopping
-        logger.info("Received signal %d, shutting down", signum)
+        nonlocal stopping, received_signal
         STOP_REQUESTED = True
         stopping = True
+        received_signal = signum
 
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
@@ -381,13 +396,16 @@ def main():
         session = state["session"]
         strategy = state["strategy"]
 
-        _write_status(args.status_file, {
-            "place": args.place,
-            "ok": True,
-            "ssh_ip": state.get("ssh_ip", ""),
-            "mesh_ip": state.get("mesh_ip", ""),
-            "attempts_used": state.get("attempts_used", 1),
-        })
+        _write_status(
+            args.status_file,
+            {
+                "place": args.place,
+                "ok": True,
+                "ssh_ip": state.get("ssh_ip", ""),
+                "mesh_ip": state.get("mesh_ip", ""),
+                "attempts_used": state.get("attempts_used", 1),
+            },
+        )
         logger.info("Status written to %s, waiting for stop signal", args.status_file)
 
         while not stopping:
@@ -395,6 +413,9 @@ def main():
                 logger.info("Stop file detected: %s", args.stop_file)
                 break
             time.sleep(STOP_POLL_INTERVAL)
+
+        if received_signal is not None:
+            logger.info("Shutting down after signal %d", received_signal)
 
     except BootFailure as exc:
         logger.exception("Failed to boot %s", args.place)
