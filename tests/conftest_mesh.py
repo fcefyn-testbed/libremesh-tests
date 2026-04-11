@@ -14,8 +14,8 @@ Requires LG_MESH_PLACES (comma-separated place names) and either:
   - LG_IMAGE_MAP: per-place image paths, format "place1=/path/img1,place2=/path/img2".
     Falls back to LG_IMAGE for any place not listed in the map.
 
-Optional: LG_MESH_KEEP_POWERED=1 to leave nodes powered on after tests (for SSH/serial debugging).
-The labgrid place is still released so other sessions can use it later.
+Optional: LG_MESH_KEEP_POWERED=1 to leave nodes powered on after tests (for SSH/serial
+debugging). Handled by mesh_boot_node.py subprocess; the labgrid place is still released.
 
 Usage (physical, mixed device types):
     export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
@@ -31,11 +31,13 @@ Usage (single image for all nodes):
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Optional
 
@@ -53,6 +55,12 @@ BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 BOOT_TIMEOUT = 420
 NETWORK_SETTLE_TIMEOUT = 90
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
+SUBPROCESS_KILL_TIMEOUT = 10
+BOOT_PROGRESS_LOG_INTERVAL = 30
+BOOT_STATUS_POLL_INTERVAL = 2
+NETWORK_SETTLE_POLL_INTERVAL = 5
+SSH_COMMAND_TIMEOUT = 120
+BOOT_LOG_TAIL_CHARS = 3000
 
 
 class SSHProxy:
@@ -63,8 +71,13 @@ class SSHProxy:
     - Virtual (vlan_iface None): Direct SSH to host:port (e.g. 127.0.0.1:2222).
     """
 
-    def __init__(self, host: str, vlan_iface: Optional[str] = "vlan200",
-                 username: str = "root", port: int = 22):
+    def __init__(
+        self,
+        host: str,
+        vlan_iface: Optional[str] = "vlan200",
+        username: str = "root",
+        port: int = 22,
+    ):
         self._host = host
         self._vlan_iface = vlan_iface
         self._username = username
@@ -73,14 +86,21 @@ class SSHProxy:
     def _build_ssh_cmd(self, command: str) -> list[str]:
         base = [
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",
         ]
         if self._vlan_iface:
-            proxy_cmd = (f"sudo /usr/local/sbin/labgrid-bound-connect "
-                         f"{self._vlan_iface} {self._host} {self._port}")
-            base.extend(["-o", f"ProxyCommand={proxy_cmd}", f"{self._username}@{self._host}"])
+            proxy_cmd = (
+                f"sudo /usr/local/sbin/labgrid-bound-connect "
+                f"{self._vlan_iface} {self._host} {self._port}"
+            )
+            base.extend(
+                ["-o", f"ProxyCommand={proxy_cmd}", f"{self._username}@{self._host}"]
+            )
         else:
             base.extend(["-p", str(self._port), f"{self._username}@{self._host}"])
         base.append(command)
@@ -90,12 +110,16 @@ class SSHProxy:
         """Run a command and return stdout lines. Raises on non-zero exit."""
         result = subprocess.run(
             self._build_ssh_cmd(command),
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=SSH_COMMAND_TIMEOUT,
         )
         if result.returncode != 0:
             raise subprocess.CalledProcessError(
-                result.returncode, command,
-                output=result.stdout, stderr=result.stderr,
+                result.returncode,
+                command,
+                output=result.stdout,
+                stderr=result.stderr,
             )
         return [line for line in result.stdout.splitlines() if line]
 
@@ -104,7 +128,9 @@ class SSHProxy:
         try:
             result = subprocess.run(
                 self._build_ssh_cmd(command),
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=SSH_COMMAND_TIMEOUT,
             )
             stdout = [line for line in result.stdout.splitlines() if line]
             stderr = [line for line in result.stderr.splitlines() if line]
@@ -116,6 +142,7 @@ class SSHProxy:
 @dataclass
 class MeshNode:
     """Represents a booted mesh DUT with SSH access."""
+
     place: str
     ssh: SSHProxy
     mesh_ip: str = ""
@@ -141,8 +168,6 @@ def _build_mesh_ssh_ip_map(places: list[str]) -> dict[str, str]:
         mesh_ssh_ip_map[place] = mesh_ssh_ip
         seen[mesh_ssh_ip] = place
     return mesh_ssh_ip_map
-
-
 
 
 def _get_coordinator_address() -> str:
@@ -183,27 +208,38 @@ def _resolve_image_map() -> dict[str, str]:
     return result
 
 
-def _get_image_for_place(place: str, image_map: dict[str, str],
-                         default_image: str) -> str:
+def _get_image_for_place(
+    place: str, image_map: dict[str, str], default_image: str
+) -> str:
     """Return the image path for a given place, with fallback to default."""
     return image_map.get(place, default_image)
 
 
-def _launch_boot_subprocess(place: str, image: str, target_yaml: str,
-                            coordinator: str, tmpdir: str) -> tuple[subprocess.Popen, str, str, str]:
+def _launch_boot_subprocess(
+    place: str, image: str, target_yaml: str, coordinator: str, tmpdir: str
+) -> tuple[subprocess.Popen, str, str, str]:
     """Launch mesh_boot_node.py as a subprocess for one place."""
     status_file = os.path.join(tmpdir, f"status_{place}.json")
     stop_file = os.path.join(tmpdir, f"stop_{place}")
     log_file = os.path.join(tmpdir, f"boot_{place}.log")
 
     cmd = [
-        "uv", "run", "python", str(BOOT_SCRIPT),
-        "--place", place,
-        "--image", image,
-        "--target-yaml", target_yaml,
-        "--coordinator", coordinator,
-        "--status-file", status_file,
-        "--stop-file", stop_file,
+        "uv",
+        "run",
+        "python",
+        str(BOOT_SCRIPT),
+        "--place",
+        place,
+        "--image",
+        image,
+        "--target-yaml",
+        target_yaml,
+        "--coordinator",
+        coordinator,
+        "--status-file",
+        status_file,
+        "--stop-file",
+        stop_file,
     ]
 
     logger.info("Launching boot subprocess for %s", place)
@@ -218,28 +254,32 @@ def _launch_boot_subprocess(place: str, image: str, target_yaml: str,
     return proc, status_file, stop_file, log_file
 
 
-def _wait_for_status(status_file: str, proc: subprocess.Popen,
-                     place: str, timeout: int, log_file: str = "") -> dict:
-    """Wait for a boot subprocess to write its status file."""
-    deadline = time.time() + timeout
+def _read_status_file(status_file: str) -> Optional[dict]:
+    """Return parsed child status when available and complete."""
+    if not os.path.exists(status_file):
+        return None
+    try:
+        with open(status_file) as f:
+            return json.load(f)
+    except (OSError, JSONDecodeError):
+        return None
 
-    while time.time() < deadline:
-        if os.path.exists(status_file):
-            with open(status_file) as f:
-                status = json.load(f)
-            _dump_boot_log(place, log_file)
-            return status
 
-        if proc.poll() is not None:
-            _dump_boot_log(place, log_file)
-            return {"place": place, "ok": False, "error": "subprocess exited early"}
-
-        time.sleep(2)
-
-    logger.error("Timeout waiting for %s to boot (>%ds)", place, timeout)
-    proc.terminate()
-    _dump_boot_log(place, log_file)
-    return {"place": place, "ok": False, "error": f"boot timeout ({timeout}s)"}
+def _tail_boot_log(log_file: str, max_chars: int = 160) -> str:
+    """Return the last non-empty line from a boot log for progress messages."""
+    if not log_file or not os.path.exists(log_file):
+        return ""
+    try:
+        with open(log_file) as f:
+            lines = [line.strip() for line in f if line.strip()]
+    except OSError:
+        return ""
+    if not lines:
+        return ""
+    tail = lines[-1]
+    if len(tail) > max_chars:
+        return tail[: max_chars - 3] + "..."
+    return tail
 
 
 def _dump_boot_log(place: str, log_file: str):
@@ -250,10 +290,13 @@ def _dump_boot_log(place: str, log_file: str):
         with open(log_file) as f:
             content = f.read()
         if content.strip():
-            logger.info("=== Boot log for %s ===\n%s\n=== End boot log ===",
-                        place, content[-3000:])
-    except Exception:
-        pass
+            logger.info(
+                "=== Boot log for %s ===\n%s\n=== End boot log ===",
+                place,
+                content[-BOOT_LOG_TAIL_CHARS:],
+            )
+    except OSError:
+        logger.debug("Could not read boot log for %s", place)
 
 
 def _shutdown_subprocess(proc: subprocess.Popen, stop_file: str, place: str):
@@ -269,14 +312,15 @@ def _shutdown_subprocess(proc: subprocess.Popen, stop_file: str, place: str):
         logger.warning("Boot subprocess for %s didn't exit, sending SIGTERM", place)
         proc.terminate()
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=SUBPROCESS_KILL_TIMEOUT)
         except subprocess.TimeoutExpired:
             logger.warning("Killing boot subprocess for %s", place)
             proc.kill()
 
 
-def _shutdown_subprocesses(procs: dict[str, subprocess.Popen],
-                           stop_files: dict[str, str]):
+def _shutdown_subprocesses(
+    procs: dict[str, subprocess.Popen], stop_files: dict[str, str]
+):
     """Best-effort shutdown for every launched mesh boot subprocess."""
     for place, proc in procs.items():
         if proc.poll() is None:
@@ -362,26 +406,36 @@ def _mesh_nodes_virtual():
         # is 10.99.0.2. vwifi-server listens on 0.0.0.0:8214, reachable from guests
         # via this gateway IP.
         vwifi_server_ip = os.environ.get("VIRTUAL_MESH_VWIFI_HOST", "10.99.0.2")
-        logger.info("Configuring vwifi-client on %d nodes (server=%s)",
-                    len(mesh_nodes_list), vwifi_server_ip)
+        logger.info(
+            "Configuring vwifi-client on %d nodes (server=%s)",
+            len(mesh_nodes_list),
+            vwifi_server_ip,
+        )
         for i, node in enumerate(mesh_nodes_list, start=1):
             ok = _configure_vwifi_node(node.ssh, vwifi_server_ip, i)
             if ok:
                 logger.info("Node %s: vwifi-client configured", node.place)
             else:
-                logger.warning("Node %s: vwifi-client setup failed (vwifi may not be in image)",
-                              node.place)
+                logger.warning(
+                    "Node %s: vwifi-client setup failed (vwifi may not be in image)",
+                    node.place,
+                )
 
         convergence_wait = int(os.environ.get("VIRTUAL_MESH_CONVERGENCE_WAIT", "60"))
-        logger.info("Waiting %ds for mesh convergence (batman-adv/babeld over vwifi)...",
-                    convergence_wait)
+        logger.info(
+            "Waiting %ds for mesh convergence (batman-adv/babeld over vwifi)...",
+            convergence_wait,
+        )
         time.sleep(convergence_wait)
     else:
         logger.info("Skipping vwifi-client configuration (VIRTUAL_MESH_SKIP_VWIFI=1)")
 
     settle_timeout = _compute_network_settle_timeout(len(mesh_nodes_list))
-    logger.info("All %d virtual nodes booted, waiting %ds for network to settle",
-                len(mesh_nodes_list), settle_timeout)
+    logger.info(
+        "All %d virtual nodes booted, waiting %ds for network to settle",
+        len(mesh_nodes_list),
+        settle_timeout,
+    )
     _wait_for_network(mesh_nodes_list, timeout=settle_timeout)
 
     yield mesh_nodes_list
@@ -432,8 +486,12 @@ def mesh_nodes(request, mesh_vlan_multi):
 
     mesh_tftp_ip = _get_mesh_tftp_ip()
     os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
-    logger.info("Mesh test: booting %d nodes in parallel (TFTP_SERVER_IP=%s): %s",
-                len(places), mesh_tftp_ip, places)
+    logger.info(
+        "Mesh test: booting %d nodes in parallel (TFTP_SERVER_IP=%s): %s",
+        len(places),
+        mesh_tftp_ip,
+        places,
+    )
     logger.info("Reserved mesh SSH IPs: %s", mesh_ssh_ip_map)
 
     tmpdir = tempfile.mkdtemp(prefix="mesh_boot_")
@@ -450,63 +508,123 @@ def mesh_nodes(request, mesh_vlan_multi):
         for place in places:
             image_path = _get_image_for_place(place, image_map, default_image)
             if not image_path:
-                pytest.fail(f"No image configured for place {place} "
-                            "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
+                pytest.fail(
+                    f"No image configured for place {place} "
+                    "(set LG_IMAGE or add it to LG_IMAGE_MAP)"
+                )
             target_yaml = resolve_target_yaml(place)
-            logger.info("Node %s: target YAML %s, image %s", place, target_yaml, image_path)
-            proc, sf, stf, lf = _launch_boot_subprocess(
-                place, image_path, target_yaml, coordinator, tmpdir,
+            logger.info(
+                "Node %s: target YAML %s, image %s", place, target_yaml, image_path
+            )
+            proc, status_file, stop_file, log_file = _launch_boot_subprocess(
+                place,
+                image_path,
+                target_yaml,
+                coordinator,
+                tmpdir,
             )
             procs[place] = proc
-            status_files[place] = sf
-            stop_files[place] = stf
-            log_files[place] = lf
+            status_files[place] = status_file
+            stop_files[place] = stop_file
+            log_files[place] = log_file
 
-        for place in places:
-            status = _wait_for_status(
-                status_files[place], procs[place], place, BOOT_TIMEOUT,
-                log_file=log_files[place],
-            )
-            if status.get("ok"):
-                ssh_ip = status.get("ssh_ip") or status.get("ip", "")
-                mesh_ip = status.get("mesh_ip") or status.get("ip", "")
-                if not ssh_ip:
-                    logger.error("Node %s booted but did not report ssh_ip", place)
-                    failed.append(place)
+        pending = set(places)
+        deadline = time.time() + BOOT_TIMEOUT
+        next_progress_log = time.time() + BOOT_PROGRESS_LOG_INTERVAL
+
+        while pending and time.time() < deadline:
+            progress = False
+            for place in list(pending):
+                status = _read_status_file(status_files[place])
+                if status is None and procs[place].poll() is not None:
+                    status = _read_status_file(status_files[place])
+                    if status is None:
+                        status = {
+                            "place": place,
+                            "ok": False,
+                            "error": "subprocess exited early",
+                        }
+
+                if status is None:
                     continue
-                if ssh_ip in seen_ssh_ips:
+
+                progress = True
+                pending.remove(place)
+                _dump_boot_log(place, log_files[place])
+
+                if status.get("ok"):
+                    ssh_ip = status.get("ssh_ip") or status.get("ip", "")
+                    mesh_ip = status.get("mesh_ip") or status.get("ip", "")
+                    if not ssh_ip:
+                        logger.error("Node %s booted but did not report ssh_ip", place)
+                        failed.append(place)
+                        continue
+                    if ssh_ip in seen_ssh_ips:
+                        logger.error(
+                            "Duplicate ssh_ip %s reported by %s and %s",
+                            ssh_ip,
+                            seen_ssh_ips[ssh_ip],
+                            place,
+                        )
+                        failed.append(place)
+                        continue
+                    seen_ssh_ips[ssh_ip] = place
+                    ssh = SSHProxy(host=ssh_ip, vlan_iface=vlan_iface)
+                    node = MeshNode(
+                        place=place,
+                        ssh=ssh,
+                        mesh_ip=mesh_ip,
+                        _process=procs[place],
+                        _stop_file=stop_files[place],
+                    )
+                    nodes.append(node)
+                    attempts_used = status.get("attempts_used", 1)
+                    logger.info(
+                        "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s, attempts=%s)",
+                        place,
+                        ssh_ip,
+                        mesh_ip,
+                        attempts_used,
+                    )
+                else:
+                    error = status.get("error", "unknown")
+                    stage = status.get("failure_stage", "unknown")
+                    error_type = status.get("error_type", "unknown")
+                    attempts_used = status.get("attempts_used", "?")
+                    summary = status.get("error_summary", error)
                     logger.error(
-                        "Duplicate ssh_ip %s reported by %s and %s",
-                        ssh_ip, seen_ssh_ips[ssh_ip], place,
+                        "Node %s failed to boot after %s attempts at stage %s (%s): %s",
+                        place,
+                        attempts_used,
+                        stage,
+                        error_type,
+                        summary,
                     )
                     failed.append(place)
-                    continue
-                seen_ssh_ips[ssh_ip] = place
-                ssh = SSHProxy(host=ssh_ip, vlan_iface=vlan_iface)
-                node = MeshNode(
-                    place=place,
-                    ssh=ssh,
-                    mesh_ip=mesh_ip,
-                    _process=procs[place],
-                    _stop_file=stop_files[place],
-                )
-                nodes.append(node)
-                attempts_used = status.get("attempts_used", 1)
+
+            if pending and time.time() >= next_progress_log:
+                summaries = []
+                for place in places:
+                    if place not in pending:
+                        continue
+                    proc_state = "running" if procs[place].poll() is None else "exited"
+                    tail = _tail_boot_log(log_files[place]) or "no recent log line"
+                    summaries.append(f"{place} [{proc_state}] {tail}")
                 logger.info(
-                    "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s, attempts=%s)",
-                    place, ssh_ip, mesh_ip, attempts_used,
+                    "Still waiting for %d node boot statuses after %ds: %s",
+                    len(pending),
+                    BOOT_TIMEOUT - max(0, int(deadline - time.time())),
+                    summaries,
                 )
-            else:
-                error = status.get("error", "unknown")
-                stage = status.get("failure_stage", "unknown")
-                error_type = status.get("error_type", "unknown")
-                attempts_used = status.get("attempts_used", "?")
-                summary = status.get("error_summary", error)
-                logger.error(
-                    "Node %s failed to boot after %s attempts at stage %s (%s): %s",
-                    place, attempts_used, stage, error_type, summary,
-                )
-                failed.append(place)
+                next_progress_log = time.time() + BOOT_PROGRESS_LOG_INTERVAL
+
+            if pending and not progress:
+                time.sleep(BOOT_STATUS_POLL_INTERVAL)
+
+        for place in list(pending):
+            logger.error("Timeout waiting for %s to boot (>%ds)", place, BOOT_TIMEOUT)
+            _dump_boot_log(place, log_files[place])
+            failed.append(place)
 
         if failed:
             pytest.fail(
@@ -517,8 +635,11 @@ def mesh_nodes(request, mesh_vlan_multi):
         nodes.sort(key=lambda n: places.index(n.place))
 
         settle_timeout = _compute_network_settle_timeout(len(nodes))
-        logger.info("All %d nodes booted, waiting %ds for network to settle",
-                    len(nodes), settle_timeout)
+        logger.info(
+            "All %d nodes booted, waiting %ds for network to settle",
+            len(nodes),
+            settle_timeout,
+        )
         _wait_for_network(nodes, timeout=settle_timeout)
 
         yield nodes
@@ -527,6 +648,7 @@ def mesh_nodes(request, mesh_vlan_multi):
             logger.info("Tearing down %d mesh boot subprocesses", len(procs))
             _shutdown_subprocesses(procs, stop_files)
         os.environ.pop("TFTP_SERVER_IP", None)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEOUT):
@@ -541,10 +663,10 @@ def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEO
                 if "mesh-ready" in output:
                     logger.info("Node %s: SSH reachable", nodes[i].place)
                     pending.discard(i)
-            except Exception:
+            except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                 pass
         if pending:
-            time.sleep(5)
+            time.sleep(NETWORK_SETTLE_POLL_INTERVAL)
 
     if pending:
         names = [nodes[i].place for i in pending]
