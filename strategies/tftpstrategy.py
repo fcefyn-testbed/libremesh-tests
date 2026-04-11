@@ -20,6 +20,8 @@ DEFAULT_UBOOT_RETRIES = 2
 DEFAULT_UBOOT_RETRY_COOLDOWN = 8
 DEFAULT_UBOOT_RETRY_BUDGET = 360
 DEFAULT_UBOOT_LOCK_FILE = "/tmp/libremesh-tests-uboot.lock"
+SERIAL_DRAIN_CHUNK = 4096
+SERIAL_DRAIN_TIMEOUT = 0.1
 
 
 class Status(enum.Enum):
@@ -209,6 +211,24 @@ class UBootTFTPStrategy(Strategy):
             )
         return effective
 
+    def _drain_serial_buffer(self):
+        """Consume stale data from the serial console before a power cycle.
+
+        Leftover output from a previous boot (or from the node idling in
+        its OS) can confuse pexpect when it tries to match the U-Boot
+        prompt after the next power-cycle.  Draining the buffer here
+        gives activate(uboot) a clean slate.
+        """
+        try:
+            while True:
+                data = self.console.read(
+                    size=SERIAL_DRAIN_CHUNK, timeout=SERIAL_DRAIN_TIMEOUT
+                )
+                if not data:
+                    break
+        except Exception:
+            pass
+
     def _transition_to_uboot_once(self):
         """Power-cycle the node and activate the U-Boot console once."""
         lock_path = os.environ.get("LG_MESH_UBOOT_LOCK_FILE", DEFAULT_UBOOT_LOCK_FILE)
@@ -222,6 +242,7 @@ class UBootTFTPStrategy(Strategy):
             staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
             tftp_server_ip = self._resolve_tftp_server_ip()
 
+            self._drain_serial_buffer()
             self.power.cycle()
 
             self._prepare_uboot_commands(staged_file, tftp_server_ip)
