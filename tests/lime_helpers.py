@@ -8,6 +8,7 @@ avoid duplication and keep a single source of truth.
 import ipaddress
 import hashlib
 import logging
+import os
 import re
 import time
 from os import getenv
@@ -16,6 +17,27 @@ from pathlib import Path
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _read_int_env(name: str, default: int) -> int:
+    """Return a non-negative integer from the environment, or *default*."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid integer for %s=%r, using default %d", name, raw, default
+        )
+        return default
+    if value < 0:
+        logger.warning(
+            "Negative integer for %s=%r, using default %d", name, raw, default
+        )
+        return default
+    return value
+
 
 MESH_SSH_IP_PREFIX = "10.13.200"
 # Backward-compatible alias kept for older callers and tests.
@@ -32,6 +54,7 @@ LABNET_PATH = REPO_ROOT / "labnet.yaml"
 # ---------------------------------------------------------------------------
 # Serial console helpers
 # ---------------------------------------------------------------------------
+
 
 def suppress_kernel_console(shell) -> None:
     """Set kernel console log level to ALERT-only (``dmesg -n 1``).
@@ -50,6 +73,7 @@ def suppress_kernel_console(shell) -> None:
 # ---------------------------------------------------------------------------
 # Fixed IP helpers
 # ---------------------------------------------------------------------------
+
 
 def generate_mesh_ssh_ip(place_name: str) -> str:
     """Generate a deterministic mesh SSH/control IP in the 10.13.200.x range.
@@ -140,9 +164,7 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
     """
     deadline = time.time() + max_wait
     while time.time() < deadline:
-        _, _, rc = shell.run(
-            "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
-        )
+        _, _, rc = shell.run("ip -o link show br-lan 2>/dev/null | grep -q 'state UP'")
         if rc == 0:
             return "br-lan"
 
@@ -158,15 +180,15 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
         )
         if rc == 0 and stdout and stdout[0].strip():
             iface = stdout[0].strip()
-            _, _, rc2 = shell.run(
-                f"ip -o link show {iface} 2>/dev/null | grep -q ."
-            )
+            _, _, rc2 = shell.run(f"ip -o link show {iface} 2>/dev/null | grep -q .")
             if rc2 == 0:
                 return iface
 
         remaining = int(deadline - time.time())
         if remaining > 0:
-            logger.info("Waiting for LAN interface to come UP (%ds remaining)", remaining)
+            logger.info(
+                "Waiting for LAN interface to come UP (%ds remaining)", remaining
+            )
             time.sleep(5)
     return None
 
@@ -184,32 +206,37 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     (br-lan if UP, otherwise the original interface).
     """
     watchdog_script = (
-        f'END=$(($(date +%s)+180)); '
+        f"END=$(($(date +%s)+180)); "
         f'while [ "$(date +%s)" -lt "$END" ]; do '
-        f'  FOUND=0; '
-        f'  for IFACE in br-lan {original_iface}; do '
+        f"  FOUND=0; "
+        f"  for IFACE in br-lan {original_iface}; do "
         f'    ip addr show "$IFACE" 2>/dev/null | grep -q "{fixed_ip}" && FOUND=1 && break; '
-        f'  done; '
+        f"  done; "
         f'  if [ "$FOUND" = "0" ]; then '
         f'    if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
-        f'      ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null; '
-        f'    else '
-        f'      ip addr add {fixed_ip}/16 dev {original_iface} 2>/dev/null; '
-        f'    fi; '
-        f'  fi; '
-        f'  sleep 3; '
-        f'done'
+        f"      ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null; "
+        f"    else "
+        f"      ip addr add {fixed_ip}/16 dev {original_iface} 2>/dev/null; "
+        f"    fi; "
+        f"  fi; "
+        f"  sleep 3; "
+        f"done"
     )
     shell.run(f"({watchdog_script}) &")
     logger.info(
         "Started IP watchdog (180s): will keep %s reachable, preferring br-lan (was on %s)",
-        fixed_ip, original_iface,
+        fixed_ip,
+        original_iface,
     )
 
 
-def configure_fixed_ip(shell, target, place_name: str | None = None,
-                       fixed_ip: str | None = None,
-                       prefer_networkservice: bool = True) -> str | None:
+def configure_fixed_ip(
+    shell,
+    target,
+    place_name: str | None = None,
+    fixed_ip: str | None = None,
+    prefer_networkservice: bool = True,
+) -> str | None:
     """Configure a fixed IP on the LAN interface via serial for stable SSH.
 
     Resolution order:
@@ -239,11 +266,14 @@ def configure_fixed_ip(shell, target, place_name: str | None = None,
             if not place_name or place_name == "+":
                 logger.warning(
                     "Cannot determine SSH target IP (prefer_networkservice=%s, LG_PLACE=%s)",
-                    prefer_networkservice, place_name,
+                    prefer_networkservice,
+                    place_name,
                 )
                 return None
             fixed_ip = generate_mesh_ssh_ip(place_name)
-            logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
+            logger.info(
+                "Using hash-based fallback IP %s for place %s", fixed_ip, place_name
+            )
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
     max_attempts = 3
@@ -253,7 +283,12 @@ def configure_fixed_ip(shell, target, place_name: str | None = None,
         if not iface:
             logger.error("No suitable network interface found for fixed IP")
             return None
-        logger.info("Using interface %s for fixed IP (attempt %d/%d)", iface, attempt, max_attempts)
+        logger.info(
+            "Using interface %s for fixed IP (attempt %d/%d)",
+            iface,
+            attempt,
+            max_attempts,
+        )
 
         _, _, rc = shell.run(f"ip addr show {iface} | grep -q '{fixed_ip}'")
         if rc == 0:
@@ -271,16 +306,28 @@ def configure_fixed_ip(shell, target, place_name: str | None = None,
             return fixed_ip
 
         if attempt < max_attempts:
-            err_msg = " ".join(stderr) if stderr else " ".join(stdout) if stdout else "exit %d" % rc
+            err_msg = (
+                " ".join(stderr)
+                if stderr
+                else " ".join(stdout)
+                if stdout
+                else "exit %d" % rc
+            )
             logger.warning(
                 "Failed to verify IP on %s (attempt %d/%d): %s; retrying in %ds",
-                iface, attempt, max_attempts, err_msg, retry_delay,
+                iface,
+                attempt,
+                max_attempts,
+                err_msg,
+                retry_delay,
             )
             time.sleep(retry_delay)
         else:
             logger.error(
                 "Failed to configure fixed IP %s on %s after %d attempts",
-                fixed_ip, iface, max_attempts,
+                fixed_ip,
+                iface,
+                max_attempts,
             )
             return None
 
@@ -327,7 +374,8 @@ def query_node_ip(target, timeout: int = 120, prefer_mesh: bool = False) -> str:
     if prefer_mesh and fallback_ip:
         logger.warning(
             "Could not determine a real mesh IP within %ss, falling back to %s",
-            timeout, fallback_ip,
+            timeout,
+            fallback_ip,
         )
         return fallback_ip
 
@@ -338,6 +386,7 @@ def query_node_ip(target, timeout: int = 120, prefer_mesh: bool = False) -> str:
 # ---------------------------------------------------------------------------
 # labnet.yaml target resolution
 # ---------------------------------------------------------------------------
+
 
 def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> str:
     """Resolve the target YAML path for a labgrid place via labnet.yaml.
@@ -390,6 +439,7 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
 # batman-adv auto-fix
 # ---------------------------------------------------------------------------
 
+
 def enable_batman_bridge_loop_avoidance(shell) -> bool:
     """Enable batman-adv bridge loop avoidance when supported.
 
@@ -415,7 +465,10 @@ def enable_batman_bridge_loop_avoidance(shell) -> bool:
             return True
         logger.debug(
             "Could not enable bridge loop avoidance with %s (rc=%s, stdout=%s, stderr=%s)",
-            command, rc, stdout, stderr,
+            command,
+            rc,
+            stdout,
+            stderr,
         )
 
     logger.info("batman-adv bridge loop avoidance not available on this device")
@@ -445,7 +498,8 @@ def ensure_batman_mesh(target) -> bool:
         return False
 
     active_lines = [
-        line for line in batctl_output.splitlines()
+        line
+        for line in batctl_output.splitlines()
         if line.strip() and "active" in line.lower()
     ]
     if active_lines:
@@ -480,7 +534,9 @@ def ensure_batman_mesh(target) -> bool:
             pass
 
     candidates = dsa_ports + [i for i in eth_ports if i not in dsa_conduits]
-    logger.info("Candidate interfaces (DSA ports first, conduits excluded): %s", candidates)
+    logger.info(
+        "Candidate interfaces (DSA ports first, conduits excluded): %s", candidates
+    )
 
     if not candidates:
         logger.warning("No candidate interfaces found")
@@ -529,7 +585,8 @@ def ensure_batman_mesh(target) -> bool:
             output = shell.run_check("batctl if 2>/dev/null")
             batctl_output = "\n".join(output)
             active_lines = [
-                line for line in batctl_output.splitlines()
+                line
+                for line in batctl_output.splitlines()
                 if line.strip() and "active" in line.lower()
             ]
             if active_lines:
