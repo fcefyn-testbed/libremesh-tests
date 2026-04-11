@@ -72,13 +72,9 @@ class QEMUNetworkStrategyLibreMesh(Strategy):
             except Exception:
                 pass
             remaining = int(deadline - time.time())
-            logger.info(
-                "Waiting for dropbear to start (%ds remaining)...", remaining
-            )
+            logger.info("Waiting for dropbear to start (%ds remaining)...", remaining)
             time.sleep(DROPBEAR_POLL_INTERVAL)
-        raise StrategyError(
-            f"Dropbear not listening after {DROPBEAR_TIMEOUT}s"
-        )
+        raise StrategyError(f"Dropbear not listening after {DROPBEAR_TIMEOUT}s")
 
     @step()
     def update_network_service(self):

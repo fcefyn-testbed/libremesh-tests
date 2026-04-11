@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_br_lan_ipv4(node) -> str:
     """Extract the preferred br-lan IPv4, preferring the real mesh address."""
     if node.mesh_ip and is_mesh_ipv4(node.mesh_ip):
@@ -67,14 +68,24 @@ def _ping_with_retry(src, dst, dst_ip: str, attempts: int = 3, delay: int = 5) -
             if attempt > 1:
                 logger.info(
                     "Ping %s -> %s (%s) succeeded on retry %d/%d",
-                    src.place, dst.place, dst_ip, attempt, attempts,
+                    src.place,
+                    dst.place,
+                    dst_ip,
+                    attempt,
+                    attempts,
                 )
             return
 
         last_stdout, last_stderr, last_exit_code = stdout, stderr, exit_code
         logger.warning(
             "Ping %s -> %s (%s) failed on attempt %d/%d (rc=%s, stderr=%s)",
-            src.place, dst.place, dst_ip, attempt, attempts, exit_code, stderr,
+            src.place,
+            dst.place,
+            dst_ip,
+            attempt,
+            attempts,
+            exit_code,
+            stderr,
         )
         if attempt < attempts:
             time.sleep(delay)
@@ -96,7 +107,9 @@ def _ensure_arp_entry(src, dst, dst_ip: str) -> None:
 
     logger.info(
         "Priming neighbor entry on %s for %s (%s)",
-        src.place, dst.place, dst_ip,
+        src.place,
+        dst.place,
+        dst_ip,
     )
     _ping_with_retry(src, dst, dst_ip, attempts=2, delay=3)
 
@@ -105,6 +118,7 @@ def _ensure_arp_entry(src, dst, dst_ip: str) -> None:
 # Phase 1: Basic connectivity
 # ---------------------------------------------------------------------------
 
+
 class TestMeshConnectivity:
     """Validate that mesh nodes boot and can reach each other."""
 
@@ -112,7 +126,9 @@ class TestMeshConnectivity:
         """All nodes reached shell and SSH is functional."""
         for node in mesh_nodes:
             output = node.ssh.run_check("echo mesh-ok")
-            assert output == ["mesh-ok"], f"Node {node.place}: unexpected output {output}"
+            assert output == ["mesh-ok"], (
+                f"Node {node.place}: unexpected output {output}"
+            )
 
     def test_nodes_have_ip(self, mesh_nodes):
         """Each node has at least one IPv4 on br-lan."""
@@ -146,6 +162,7 @@ class TestMeshConnectivity:
 # Phase 2: Mesh protocol validation
 # ---------------------------------------------------------------------------
 
+
 class TestMeshProtocol:
     """Validate that LibreMesh mesh protocols are running and forming a network."""
 
@@ -171,7 +188,9 @@ class TestMeshProtocol:
                 logger.warning("Node %s: batman mesh disabled", node.place)
                 continue
             if exit_code != 0:
-                logger.warning("Node %s: batctl n failed with code %d", node.place, exit_code)
+                logger.warning(
+                    "Node %s: batctl n failed with code %d", node.place, exit_code
+                )
                 continue
             active_nodes += 1
 
@@ -192,7 +211,9 @@ class TestMeshProtocol:
                 logger.warning("Node %s: batman mesh disabled", node.place)
                 continue
             if exit_code != 0:
-                logger.warning("Node %s: batctl o failed with code %d", node.place, exit_code)
+                logger.warning(
+                    "Node %s: batctl o failed with code %d", node.place, exit_code
+                )
                 continue
             active_nodes += 1
 
@@ -229,13 +250,16 @@ class TestMeshProtocol:
 # Phase 3: LibreMesh-specific checks
 # ---------------------------------------------------------------------------
 
+
 class TestLibreMeshServices:
     """Validate LibreMesh-specific services and configuration."""
 
     def test_lime_config_exists(self, mesh_nodes):
         """LibreMesh configuration file exists."""
         for node in mesh_nodes:
-            stdout, _, exit_code = node.ssh.run("ls /etc/config/lime-defaults 2>/dev/null || ls /etc/config/lime 2>/dev/null")
+            stdout, _, exit_code = node.ssh.run(
+                "ls /etc/config/lime-defaults 2>/dev/null || ls /etc/config/lime 2>/dev/null"
+            )
             if exit_code != 0:
                 pytest.skip("Not a LibreMesh build (no lime config)")
 

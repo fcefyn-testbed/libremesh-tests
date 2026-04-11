@@ -39,9 +39,7 @@ def test_wifi_mesh_mode(ssh_command):
                 if "wlan" in line and "active" in line:
                     return
 
-        pytest.skip(
-            "No WiFi mesh interface found (device may use ethernet-only mesh)"
-        )
+        pytest.skip("No WiFi mesh interface found (device may use ethernet-only mesh)")
 
 
 @pytest.mark.lg_feature("wifi")
@@ -54,7 +52,11 @@ def test_wifi_radio_present(ssh_command):
     if rc != 0 or not stdout or not stdout[0].strip():
         pytest.skip("No WiFi radios found on this device (may be ethernet-only)")
 
-    entries = [p for p in stdout[0].split() if p and (p.startswith("phy") or p.startswith("wl"))]
+    entries = [
+        p
+        for p in stdout[0].split()
+        if p and (p.startswith("phy") or p.startswith("wl"))
+    ]
     assert len(entries) > 0, (
         f"No phy/wl devices found in /sys/class/ieee80211/. Got: {stdout[0]!r}"
     )
@@ -90,4 +92,6 @@ def test_wifi_not_in_ap_mode(ssh_command):
         return
 
     if not ap_interfaces and not mesh_interfaces:
-        pytest.skip("No WiFi interfaces in AP or mesh mode — device may be ethernet-only")
+        pytest.skip(
+            "No WiFi interfaces in AP or mesh mode — device may be ethernet-only"
+        )

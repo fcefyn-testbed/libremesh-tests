@@ -21,7 +21,7 @@ class DummyShell:
 
         if command.startswith("ip addr show ") and "grep -q" in command:
             prefix = "ip addr show "
-            iface = command[len(prefix):].split(" |", 1)[0]
+            iface = command[len(prefix) :].split(" |", 1)[0]
             ip_addr = command.rsplit("'", 2)[1]
             return [], [], 0 if self.added.get(iface) == ip_addr else 1
 
@@ -34,9 +34,13 @@ class DummyShell:
 
         if command.startswith("ip addr show ") and "grep '" in command:
             prefix = "ip addr show "
-            iface = command[len(prefix):].split(" |", 1)[0]
+            iface = command[len(prefix) :].split(" |", 1)[0]
             ip_addr = command.rsplit("'", 2)[1]
-            return [f"inet {ip_addr}/16"], [], 0 if self.added.get(iface) == ip_addr else 1
+            return (
+                [f"inet {ip_addr}/16"],
+                [],
+                0 if self.added.get(iface) == ip_addr else 1,
+            )
 
         return [], [], 0
 
@@ -52,7 +56,9 @@ def test_configure_fixed_ip_prefers_explicit_fixed_ip(monkeypatch):
     monkeypatch.setattr(lime_helpers.time, "sleep", lambda _: None)
     monkeypatch.setattr(lime_helpers, "find_lan_interface", lambda _: "br-lan")
     monkeypatch.setattr(lime_helpers, "get_ssh_target_ip", lambda _: "192.168.1.1")
-    monkeypatch.setattr(lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None
+    )
 
     result = lime_helpers.configure_fixed_ip(
         shell,
@@ -71,7 +77,9 @@ def test_configure_fixed_ip_prefers_networkservice_by_default(monkeypatch):
     monkeypatch.setattr(lime_helpers.time, "sleep", lambda _: None)
     monkeypatch.setattr(lime_helpers, "find_lan_interface", lambda _: "br-lan")
     monkeypatch.setattr(lime_helpers, "get_ssh_target_ip", lambda _: "192.168.1.1")
-    monkeypatch.setattr(lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None
+    )
 
     result = lime_helpers.configure_fixed_ip(
         shell,
@@ -89,7 +97,9 @@ def test_configure_fixed_ip_can_bypass_networkservice(monkeypatch):
     monkeypatch.setattr(lime_helpers.time, "sleep", lambda _: None)
     monkeypatch.setattr(lime_helpers, "find_lan_interface", lambda _: "br-lan")
     monkeypatch.setattr(lime_helpers, "get_ssh_target_ip", lambda _: "192.168.1.1")
-    monkeypatch.setattr(lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lime_helpers, "_start_ip_watchdog", lambda *args, **kwargs: None
+    )
 
     result = lime_helpers.configure_fixed_ip(
         shell,
@@ -135,7 +145,9 @@ def test_build_mesh_ssh_ip_map_rejects_collisions(monkeypatch):
     monkeypatch.setattr(
         conftest_mesh,
         "generate_mesh_ssh_ip",
-        lambda place: "10.13.200.42" if "one" in place or "two" in place else "10.13.200.43",
+        lambda place: "10.13.200.42"
+        if "one" in place or "two" in place
+        else "10.13.200.43",
     )
 
     with pytest.raises(ValueError, match="Duplicate mesh SSH IP"):
