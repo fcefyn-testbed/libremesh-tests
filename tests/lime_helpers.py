@@ -390,6 +390,38 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
 # batman-adv auto-fix
 # ---------------------------------------------------------------------------
 
+def enable_batman_bridge_loop_avoidance(shell) -> bool:
+    """Enable batman-adv bridge loop avoidance when supported.
+
+    Our physical mesh tests bridge ``bat0`` into ``br-lan`` while also keeping
+    direct host access on the same Ethernet segment. On some devices (notably
+    the BananaPi R4) this can trigger bridge loops unless batman-adv's bridge
+    loop avoidance is enabled.
+    """
+    commands = [
+        "batctl meshif bat0 bridge_loop_avoidance 1",
+        "batctl meshif bat0 bl 1",
+        "batctl bridge_loop_avoidance 1",
+        "batctl bl 1",
+    ]
+
+    for command in commands:
+        try:
+            stdout, stderr, rc = shell.run(command)
+        except Exception:
+            continue
+        if rc == 0:
+            logger.info("Enabled batman-adv bridge loop avoidance using: %s", command)
+            return True
+        logger.debug(
+            "Could not enable bridge loop avoidance with %s (rc=%s, stdout=%s, stderr=%s)",
+            command, rc, stdout, stderr,
+        )
+
+    logger.info("batman-adv bridge loop avoidance not available on this device")
+    return False
+
+
 def ensure_batman_mesh(target) -> bool:
     """Ensure batman-adv has at least one active mesh interface.
 
@@ -418,6 +450,7 @@ def ensure_batman_mesh(target) -> bool:
     ]
     if active_lines:
         logger.info("Batman-adv already has active interfaces: %s", active_lines)
+        enable_batman_bridge_loop_avoidance(shell)
         return True
 
     logger.warning("Batman-adv has no active interfaces, attempting auto-fix")
@@ -501,6 +534,7 @@ def ensure_batman_mesh(target) -> bool:
             ]
             if active_lines:
                 logger.info("Batman-adv now has active interfaces: %s", active_lines)
+                enable_batman_bridge_loop_avoidance(shell)
                 return True
             else:
                 logger.warning("Batman still has no active interfaces after fix")
