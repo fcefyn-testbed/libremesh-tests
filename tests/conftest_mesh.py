@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 
 BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 
-BOOT_TIMEOUT = 420
+BOOT_TIMEOUT_BASE = 420
+BOOT_TIMEOUT_PER_NODE = 90
 NETWORK_SETTLE_TIMEOUT = 90
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
 SUBPROCESS_KILL_TIMEOUT = 10
@@ -181,6 +182,18 @@ def _get_vlan_iface() -> str:
 def _get_mesh_tftp_ip() -> str:
     """TFTP server IP on the mesh VLAN (host address on vlan200)."""
     return os.environ.get("LG_MESH_TFTP_IP", "192.168.200.1")
+
+
+def _compute_boot_timeout(node_count: int) -> int:
+    """Scale the boot timeout with node count.
+
+    The U-Boot gate serializes power-cycle + TFTP capture across all nodes.
+    Each node holds the gate for ~30s, and a single U-Boot retry adds ~130s.
+    The base timeout covers 3 nodes comfortably; each extra node adds
+    BOOT_TIMEOUT_PER_NODE seconds.
+    """
+    extra_nodes = max(0, node_count - 3)
+    return BOOT_TIMEOUT_BASE + extra_nodes * BOOT_TIMEOUT_PER_NODE
 
 
 def _compute_network_settle_timeout(node_count: int) -> int:
@@ -529,7 +542,9 @@ def mesh_nodes(request, mesh_vlan_multi):
             log_files[place] = log_file
 
         pending = set(places)
-        deadline = time.time() + BOOT_TIMEOUT
+        boot_timeout = _compute_boot_timeout(len(places))
+        logger.info("Boot timeout for %d nodes: %ds", len(places), boot_timeout)
+        deadline = time.time() + boot_timeout
         next_progress_log = time.time() + BOOT_PROGRESS_LOG_INTERVAL
 
         while pending and time.time() < deadline:
@@ -613,7 +628,7 @@ def mesh_nodes(request, mesh_vlan_multi):
                 logger.info(
                     "Still waiting for %d node boot statuses after %ds: %s",
                     len(pending),
-                    BOOT_TIMEOUT - max(0, int(deadline - time.time())),
+                    boot_timeout - max(0, int(deadline - time.time())),
                     summaries,
                 )
                 next_progress_log = time.time() + BOOT_PROGRESS_LOG_INTERVAL
@@ -622,7 +637,7 @@ def mesh_nodes(request, mesh_vlan_multi):
                 time.sleep(BOOT_STATUS_POLL_INTERVAL)
 
         for place in list(pending):
-            logger.error("Timeout waiting for %s to boot (>%ds)", place, BOOT_TIMEOUT)
+            logger.error("Timeout waiting for %s to boot (>%ds)", place, boot_timeout)
             _dump_boot_log(place, log_files[place])
             failed.append(place)
 
