@@ -275,6 +275,14 @@ def _shutdown_subprocess(proc: subprocess.Popen, stop_file: str, place: str):
             proc.kill()
 
 
+def _shutdown_subprocesses(procs: dict[str, subprocess.Popen],
+                           stop_files: dict[str, str]):
+    """Best-effort shutdown for every launched mesh boot subprocess."""
+    for place, proc in procs.items():
+        if proc.poll() is None:
+            _shutdown_subprocess(proc, stop_files.get(place, ""), place)
+
+
 def _configure_vwifi_node(ssh: SSHProxy, vwifi_server_ip: str, node_index: int):
     """Configure vwifi-client and restart wireless on a virtual node.
 
@@ -434,95 +442,91 @@ def mesh_nodes(request, mesh_vlan_multi):
     stop_files = {}
     log_files = {}
 
-    for place in places:
-        image_path = _get_image_for_place(place, image_map, default_image)
-        if not image_path:
-            pytest.fail(f"No image configured for place {place} "
-                        "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
-        target_yaml = resolve_target_yaml(place)
-        logger.info("Node %s: target YAML %s, image %s", place, target_yaml, image_path)
-        proc, sf, stf, lf = _launch_boot_subprocess(
-            place, image_path, target_yaml, coordinator, tmpdir,
-        )
-        procs[place] = proc
-        status_files[place] = sf
-        stop_files[place] = stf
-        log_files[place] = lf
-
     nodes = []
     failed = []
     seen_ssh_ips = {}
 
-    for place in places:
-        status = _wait_for_status(
-            status_files[place], procs[place], place, BOOT_TIMEOUT,
-            log_file=log_files[place],
-        )
-        if status.get("ok"):
-            ssh_ip = status.get("ssh_ip") or status.get("ip", "")
-            mesh_ip = status.get("mesh_ip") or status.get("ip", "")
-            if not ssh_ip:
-                logger.error("Node %s booted but did not report ssh_ip", place)
-                failed.append(place)
-                continue
-            if ssh_ip in seen_ssh_ips:
+    try:
+        for place in places:
+            image_path = _get_image_for_place(place, image_map, default_image)
+            if not image_path:
+                pytest.fail(f"No image configured for place {place} "
+                            "(set LG_IMAGE or add it to LG_IMAGE_MAP)")
+            target_yaml = resolve_target_yaml(place)
+            logger.info("Node %s: target YAML %s, image %s", place, target_yaml, image_path)
+            proc, sf, stf, lf = _launch_boot_subprocess(
+                place, image_path, target_yaml, coordinator, tmpdir,
+            )
+            procs[place] = proc
+            status_files[place] = sf
+            stop_files[place] = stf
+            log_files[place] = lf
+
+        for place in places:
+            status = _wait_for_status(
+                status_files[place], procs[place], place, BOOT_TIMEOUT,
+                log_file=log_files[place],
+            )
+            if status.get("ok"):
+                ssh_ip = status.get("ssh_ip") or status.get("ip", "")
+                mesh_ip = status.get("mesh_ip") or status.get("ip", "")
+                if not ssh_ip:
+                    logger.error("Node %s booted but did not report ssh_ip", place)
+                    failed.append(place)
+                    continue
+                if ssh_ip in seen_ssh_ips:
+                    logger.error(
+                        "Duplicate ssh_ip %s reported by %s and %s",
+                        ssh_ip, seen_ssh_ips[ssh_ip], place,
+                    )
+                    failed.append(place)
+                    continue
+                seen_ssh_ips[ssh_ip] = place
+                ssh = SSHProxy(host=ssh_ip, vlan_iface=vlan_iface)
+                node = MeshNode(
+                    place=place,
+                    ssh=ssh,
+                    mesh_ip=mesh_ip,
+                    _process=procs[place],
+                    _stop_file=stop_files[place],
+                )
+                nodes.append(node)
+                attempts_used = status.get("attempts_used", 1)
+                logger.info(
+                    "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s, attempts=%s)",
+                    place, ssh_ip, mesh_ip, attempts_used,
+                )
+            else:
+                error = status.get("error", "unknown")
+                stage = status.get("failure_stage", "unknown")
+                error_type = status.get("error_type", "unknown")
+                attempts_used = status.get("attempts_used", "?")
+                summary = status.get("error_summary", error)
                 logger.error(
-                    "Duplicate ssh_ip %s reported by %s and %s",
-                    ssh_ip, seen_ssh_ips[ssh_ip], place,
+                    "Node %s failed to boot after %s attempts at stage %s (%s): %s",
+                    place, attempts_used, stage, error_type, summary,
                 )
                 failed.append(place)
-                continue
-            seen_ssh_ips[ssh_ip] = place
-            ssh = SSHProxy(host=ssh_ip, vlan_iface=vlan_iface)
-            node = MeshNode(
-                place=place,
-                ssh=ssh,
-                mesh_ip=mesh_ip,
-                _process=procs[place],
-                _stop_file=stop_files[place],
+
+        if failed:
+            pytest.fail(
+                f"Not all mesh nodes booted: {len(nodes)}/{len(places)} "
+                f"(failed: {failed})"
             )
-            nodes.append(node)
-            attempts_used = status.get("attempts_used", 1)
-            logger.info(
-                "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s, attempts=%s)",
-                place, ssh_ip, mesh_ip, attempts_used,
-            )
-        else:
-            error = status.get("error", "unknown")
-            stage = status.get("failure_stage", "unknown")
-            error_type = status.get("error_type", "unknown")
-            attempts_used = status.get("attempts_used", "?")
-            summary = status.get("error_summary", error)
-            logger.error(
-                "Node %s failed to boot after %s attempts at stage %s (%s): %s",
-                place, attempts_used, stage, error_type, summary,
-            )
-            failed.append(place)
 
-    if failed:
-        for node in nodes:
-            _shutdown_subprocess(node._process, node._stop_file, node.place)
-        for place in failed:
-            if procs[place].poll() is None:
-                procs[place].terminate()
-        pytest.fail(
-            f"Not all mesh nodes booted: {len(nodes)}/{len(places)} "
-            f"(failed: {failed})"
-        )
+        nodes.sort(key=lambda n: places.index(n.place))
 
-    nodes.sort(key=lambda n: places.index(n.place))
+        settle_timeout = _compute_network_settle_timeout(len(nodes))
+        logger.info("All %d nodes booted, waiting %ds for network to settle",
+                    len(nodes), settle_timeout)
+        _wait_for_network(nodes, timeout=settle_timeout)
 
-    settle_timeout = _compute_network_settle_timeout(len(nodes))
-    logger.info("All %d nodes booted, waiting %ds for network to settle",
-                len(nodes), settle_timeout)
-    _wait_for_network(nodes, timeout=settle_timeout)
-
-    yield nodes
-
-    logger.info("Tearing down %d mesh nodes", len(nodes))
-    for node in nodes:
-        _shutdown_subprocess(node._process, node._stop_file, node.place)
-    os.environ.pop("TFTP_SERVER_IP", None)
+        yield nodes
+    finally:
+        if procs:
+            logger.info("Tearing down %d mesh boot subprocesses", len(procs))
+            _shutdown_subprocesses(procs, stop_files)
+        os.environ.pop("TFTP_SERVER_IP", None)
 
 
 def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEOUT):

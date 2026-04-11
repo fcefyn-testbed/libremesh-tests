@@ -39,8 +39,9 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
-DEFAULT_BOOT_ATTEMPTS = 3
+DEFAULT_BOOT_ATTEMPTS = 1
 DEFAULT_RETRY_COOLDOWN = 8
+STOP_REQUESTED = False
 
 
 class BootFailure(RuntimeError):
@@ -89,6 +90,17 @@ def _boot_attempt_limit() -> int:
 
 def _boot_retry_cooldown() -> int:
     return _read_int_env("LG_MESH_UBOOT_RETRY_COOLDOWN", DEFAULT_RETRY_COOLDOWN)
+
+
+def _check_stop_requested():
+    """Abort promptly when the parent or operator requested shutdown."""
+    if STOP_REQUESTED:
+        raise BootFailure(
+            stage="shutdown",
+            error_type="shutdown_requested",
+            summary="Shutdown requested while booting",
+            retriable=False,
+        )
 
 
 def _summarize_exception(exc: Exception, limit: int = 240) -> str:
@@ -159,17 +171,18 @@ def _write_status(path: str, data: dict):
 
 def _boot_node_once(place: str, target, strategy) -> dict:
     """Execute one staged boot attempt after the place has been acquired."""
+    _check_stop_requested()
     logger.info("Booting %s to shell...", place)
 
     try:
         strategy.transition_to_uboot_with_retry()
     except Exception as exc:
-        _raise_stage_failure("transition_to_uboot", exc, retriable=True)
+        _raise_stage_failure("transition_to_uboot", exc, retriable=False)
 
     try:
         strategy.run_download_commands()
     except Exception as exc:
-        _raise_stage_failure("tftp_download", exc, retriable=True)
+        _raise_stage_failure("tftp_download", exc, retriable=False)
 
     try:
         strategy.boot_kernel()
@@ -232,6 +245,7 @@ def _run_boot_attempts(place: str, target, strategy,
     last_failure = None
 
     for attempt in range(1, boot_attempts + 1):
+        _check_stop_requested()
         logger.info("Boot attempt %d/%d for %s", attempt, boot_attempts, place)
         try:
             result = _boot_node_once(place, target, strategy)
@@ -248,7 +262,9 @@ def _run_boot_attempts(place: str, target, strategy,
                 raise
             _reset_after_failed_attempt(strategy, place)
             logger.info("Retrying boot of %s in %ds", place, retry_cooldown)
-            time.sleep(retry_cooldown)
+            for _ in range(retry_cooldown):
+                _check_stop_requested()
+                time.sleep(1)
 
     if last_failure:
         raise last_failure
@@ -348,8 +364,10 @@ def main():
     stopping = False
 
     def handle_signal(signum, frame):
+        global STOP_REQUESTED
         nonlocal stopping
         logger.info("Received signal %d, shutting down", signum)
+        STOP_REQUESTED = True
         stopping = True
 
     signal.signal(signal.SIGTERM, handle_signal)
