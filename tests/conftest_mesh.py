@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-from lime_helpers import REPO_ROOT, resolve_target_yaml
+from lime_helpers import REPO_ROOT, generate_mesh_ssh_ip, resolve_target_yaml
 
 # Allow importing scripts from repo root
 if str(REPO_ROOT) not in sys.path:
@@ -118,9 +118,29 @@ class MeshNode:
     """Represents a booted mesh DUT with SSH access."""
     place: str
     ssh: SSHProxy
-    ip: str = ""
+    mesh_ip: str = ""
     _process: Optional[subprocess.Popen] = field(default=None, repr=False)
     _stop_file: str = field(default="", repr=False)
+
+    @property
+    def ip(self) -> str:
+        """Backward-compatible alias for older tests that still read ``.ip``."""
+        return self.mesh_ip
+
+
+def _build_mesh_ssh_ip_map(places: list[str]) -> dict[str, str]:
+    """Return a unique mesh SSH/control IP for each place, failing on collisions."""
+    mesh_ssh_ip_map = {}
+    seen = {}
+    for place in places:
+        mesh_ssh_ip = generate_mesh_ssh_ip(place)
+        if mesh_ssh_ip in seen:
+            raise ValueError(
+                f"Duplicate mesh SSH IP {mesh_ssh_ip} for {seen[mesh_ssh_ip]} and {place}"
+            )
+        mesh_ssh_ip_map[place] = mesh_ssh_ip
+        seen[mesh_ssh_ip] = place
+    return mesh_ssh_ip_map
 
 
 
@@ -318,7 +338,7 @@ def _mesh_nodes_virtual():
     mesh_nodes_list = []
     for n in nodes_raw:
         ssh = SSHProxy(host=n.host, vlan_iface=None, port=n.port)
-        node = MeshNode(place=n.place_id, ssh=ssh, ip="")
+        node = MeshNode(place=n.place_id, ssh=ssh, mesh_ip="")
         mesh_nodes_list.append(node)
 
     skip_vwifi = os.environ.get("VIRTUAL_MESH_SKIP_VWIFI", "").strip() == "1"
@@ -365,7 +385,7 @@ def mesh_nodes(request, mesh_vlan_multi):
     Each MeshNode has:
       - .ssh (SSHProxy): run_check(cmd) -> list[str], run(cmd) -> (stdout, stderr, code)
       - .place (str): labgrid place name or virtual-mesh-N
-      - .ip (str): node's br-lan IPv4 address (empty for virtual until queried)
+      - .mesh_ip (str): node's real br-lan IPv4 address (empty for virtual until queried)
 
     Physical: LG_MESH_PLACES, LG_IMAGE/LG_IMAGE_MAP.
     Virtual: LG_VIRTUAL_MESH=1, VIRTUAL_MESH_IMAGE, VIRTUAL_MESH_NODES.
@@ -382,6 +402,11 @@ def mesh_nodes(request, mesh_vlan_multi):
     if not places:
         pytest.skip("LG_MESH_PLACES must contain at least 1 place")
 
+    try:
+        mesh_ssh_ip_map = _build_mesh_ssh_ip_map(places)
+    except ValueError as e:
+        pytest.fail(str(e))
+
     image_map = _resolve_image_map()
     default_image = os.environ.get("LG_IMAGE", "")
     if not image_map and not default_image:
@@ -394,6 +419,7 @@ def mesh_nodes(request, mesh_vlan_multi):
     os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
     logger.info("Mesh test: booting %d nodes in parallel (TFTP_SERVER_IP=%s): %s",
                 len(places), mesh_tftp_ip, places)
+    logger.info("Reserved mesh SSH IPs: %s", mesh_ssh_ip_map)
 
     tmpdir = tempfile.mkdtemp(prefix="mesh_boot_")
     procs = {}
@@ -418,6 +444,7 @@ def mesh_nodes(request, mesh_vlan_multi):
 
     nodes = []
     failed = []
+    seen_ssh_ips = {}
 
     for place in places:
         status = _wait_for_status(
@@ -425,17 +452,33 @@ def mesh_nodes(request, mesh_vlan_multi):
             log_file=log_files[place],
         )
         if status.get("ok"):
-            node_ip = status.get("ip", "192.168.1.1")
-            ssh = SSHProxy(host=node_ip, vlan_iface=vlan_iface)
+            ssh_ip = status.get("ssh_ip") or status.get("ip", "")
+            mesh_ip = status.get("mesh_ip") or status.get("ip", "")
+            if not ssh_ip:
+                logger.error("Node %s booted but did not report ssh_ip", place)
+                failed.append(place)
+                continue
+            if ssh_ip in seen_ssh_ips:
+                logger.error(
+                    "Duplicate ssh_ip %s reported by %s and %s",
+                    ssh_ip, seen_ssh_ips[ssh_ip], place,
+                )
+                failed.append(place)
+                continue
+            seen_ssh_ips[ssh_ip] = place
+            ssh = SSHProxy(host=ssh_ip, vlan_iface=vlan_iface)
             node = MeshNode(
                 place=place,
                 ssh=ssh,
-                ip=node_ip,
+                mesh_ip=mesh_ip,
                 _process=procs[place],
                 _stop_file=stop_files[place],
             )
             nodes.append(node)
-            logger.info("Node %s booted successfully (IP: %s)", place, node_ip)
+            logger.info(
+                "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s)",
+                place, ssh_ip, mesh_ip,
+            )
         else:
             error = status.get("error", "unknown")
             logger.error("Node %s failed to boot: %s", place, error)
