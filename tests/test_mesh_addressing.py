@@ -10,9 +10,14 @@ class DummyShell:
     def __init__(self):
         self.added = {}
         self.commands = []
+        self.rc_overrides = {}
 
     def run(self, command):
         self.commands.append(command)
+
+        if command in self.rc_overrides:
+            rc = self.rc_overrides[command]
+            return [], [], rc
 
         if command.startswith("ip addr show ") and "grep -q" in command:
             prefix = "ip addr show "
@@ -135,3 +140,19 @@ def test_build_mesh_ssh_ip_map_rejects_collisions(monkeypatch):
 
     with pytest.raises(ValueError, match="Duplicate mesh SSH IP"):
         conftest_mesh._build_mesh_ssh_ip_map(["labgrid-one", "labgrid-two"])
+
+
+def test_enable_batman_bridge_loop_avoidance_uses_first_supported_command():
+    shell = DummyShell()
+    shell.rc_overrides = {
+        "batctl meshif bat0 bridge_loop_avoidance 1": 1,
+        "batctl meshif bat0 bl 1": 0,
+    }
+
+    result = lime_helpers.enable_batman_bridge_loop_avoidance(shell)
+
+    assert result is True
+    assert shell.commands[:2] == [
+        "batctl meshif bat0 bridge_loop_avoidance 1",
+        "batctl meshif bat0 bl 1",
+    ]
