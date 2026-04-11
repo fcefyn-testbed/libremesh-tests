@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 TFTP_DOWNLOAD_TIMEOUT = 120
 TFTP_RETRY_INTERVAL = 5
+DEFAULT_UBOOT_RETRIES = 2
+DEFAULT_UBOOT_RETRY_COOLDOWN = 8
 
 
 class Status(enum.Enum):
@@ -21,6 +23,48 @@ class Status(enum.Enum):
     off = 1
     uboot = 2
     shell = 3
+
+
+def _read_int_env(name: str, default: int) -> int:
+    """Return a non-negative integer from the environment."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
+        return default
+    if value < 0:
+        logger.warning("Negative integer for %s=%r, using default %d", name, raw, default)
+        return default
+    return value
+
+
+def _retry_action(action, cleanup, retries: int, cooldown: int, label: str,
+                  sleep_fn=time.sleep):
+    """Run an action with bounded retries and best-effort cleanup between tries."""
+    max_attempts = max(1, retries + 1)
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return action()
+        except Exception as exc:
+            last_error = exc
+            if attempt >= max_attempts:
+                raise
+            logger.warning(
+                "%s failed on attempt %d/%d (%s), retrying in %ds",
+                label, attempt, max_attempts, type(exc).__name__, cooldown,
+            )
+            try:
+                cleanup()
+            except Exception:
+                logger.warning("%s cleanup failed before retry", label, exc_info=True)
+            sleep_fn(cooldown)
+
+    raise last_error
 
 
 @target_factory.reg_driver
@@ -53,6 +97,7 @@ class UBootTFTPStrategy(Strategy):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
         self._download_cmds = []
+        self._base_init_commands = tuple(self.uboot.init_commands)
 
     def _download_with_retry(self, download_cmd):
         """Run a U-Boot download command with retries for link-up delay."""
@@ -93,6 +138,74 @@ class UBootTFTPStrategy(Strategy):
         logger.info("Using exporter external_ip: %s", exporter_ip)
         return exporter_ip
 
+    def _prepare_uboot_commands(self, staged_file, tftp_server_ip):
+        """Prepare a fresh set of U-Boot init commands for this boot attempt."""
+        init_commands = (
+            f"setenv bootfile {staged_file}",
+        ) + self._base_init_commands
+
+        if tftp_server_ip:
+            tftp_dut_ip = ipaddress.ip_address(tftp_server_ip) + 1
+            init_commands = (
+                f"setenv serverip {tftp_server_ip}",
+                f"setenv ipaddr {tftp_dut_ip}",
+            ) + init_commands
+
+        download_prefixes = ("tftp", "dhcp")
+        self.uboot.init_commands = tuple(
+            c for c in init_commands
+            if not c.strip().startswith(download_prefixes)
+        )
+        self._download_cmds = [
+            c for c in init_commands
+            if c.strip().startswith(download_prefixes)
+        ]
+
+    def _transition_to_uboot_once(self):
+        """Power-cycle the node and activate the U-Boot console once."""
+        self.transition(Status.off)
+        self.target.activate(self.tftp)
+        self.target.activate(self.console)
+
+        staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
+        tftp_server_ip = self._resolve_tftp_server_ip()
+
+        self.power.cycle()
+        self._prepare_uboot_commands(staged_file, tftp_server_ip)
+        self.target.activate(self.uboot)
+        self.status = Status.uboot
+
+    def transition_to_uboot_with_retry(self):
+        """Reach the U-Boot prompt with bounded retries."""
+        retries = _read_int_env("LG_MESH_UBOOT_RETRIES", DEFAULT_UBOOT_RETRIES)
+        cooldown = _read_int_env(
+            "LG_MESH_UBOOT_RETRY_COOLDOWN", DEFAULT_UBOOT_RETRY_COOLDOWN
+        )
+        _retry_action(
+            self._transition_to_uboot_once,
+            lambda: self.transition(Status.off),
+            retries=retries,
+            cooldown=cooldown,
+            label="U-Boot activation",
+        )
+
+    def run_download_commands(self):
+        """Execute prepared TFTP/DHCP download commands."""
+        if self.status != Status.uboot:
+            self.transition_to_uboot_with_retry()
+        for cmd in self._download_cmds:
+            self._download_with_retry(cmd)
+
+    def boot_kernel(self):
+        """Issue the boot command and wait for the kernel handoff."""
+        self.uboot.boot("")
+        self.uboot.await_boot()
+
+    def activate_shell(self):
+        """Activate the shell driver after the kernel has booted."""
+        self.target.activate(self.shell)
+        self.status = Status.shell
+
     def transition(self, status):
         if not isinstance(status, Status):
             status = Status[status]
@@ -105,48 +218,12 @@ class UBootTFTPStrategy(Strategy):
             self.target.activate(self.power)
             self.power.off()
         elif status == Status.uboot:
-            self.transition(Status.off)
-            self.target.activate(self.tftp)
-            self.target.activate(self.console)
-
-            staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
-            tftp_server_ip = self._resolve_tftp_server_ip()
-
-            self.power.cycle()
-
-            self.uboot.init_commands = (
-                f"setenv bootfile {staged_file}",
-            ) + self.uboot.init_commands
-
-            if tftp_server_ip:
-                tftp_dut_ip = ipaddress.ip_address(tftp_server_ip) + 1
-                self.uboot.init_commands = (
-                    f"setenv serverip {tftp_server_ip}",
-                    f"setenv ipaddr {tftp_dut_ip}",
-                ) + self.uboot.init_commands
-
-            download_prefixes = ("tftp", "dhcp")
-            original_cmds = self.uboot.init_commands
-            self.uboot.init_commands = tuple(
-                c for c in original_cmds
-                if not c.strip().startswith(download_prefixes)
-            )
-            self._download_cmds = [
-                c for c in original_cmds
-                if c.strip().startswith(download_prefixes)
-            ]
-
-            self.target.activate(self.uboot)
-
+            self.transition_to_uboot_with_retry()
         elif status == Status.shell:
             self.transition(Status.uboot)
-
-            for cmd in self._download_cmds:
-                self._download_with_retry(cmd)
-
-            self.uboot.boot("")
-            self.uboot.await_boot()
-            self.target.activate(self.shell)
+            self.run_download_commands()
+            self.boot_kernel()
+            self.activate_shell()
         else:
             raise StrategyError(f"no transition found from {self.status} to {status}")
         self.status = status
