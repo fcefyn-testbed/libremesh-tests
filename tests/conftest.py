@@ -15,9 +15,16 @@
 import json
 import logging
 import os
+import sys
 from os import getenv
+from pathlib import Path
 
 import pytest
+
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
 from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
                           is_qemu_target, resolve_target_yaml,
                           suppress_kernel_console)
