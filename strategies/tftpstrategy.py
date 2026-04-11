@@ -230,17 +230,24 @@ class UBootTFTPStrategy(Strategy):
             pass
 
     def _transition_to_uboot_once(self):
-        """Power-cycle the node and activate the U-Boot console once."""
+        """Power-cycle the node and activate the U-Boot console once.
+
+        TFTP staging and IP resolution happen *before* acquiring the gate
+        so the gate is held only for the time-critical power-cycle +
+        U-Boot capture window.  Devices with a short bootdelay (e.g. 3s
+        on the OpenWrt One) are very sensitive to any extra latency
+        between power.cycle() and activate(uboot).
+        """
+        self.target.activate(self.tftp)
+        staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
+        tftp_server_ip = self._resolve_tftp_server_ip()
+
         lock_path = os.environ.get("LG_MESH_UBOOT_LOCK_FILE", DEFAULT_UBOOT_LOCK_FILE)
         logger.info("Waiting for U-Boot gate: %s", lock_path)
         with _uboot_gate(lock_path):
             logger.info("Entered U-Boot gate: %s", lock_path)
             self.transition(Status.off)
-            self.target.activate(self.tftp)
             self.target.activate(self.console)
-
-            staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
-            tftp_server_ip = self._resolve_tftp_server_ip()
 
             self._drain_serial_buffer()
             self.power.cycle()
