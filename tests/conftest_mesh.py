@@ -158,6 +158,12 @@ def _get_mesh_tftp_ip() -> str:
     return os.environ.get("LG_MESH_TFTP_IP", "192.168.200.1")
 
 
+def _compute_network_settle_timeout(node_count: int) -> int:
+    """Return a convergence window that scales mildly with topology size."""
+    extra_nodes = max(0, node_count - 3)
+    return NETWORK_SETTLE_TIMEOUT + extra_nodes * 30
+
+
 def _resolve_image_map() -> dict[str, str]:
     """Parse LG_IMAGE_MAP into {place: image_path}.
 
@@ -218,15 +224,15 @@ def _wait_for_status(status_file: str, proc: subprocess.Popen,
     deadline = time.time() + timeout
 
     while time.time() < deadline:
-        if proc.poll() is not None:
-            _dump_boot_log(place, log_file)
-            return {"place": place, "ok": False, "error": "subprocess exited early"}
-
         if os.path.exists(status_file):
             with open(status_file) as f:
                 status = json.load(f)
             _dump_boot_log(place, log_file)
             return status
+
+        if proc.poll() is not None:
+            _dump_boot_log(place, log_file)
+            return {"place": place, "ok": False, "error": "subprocess exited early"}
 
         time.sleep(2)
 
@@ -365,9 +371,10 @@ def _mesh_nodes_virtual():
     else:
         logger.info("Skipping vwifi-client configuration (VIRTUAL_MESH_SKIP_VWIFI=1)")
 
+    settle_timeout = _compute_network_settle_timeout(len(mesh_nodes_list))
     logger.info("All %d virtual nodes booted, waiting %ds for network to settle",
-                len(mesh_nodes_list), NETWORK_SETTLE_TIMEOUT)
-    _wait_for_network(mesh_nodes_list, timeout=NETWORK_SETTLE_TIMEOUT)
+                len(mesh_nodes_list), settle_timeout)
+    _wait_for_network(mesh_nodes_list, timeout=settle_timeout)
 
     yield mesh_nodes_list
 
@@ -475,13 +482,21 @@ def mesh_nodes(request, mesh_vlan_multi):
                 _stop_file=stop_files[place],
             )
             nodes.append(node)
+            attempts_used = status.get("attempts_used", 1)
             logger.info(
-                "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s)",
-                place, ssh_ip, mesh_ip,
+                "Node %s booted successfully (ssh_ip=%s, mesh_ip=%s, attempts=%s)",
+                place, ssh_ip, mesh_ip, attempts_used,
             )
         else:
             error = status.get("error", "unknown")
-            logger.error("Node %s failed to boot: %s", place, error)
+            stage = status.get("failure_stage", "unknown")
+            error_type = status.get("error_type", "unknown")
+            attempts_used = status.get("attempts_used", "?")
+            summary = status.get("error_summary", error)
+            logger.error(
+                "Node %s failed to boot after %s attempts at stage %s (%s): %s",
+                place, attempts_used, stage, error_type, summary,
+            )
             failed.append(place)
 
     if failed:
@@ -497,9 +512,10 @@ def mesh_nodes(request, mesh_vlan_multi):
 
     nodes.sort(key=lambda n: places.index(n.place))
 
+    settle_timeout = _compute_network_settle_timeout(len(nodes))
     logger.info("All %d nodes booted, waiting %ds for network to settle",
-                len(nodes), NETWORK_SETTLE_TIMEOUT)
-    _wait_for_network(nodes, timeout=NETWORK_SETTLE_TIMEOUT)
+                len(nodes), settle_timeout)
+    _wait_for_network(nodes, timeout=settle_timeout)
 
     yield nodes
 
