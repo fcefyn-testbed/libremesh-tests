@@ -29,7 +29,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
-                          query_node_ip, suppress_kernel_console)
+                          generate_mesh_ssh_ip, query_node_ip,
+                          suppress_kernel_console)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,19 +112,34 @@ def boot_node(place: str, image: str, target_yaml: str,
     suppress_kernel_console(shell)
 
     ensure_batman_mesh(target)
-    fixed_ip = configure_fixed_ip(shell, target, place_name=place)
+    mesh_ssh_ip = generate_mesh_ssh_ip(place)
+    fixed_ip = configure_fixed_ip(
+        shell,
+        target,
+        place_name=place,
+        fixed_ip=mesh_ssh_ip,
+        prefer_networkservice=False,
+    )
     if fixed_ip:
-        node_ip = fixed_ip
-        logger.info("Node %s using fixed IP %s", place, node_ip)
+        ssh_ip = fixed_ip
+        logger.info("Node %s using mesh SSH IP %s", place, ssh_ip)
     else:
-        node_ip = query_node_ip(target)
-        logger.info("Node %s has IP %s (fixed IP not configured)", place, node_ip)
+        ssh_ip = query_node_ip(target, prefer_mesh=True)
+        logger.info("Node %s using fallback SSH IP %s", place, ssh_ip)
+
+    mesh_ip = query_node_ip(target, prefer_mesh=True)
+    if mesh_ip:
+        logger.info("Node %s mesh IP %s", place, mesh_ip)
+    else:
+        mesh_ip = ssh_ip
+        logger.info("Node %s mesh IP unavailable, falling back to %s", place, mesh_ip)
 
     return {
         "session": session,
         "target": target,
         "strategy": strategy,
-        "ip": node_ip,
+        "ssh_ip": ssh_ip,
+        "mesh_ip": mesh_ip,
     }
 
 
@@ -181,7 +197,8 @@ def main():
         _write_status(args.status_file, {
             "place": args.place,
             "ok": True,
-            "ip": state.get("ip", ""),
+            "ssh_ip": state.get("ssh_ip", ""),
+            "mesh_ip": state.get("mesh_ip", ""),
         })
         logger.info("Status written to %s, waiting for stop signal", args.status_file)
 

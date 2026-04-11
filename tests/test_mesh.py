@@ -13,6 +13,7 @@ import re
 import time
 
 import pytest
+from lime_helpers import is_mesh_ipv4, select_mesh_ipv4, select_primary_ipv4
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_br_lan_ipv4(node) -> str:
-    """Extract the first IPv4 address from br-lan on a node."""
+    """Extract the preferred br-lan IPv4, preferring the real mesh address."""
+    if node.mesh_ip and is_mesh_ipv4(node.mesh_ip):
+        return node.mesh_ip
+
     output = node.ssh.run_check("ip -4 -o addr show br-lan")
-    for line in output:
-        match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-        if match:
-            return match.group(1)
+    mesh_ip = select_mesh_ipv4(output)
+    if mesh_ip:
+        return mesh_ip
+
+    primary_ip = select_primary_ipv4(output)
+    if primary_ip:
+        return primary_ip
+
+    if node.mesh_ip:
+        return node.mesh_ip
+
     pytest.fail(f"Node {node.place}: no IPv4 on br-lan")
 
 

@@ -5,6 +5,7 @@ Functions used by both single-node (conftest.py) and multi-node
 avoid duplication and keep a single source of truth.
 """
 
+import ipaddress
 import hashlib
 import logging
 import re
@@ -16,7 +17,13 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-FIXED_IP_PREFIX = "10.13.200"
+MESH_SSH_IP_PREFIX = "10.13.200"
+# Backward-compatible alias kept for older callers and tests.
+FIXED_IP_PREFIX = MESH_SSH_IP_PREFIX
+MESH_IP_NETWORK = ipaddress.IPv4Network("10.13.0.0/16")
+MESH_SSH_IP_NETWORK = ipaddress.IPv4Network(f"{MESH_SSH_IP_PREFIX}.0/24")
+# Backward-compatible alias kept for older callers and tests.
+FIXED_IP_NETWORK = MESH_SSH_IP_NETWORK
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LABNET_PATH = REPO_ROOT / "labnet.yaml"
@@ -44,23 +51,64 @@ def suppress_kernel_console(shell) -> None:
 # Fixed IP helpers
 # ---------------------------------------------------------------------------
 
-def generate_fixed_ip(place_name: str) -> str:
-    """Generate a deterministic fixed IP in the 10.13.200.x range.
+def generate_mesh_ssh_ip(place_name: str) -> str:
+    """Generate a deterministic mesh SSH/control IP in the 10.13.200.x range.
 
     The last octet is derived from a hash of the place name, ensuring each
     DUT gets a unique, repeatable address (range: .1 - .254).
     """
     md5_hash = hashlib.md5(place_name.encode()).hexdigest()
     hash_value = int(md5_hash[:8], 16) % 253 + 1
-    return f"{FIXED_IP_PREFIX}.{hash_value}"
+    return f"{MESH_SSH_IP_PREFIX}.{hash_value}"
+
+
+# Backward-compatible alias for older imports.
+generate_fixed_ip = generate_mesh_ssh_ip
+
+
+def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
+    """Extract unique IPv4 addresses from command output, preserving order."""
+    text = "\n".join(output) if isinstance(output, list) else output
+    seen = set()
+    addresses = []
+    for addr in re.findall(r"\b(\d+\.\d+\.\d+\.\d+)\b", text):
+        if addr in seen:
+            continue
+        seen.add(addr)
+        addresses.append(addr)
+    return addresses
+
+
+def is_mesh_ipv4(address: str) -> bool:
+    """Return True for real LibreMesh br-lan addresses, excluding mesh SSH IPs."""
+    try:
+        ip_addr = ipaddress.IPv4Address(address)
+    except ipaddress.AddressValueError:
+        return False
+    return ip_addr in MESH_IP_NETWORK and ip_addr not in FIXED_IP_NETWORK
+
+
+def select_primary_ipv4(addresses: list[str] | str) -> str | None:
+    """Return the first IPv4 address found, or None when no address exists."""
+    extracted = extract_ipv4_addresses(addresses)
+    return extracted[0] if extracted else None
+
+
+def select_mesh_ipv4(addresses: list[str] | str) -> str | None:
+    """Return the first real LibreMesh IPv4 address, excluding mesh SSH IPs."""
+    for address in extract_ipv4_addresses(addresses):
+        if is_mesh_ipv4(address):
+            return address
+    return None
 
 
 def get_ssh_target_ip(target) -> str | None:
     """Extract the IP that SSHDriver will connect to from NetworkService.
 
     The SSHDriver binds to a NetworkService resource whose address comes from
-    the exporter config (e.g. "10.13.200.169%vlan200").  We must configure the
-    DUT with that same IP so SSH can reach it.
+    the exporter config (for example ``192.168.1.1%vlan104`` in isolated mode).
+    We must configure the DUT with that same IP so SSH can reach it when that
+    path is preferred.
     """
     try:
         ssh = target.get_driver("SSHDriver", activate=False)
@@ -159,38 +207,43 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     )
 
 
-def configure_fixed_ip(shell, target, place_name: str | None = None) -> str | None:
+def configure_fixed_ip(shell, target, place_name: str | None = None,
+                       fixed_ip: str | None = None,
+                       prefer_networkservice: bool = True) -> str | None:
     """Configure a fixed IP on the LAN interface via serial for stable SSH.
 
-    Reads the IP from the target's SSHDriver NetworkService binding (the
-    exact address SSH will connect to).  Falls back to a hash-based IP
-    derived from *place_name* (or ``LG_PLACE``) when NetworkService is
-    unavailable.
+    Resolution order:
+      1. ``fixed_ip`` argument, when provided.
+      2. NetworkService address, when ``prefer_networkservice`` is True.
+      3. Hash-based IP derived from *place_name* (or ``LG_PLACE``).
 
     Returns the fixed IP string if configured, ``None`` otherwise.
     """
     time.sleep(5)
 
-    fixed_ip = get_ssh_target_ip(target)
+    networkservice_ip = get_ssh_target_ip(target)
 
-    if fixed_ip and fixed_ip in ("127.0.0.1", "::1", "localhost"):
+    if networkservice_ip and networkservice_ip in ("127.0.0.1", "::1", "localhost"):
         logger.info(
             "QEMU target detected (NetworkService address=%s); "
             "skipping fixed IP configuration (strategy handles port forwarding)",
-            fixed_ip,
+            networkservice_ip,
         )
         return None
 
     if not fixed_ip:
-        place_name = place_name or getenv("LG_PLACE", "")
-        if not place_name or place_name == "+":
-            logger.warning(
-                "Cannot determine SSH target IP (no NetworkService, LG_PLACE=%s)",
-                place_name,
-            )
-            return None
-        fixed_ip = generate_fixed_ip(place_name)
-        logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
+        if prefer_networkservice and networkservice_ip:
+            fixed_ip = networkservice_ip
+        else:
+            place_name = place_name or getenv("LG_PLACE", "")
+            if not place_name or place_name == "+":
+                logger.warning(
+                    "Cannot determine SSH target IP (prefer_networkservice=%s, LG_PLACE=%s)",
+                    prefer_networkservice, place_name,
+                )
+                return None
+            fixed_ip = generate_mesh_ssh_ip(place_name)
+            logger.info("Using hash-based fallback IP %s for place %s", fixed_ip, place_name)
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
     max_attempts = 3
@@ -230,6 +283,56 @@ def configure_fixed_ip(shell, target, place_name: str | None = None) -> str | No
                 fixed_ip, iface, max_attempts,
             )
             return None
+
+
+def query_node_ip(target, timeout: int = 120, prefer_mesh: bool = False) -> str:
+    """Query the booted node's IPv4 via serial console (ShellDriver).
+
+    When ``prefer_mesh`` is True, waits for a real LibreMesh br-lan address in
+    ``10.13.0.0/16`` while excluding the mesh SSH/control range
+    ``10.13.200.0/24``.
+    Falls back to the first IPv4 seen only if no real mesh address appears
+    before timeout.
+    """
+    shell = target.get_driver("ShellDriver")
+    deadline = time.time() + timeout
+
+    time.sleep(5)
+
+    ip_cmd = (
+        "ip -4 -o addr show br-lan 2>/dev/null || "
+        "ip -4 -o addr show eth0 2>/dev/null || "
+        "ip -4 -o addr show dev $(ip route show default "
+        "| awk '{print $5}' | head -1) 2>/dev/null"
+    )
+
+    fallback_ip = None
+
+    while time.time() < deadline:
+        try:
+            output = shell.run_check(ip_cmd)
+            if prefer_mesh:
+                mesh_ip = select_mesh_ipv4(output)
+                if mesh_ip:
+                    return mesh_ip
+                fallback_ip = fallback_ip or select_primary_ipv4(output)
+            else:
+                primary_ip = select_primary_ipv4(output)
+                if primary_ip:
+                    return primary_ip
+        except Exception:
+            pass
+        time.sleep(5)
+
+    if prefer_mesh and fallback_ip:
+        logger.warning(
+            "Could not determine a real mesh IP within %ss, falling back to %s",
+            timeout, fallback_ip,
+        )
+        return fallback_ip
+
+    logger.warning("Could not determine IP for node, returning empty")
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -406,41 +509,3 @@ def ensure_batman_mesh(target) -> bool:
 
     logger.warning("Could not activate batman-adv mesh")
     return False
-
-
-# ---------------------------------------------------------------------------
-# Node IP query (serial console)
-# ---------------------------------------------------------------------------
-
-def query_node_ip(target, timeout: int = 120) -> str:
-    """Query the booted node's br-lan IPv4 via serial console (ShellDriver).
-
-    Uses serial instead of SSH because LibreMesh may reassign the IP
-    (e.g. from 192.168.1.1 to 10.13.x.x), making the exporter's
-    NetworkService address stale.  Serial is always reachable.
-    """
-    shell = target.get_driver("ShellDriver")
-    deadline = time.time() + timeout
-
-    time.sleep(5)
-
-    ip_cmd = (
-        "ip -4 -o addr show br-lan 2>/dev/null || "
-        "ip -4 -o addr show eth0 2>/dev/null || "
-        "ip -4 -o addr show dev $(ip route show default "
-        "| awk '{print $5}' | head -1) 2>/dev/null"
-    )
-
-    while time.time() < deadline:
-        try:
-            output = shell.run_check(ip_cmd)
-            text = "\n".join(output)
-            match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", text)
-            if match:
-                return match.group(1)
-        except Exception:
-            pass
-        time.sleep(5)
-
-    logger.warning("Could not determine IP for node, returning empty")
-    return ""
