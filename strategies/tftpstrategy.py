@@ -16,6 +16,7 @@ TFTP_DOWNLOAD_TIMEOUT = 120
 TFTP_RETRY_INTERVAL = 5
 DEFAULT_UBOOT_RETRIES = 2
 DEFAULT_UBOOT_RETRY_COOLDOWN = 8
+DEFAULT_UBOOT_RETRY_BUDGET = 360
 
 
 class Status(enum.Enum):
@@ -161,6 +162,21 @@ class UBootTFTPStrategy(Strategy):
             if c.strip().startswith(download_prefixes)
         ]
 
+    def _effective_uboot_retries(self) -> int:
+        """Cap configured U-Boot retries so one child cannot exhaust the boot budget."""
+        configured = _read_int_env("LG_MESH_UBOOT_RETRIES", DEFAULT_UBOOT_RETRIES)
+        login_timeout = int(getattr(self.uboot, "login_timeout", 60) or 60)
+        login_timeout = max(1, login_timeout)
+        max_attempts = max(1, DEFAULT_UBOOT_RETRY_BUDGET // login_timeout)
+        effective = min(configured, max_attempts - 1)
+        if effective != configured:
+            logger.info(
+                "Capping U-Boot retries from %d to %d for login_timeout=%ds "
+                "(budget=%ds)",
+                configured, effective, login_timeout, DEFAULT_UBOOT_RETRY_BUDGET,
+            )
+        return effective
+
     def _transition_to_uboot_once(self):
         """Power-cycle the node and activate the U-Boot console once."""
         self.transition(Status.off)
@@ -177,7 +193,7 @@ class UBootTFTPStrategy(Strategy):
 
     def transition_to_uboot_with_retry(self):
         """Reach the U-Boot prompt with bounded retries."""
-        retries = _read_int_env("LG_MESH_UBOOT_RETRIES", DEFAULT_UBOOT_RETRIES)
+        retries = self._effective_uboot_retries()
         cooldown = _read_int_env(
             "LG_MESH_UBOOT_RETRY_COOLDOWN", DEFAULT_UBOOT_RETRY_COOLDOWN
         )
