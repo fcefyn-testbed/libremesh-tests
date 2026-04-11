@@ -648,7 +648,10 @@ def mesh_nodes(request, mesh_vlan_multi):
             logger.info("Tearing down %d mesh boot subprocesses", len(procs))
             _shutdown_subprocesses(procs, stop_files)
         os.environ.pop("TFTP_SERVER_IP", None)
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        if not failed:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        else:
+            logger.info("Boot logs preserved in %s for debugging", tmpdir)
 
 
 def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEOUT):
