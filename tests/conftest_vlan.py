@@ -29,7 +29,7 @@ PLACE_PREFIX = "labgrid-fcefyn-"
 def _place_to_dut_name(place: str) -> str:
     """Extract DUT name from labgrid place name."""
     if place.startswith(PLACE_PREFIX):
-        return place[len(PLACE_PREFIX):]
+        return place[len(PLACE_PREFIX) :]
     return place
 
 
@@ -41,6 +41,7 @@ def _try_import_switch_abstraction():
     """Try to import switch_abstraction; return module or None."""
     try:
         from switch_abstraction import vlan_manager
+
         return vlan_manager
     except ImportError:
         return None
@@ -138,7 +139,12 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
         yield dut_names
         return
 
-    logger.info("Switching %d mesh DUTs to VLAN %d in batch: %s", len(valid_duts), VLAN_MESH, valid_duts)
+    logger.info(
+        "Switching %d mesh DUTs to VLAN %d in batch: %s",
+        len(valid_duts),
+        VLAN_MESH,
+        valid_duts,
+    )
     ok = vlan_manager_mod.set_ports_vlan_batch(valid_duts, VLAN_MESH, dut_map=dut_map)
     if not ok:
         pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")

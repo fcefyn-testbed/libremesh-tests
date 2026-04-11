@@ -25,9 +25,13 @@ TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-from lime_helpers import (configure_fixed_ip, ensure_batman_mesh,
-                          is_qemu_target, resolve_target_yaml,
-                          suppress_kernel_console)
+from lime_helpers import (
+    configure_fixed_ip,
+    ensure_batman_mesh,
+    is_qemu_target,
+    resolve_target_yaml,
+    suppress_kernel_console,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +92,7 @@ def setup_env(pytestconfig):
     """
     try:
         from labgrid.pytestplugin.hooks import LABGRID_ENV_KEY
+
         env = pytestconfig.stash.get(LABGRID_ENV_KEY, None)
     except (ImportError, KeyError):
         env = None

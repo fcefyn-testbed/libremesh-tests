@@ -13,6 +13,7 @@ Usage:
 
 Output: prints the absolute path to stdout, or exits non-zero with error on stderr.
 """
+
 import sys
 from pathlib import Path
 
@@ -25,7 +26,10 @@ except ImportError:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: resolve_firmware_from_catalog.py <device> [catalog_key]", file=sys.stderr)
+        print(
+            "Usage: resolve_firmware_from_catalog.py <device> [catalog_key]",
+            file=sys.stderr,
+        )
         return 1
 
     device = sys.argv[1]
@@ -52,7 +56,10 @@ def main() -> int:
 
     key = catalog_key if catalog_key else default_key
     if key not in images:
-        print(f"ERROR: Catalog key '{key}' not found for device '{device}'", file=sys.stderr)
+        print(
+            f"ERROR: Catalog key '{key}' not found for device '{device}'",
+            file=sys.stderr,
+        )
         return 5
 
     filename = images[key]["filename"]

@@ -22,8 +22,7 @@ def test_internet_reachability(ssh_command):
     """
     stdout, stderr, rc = ssh_command.run("ping -c 3 -W 5 8.8.8.8")
     assert rc == 0, (
-        f"Cannot reach internet (8.8.8.8). "
-        f"stdout: {stdout}, stderr: {stderr}"
+        f"Cannot reach internet (8.8.8.8). stdout: {stdout}, stderr: {stderr}"
     )
 
 
@@ -33,9 +32,7 @@ def test_dns_resolution(ssh_command):
     stdout, stderr, rc = ssh_command.run("nslookup openwrt.org")
     if rc != 0:
         stdout, stderr, rc = ssh_command.run("host openwrt.org")
-    assert rc == 0, (
-        f"DNS resolution failed. stdout: {stdout}, stderr: {stderr}"
-    )
+    assert rc == 0, f"DNS resolution failed. stdout: {stdout}, stderr: {stderr}"
 
 
 @pytest.mark.lg_feature("online")

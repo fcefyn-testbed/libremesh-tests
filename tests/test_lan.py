@@ -81,7 +81,11 @@ def test_lan_interface_has_neighbor(shell_command):
             if len(parts) > 1:
                 addr = parts[1].split("%")[0].split(":")[0]  # Get address before % or :
                 # Actually get the full IPv6 address
-                addr_full = parts[1].split("%br-lan")[0] if "%br-lan" in parts[1] else parts[1].split(":")[0]
+                addr_full = (
+                    parts[1].split("%br-lan")[0]
+                    if "%br-lan" in parts[1]
+                    else parts[1].split(":")[0]
+                )
                 responders.add(addr_full)
 
     # We expect at least the local device to respond; if there's a neighbor,
