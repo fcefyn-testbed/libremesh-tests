@@ -156,3 +156,10 @@ def test_enable_batman_bridge_loop_avoidance_uses_first_supported_command():
         "batctl meshif bat0 bridge_loop_avoidance 1",
         "batctl meshif bat0 bl 1",
     ]
+
+
+def test_compute_network_settle_timeout_scales_with_topology_size():
+    assert conftest_mesh._compute_network_settle_timeout(2) == 90
+    assert conftest_mesh._compute_network_settle_timeout(3) == 90
+    assert conftest_mesh._compute_network_settle_timeout(4) == 120
+    assert conftest_mesh._compute_network_settle_timeout(5) == 150
