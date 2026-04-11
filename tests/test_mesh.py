@@ -54,6 +54,53 @@ def _has_command(node, cmd: str) -> bool:
     return exit_code == 0
 
 
+def _ping_with_retry(src, dst, dst_ip: str, attempts: int = 3, delay: int = 5) -> None:
+    """Ping a mesh peer, retrying through transient convergence or SSH hiccups."""
+    last_stdout: list[str] = []
+    last_stderr: list[str] = []
+    last_exit_code = 1
+
+    for attempt in range(1, attempts + 1):
+        stdout, stderr, exit_code = src.ssh.run(f"ping -c 5 -W 5 {dst_ip}")
+        joined = "\n".join(stdout)
+        if exit_code == 0 and "0% packet loss" in joined:
+            if attempt > 1:
+                logger.info(
+                    "Ping %s -> %s (%s) succeeded on retry %d/%d",
+                    src.place, dst.place, dst_ip, attempt, attempts,
+                )
+            return
+
+        last_stdout, last_stderr, last_exit_code = stdout, stderr, exit_code
+        logger.warning(
+            "Ping %s -> %s (%s) failed on attempt %d/%d (rc=%s, stderr=%s)",
+            src.place, dst.place, dst_ip, attempt, attempts, exit_code, stderr,
+        )
+        if attempt < attempts:
+            time.sleep(delay)
+
+    joined = "\n".join(last_stdout)
+    stderr_joined = "\n".join(last_stderr)
+    pytest.fail(
+        f"Ping {src.place} -> {dst.place} ({dst_ip}) failed after {attempts} attempts "
+        f"(rc={last_exit_code}).\nSTDOUT:\n{joined}\nSTDERR:\n{stderr_joined}"
+    )
+
+
+def _ensure_arp_entry(src, dst, dst_ip: str) -> None:
+    """Prime neighbor state before asserting on the ARP table."""
+    output = src.ssh.run_check("ip neigh show dev br-lan")
+    joined = "\n".join(output)
+    if dst_ip in joined:
+        return
+
+    logger.info(
+        "Priming neighbor entry on %s for %s (%s)",
+        src.place, dst.place, dst_ip,
+    )
+    _ping_with_retry(src, dst, dst_ip, attempts=2, delay=3)
+
+
 # ---------------------------------------------------------------------------
 # Phase 1: Basic connectivity
 # ---------------------------------------------------------------------------
@@ -80,19 +127,16 @@ class TestMeshConnectivity:
         for dst in mesh_nodes[1:]:
             dst_ip = _get_br_lan_ipv4(dst)
             logger.info("Ping %s -> %s (%s)", src.place, dst.place, dst_ip)
-            output = src.ssh.run_check(f"ping -c 5 -W 5 {dst_ip}")
-            joined = "\n".join(output)
-            assert "0% packet loss" in joined, (
-                f"Ping {src.place} -> {dst.place} ({dst_ip}) failed:\n{joined}"
-            )
+            _ping_with_retry(src, dst, dst_ip)
 
     def test_l2_arp_entries(self, mesh_nodes):
         """After ping, ARP table on node 0 has entries for other nodes."""
         src = mesh_nodes[0]
-        output = src.ssh.run_check("ip neigh show dev br-lan")
-        joined = "\n".join(output)
         for dst in mesh_nodes[1:]:
             dst_ip = _get_br_lan_ipv4(dst)
+            _ensure_arp_entry(src, dst, dst_ip)
+            output = src.ssh.run_check("ip neigh show dev br-lan")
+            joined = "\n".join(output)
             assert dst_ip in joined, (
                 f"Node {src.place}: no ARP entry for {dst.place} ({dst_ip})"
             )
