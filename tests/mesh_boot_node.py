@@ -39,6 +39,97 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
+DEFAULT_BOOT_ATTEMPTS = 3
+DEFAULT_RETRY_COOLDOWN = 8
+
+
+class BootFailure(RuntimeError):
+    """Structured boot failure that can be reported back to the parent fixture."""
+
+    def __init__(self, stage: str, error_type: str, summary: str,
+                 retriable: bool = True, attempts_used: int = 1):
+        super().__init__(summary)
+        self.stage = stage
+        self.error_type = error_type
+        self.summary = summary
+        self.retriable = retriable
+        self.attempts_used = attempts_used
+
+    def to_status(self, place: str) -> dict:
+        return {
+            "place": place,
+            "ok": False,
+            "error": self.summary,
+            "failure_stage": self.stage,
+            "attempts_used": self.attempts_used,
+            "error_type": self.error_type,
+            "error_summary": self.summary,
+        }
+
+
+def _read_int_env(name: str, default: int) -> int:
+    """Return a non-negative integer from the environment."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
+        return default
+    if value < 0:
+        logger.warning("Negative integer for %s=%r, using default %d", name, raw, default)
+        return default
+    return value
+
+
+def _boot_attempt_limit() -> int:
+    return max(1, _read_int_env("LG_MESH_BOOT_ATTEMPTS", DEFAULT_BOOT_ATTEMPTS))
+
+
+def _boot_retry_cooldown() -> int:
+    return _read_int_env("LG_MESH_UBOOT_RETRY_COOLDOWN", DEFAULT_RETRY_COOLDOWN)
+
+
+def _summarize_exception(exc: Exception, limit: int = 240) -> str:
+    text = str(exc).strip()
+    if not text:
+        text = type(exc).__name__
+    summary = f"{type(exc).__name__}: {text}"
+    if len(summary) > limit:
+        return summary[: limit - 3] + "..."
+    return summary
+
+
+def _error_type_for_stage(stage: str, exc: Exception) -> str:
+    text = str(exc).lower()
+    exc_name = type(exc).__name__.lower()
+    if stage == "acquire_place":
+        return "place_acquire_failure"
+    if stage == "transition_to_uboot":
+        if "waiting for login" in text or "timeout" in exc_name:
+            return "uboot_prompt_timeout"
+        return "uboot_activation_failure"
+    if stage == "tftp_download":
+        return "tftp_download_failure"
+    if stage == "boot_kernel":
+        return "kernel_boot_failure"
+    if stage == "activate_shell":
+        if "timeout" in exc_name:
+            return "shell_activation_timeout"
+        return "shell_activation_failure"
+    if stage == "post_shell":
+        return "post_shell_setup_failure"
+    return "boot_failure"
+
+
+def _raise_stage_failure(stage: str, exc: Exception, retriable: bool) -> None:
+    raise BootFailure(
+        stage=stage,
+        error_type=_error_type_for_stage(stage, exc),
+        summary=_summarize_exception(exc),
+        retriable=retriable,
+    ) from exc
 
 
 def _patch_reg_driver_idempotent():
@@ -66,6 +157,110 @@ def _write_status(path: str, data: dict):
     os.replace(tmp, path)
 
 
+def _boot_node_once(place: str, target, strategy) -> dict:
+    """Execute one staged boot attempt after the place has been acquired."""
+    logger.info("Booting %s to shell...", place)
+
+    try:
+        strategy.transition_to_uboot_with_retry()
+    except Exception as exc:
+        _raise_stage_failure("transition_to_uboot", exc, retriable=True)
+
+    try:
+        strategy.run_download_commands()
+    except Exception as exc:
+        _raise_stage_failure("tftp_download", exc, retriable=True)
+
+    try:
+        strategy.boot_kernel()
+    except Exception as exc:
+        _raise_stage_failure("boot_kernel", exc, retriable=True)
+
+    try:
+        strategy.activate_shell()
+    except Exception as exc:
+        _raise_stage_failure("activate_shell", exc, retriable=True)
+
+    logger.info("Shell ready on %s", place)
+    shell = target.get_driver("ShellDriver")
+
+    try:
+        suppress_kernel_console(shell)
+        ensure_batman_mesh(target)
+        mesh_ssh_ip = generate_mesh_ssh_ip(place)
+        fixed_ip = configure_fixed_ip(
+            shell,
+            target,
+            place_name=place,
+            fixed_ip=mesh_ssh_ip,
+            prefer_networkservice=False,
+        )
+        if fixed_ip:
+            ssh_ip = fixed_ip
+            logger.info("Node %s using mesh SSH IP %s", place, ssh_ip)
+        else:
+            ssh_ip = query_node_ip(target, prefer_mesh=True)
+            logger.info("Node %s using fallback SSH IP %s", place, ssh_ip)
+
+        mesh_ip = query_node_ip(target, prefer_mesh=True)
+        if mesh_ip:
+            logger.info("Node %s mesh IP %s", place, mesh_ip)
+        else:
+            mesh_ip = ssh_ip
+            logger.info("Node %s mesh IP unavailable, falling back to %s", place, mesh_ip)
+    except Exception as exc:
+        _raise_stage_failure("post_shell", exc, retriable=False)
+
+    return {
+        "ssh_ip": ssh_ip,
+        "mesh_ip": mesh_ip,
+    }
+
+
+def _reset_after_failed_attempt(strategy, place: str):
+    """Best-effort reset between boot attempts."""
+    try:
+        logger.info("Resetting %s to off before retry", place)
+        strategy.transition("off")
+    except Exception:
+        logger.warning("Failed to reset %s to off before retry", place, exc_info=True)
+
+
+def _run_boot_attempts(place: str, target, strategy,
+                       boot_attempts: int, retry_cooldown: int) -> dict:
+    """Run staged boot attempts until one succeeds or the retry budget is exhausted."""
+    last_failure = None
+
+    for attempt in range(1, boot_attempts + 1):
+        logger.info("Boot attempt %d/%d for %s", attempt, boot_attempts, place)
+        try:
+            result = _boot_node_once(place, target, strategy)
+            result["attempts_used"] = attempt
+            return result
+        except BootFailure as exc:
+            exc.attempts_used = attempt
+            last_failure = exc
+            logger.warning(
+                "Boot attempt %d/%d for %s failed at %s (%s): %s",
+                attempt, boot_attempts, place, exc.stage, exc.error_type, exc.summary,
+            )
+            if not exc.retriable or attempt >= boot_attempts:
+                raise
+            _reset_after_failed_attempt(strategy, place)
+            logger.info("Retrying boot of %s in %ds", place, retry_cooldown)
+            time.sleep(retry_cooldown)
+
+    if last_failure:
+        raise last_failure
+    raise BootFailure(
+        stage="boot_attempt",
+        error_type="boot_failure",
+        summary=f"Unknown boot failure for {place}",
+        retriable=False,
+        attempts_used=boot_attempts,
+    )
+
+
 def boot_node(place: str, image: str, target_yaml: str,
               coordinator: str) -> dict:
     """Boot a node via labgrid and return session state needed by the parent."""
@@ -77,70 +272,44 @@ def boot_node(place: str, image: str, target_yaml: str,
     os.environ["LG_PLACE"] = place
     os.environ["LG_IMAGE"] = image
 
-    env = Environment(config_file=target_yaml)
-
-    args = argparse.Namespace(
-        place=place,
-        state=None,
-        initial_state=None,
-        allow_unmatched=False,
-    )
-    session = start_session(coordinator, extra={"env": env, "role": "main", "args": args})
-    loop = session.loop
-
     try:
-        loop.run_until_complete(session.acquire())
-    except Exception:
-        logger.warning("Acquire failed for %s, releasing stale lock first", place)
+        env = Environment(config_file=target_yaml)
+
+        args = argparse.Namespace(
+            place=place,
+            state=None,
+            initial_state=None,
+            allow_unmatched=False,
+        )
+        session = start_session(coordinator, extra={"env": env, "role": "main", "args": args})
+        loop = session.loop
+
         try:
-            loop.run_until_complete(session.release())
+            loop.run_until_complete(session.acquire())
         except Exception:
-            pass
-        loop.run_until_complete(session.acquire())
-    logger.info("Place %s acquired", place)
+            logger.warning("Acquire failed for %s, releasing stale lock first", place)
+            try:
+                loop.run_until_complete(session.release())
+            except Exception:
+                pass
+            loop.run_until_complete(session.acquire())
+        logger.info("Place %s acquired", place)
 
-    lg_place = session.get_place(place)
-    target = session._get_target(lg_place)
+        lg_place = session.get_place(place)
+        target = session._get_target(lg_place)
+        strategy = target.get_driver("Strategy")
+    except Exception as exc:
+        _raise_stage_failure("acquire_place", exc, retriable=False)
 
-    strategy = target.get_driver("Strategy")
-
-    logger.info("Booting %s to shell...", place)
-    strategy.transition("shell")
-    logger.info("Shell ready on %s", place)
-
-    shell = target.get_driver("ShellDriver")
-    suppress_kernel_console(shell)
-
-    ensure_batman_mesh(target)
-    mesh_ssh_ip = generate_mesh_ssh_ip(place)
-    fixed_ip = configure_fixed_ip(
-        shell,
-        target,
-        place_name=place,
-        fixed_ip=mesh_ssh_ip,
-        prefer_networkservice=False,
-    )
-    if fixed_ip:
-        ssh_ip = fixed_ip
-        logger.info("Node %s using mesh SSH IP %s", place, ssh_ip)
-    else:
-        ssh_ip = query_node_ip(target, prefer_mesh=True)
-        logger.info("Node %s using fallback SSH IP %s", place, ssh_ip)
-
-    mesh_ip = query_node_ip(target, prefer_mesh=True)
-    if mesh_ip:
-        logger.info("Node %s mesh IP %s", place, mesh_ip)
-    else:
-        mesh_ip = ssh_ip
-        logger.info("Node %s mesh IP unavailable, falling back to %s", place, mesh_ip)
-
-    return {
+    boot_attempts = _boot_attempt_limit()
+    retry_cooldown = _boot_retry_cooldown()
+    result = _run_boot_attempts(place, target, strategy, boot_attempts, retry_cooldown)
+    result.update({
         "session": session,
         "target": target,
         "strategy": strategy,
-        "ssh_ip": ssh_ip,
-        "mesh_ip": mesh_ip,
-    }
+    })
+    return result
 
 
 def _should_keep_powered() -> bool:
@@ -199,6 +368,7 @@ def main():
             "ok": True,
             "ssh_ip": state.get("ssh_ip", ""),
             "mesh_ip": state.get("mesh_ip", ""),
+            "attempts_used": state.get("attempts_used", 1),
         })
         logger.info("Status written to %s, waiting for stop signal", args.status_file)
 
@@ -208,13 +378,19 @@ def main():
                 break
             time.sleep(STOP_POLL_INTERVAL)
 
-    except Exception:
+    except BootFailure as exc:
         logger.exception("Failed to boot %s", args.place)
-        _write_status(args.status_file, {
-            "place": args.place,
-            "ok": False,
-            "error": "boot failed",
-        })
+        _write_status(args.status_file, exc.to_status(args.place))
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("Failed to boot %s", args.place)
+        failure = BootFailure(
+            stage="boot_attempt",
+            error_type=_error_type_for_stage("boot_attempt", exc),
+            summary=_summarize_exception(exc),
+            retriable=False,
+        )
+        _write_status(args.status_file, failure.to_status(args.place))
         sys.exit(1)
     finally:
         if session and strategy:
