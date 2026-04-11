@@ -1,8 +1,10 @@
 import enum
+import fcntl
 import ipaddress
 import logging
 import os
 import time
+from contextlib import contextmanager
 
 import attr
 from labgrid.driver import TFTPProviderDriver
@@ -17,6 +19,7 @@ TFTP_RETRY_INTERVAL = 5
 DEFAULT_UBOOT_RETRIES = 2
 DEFAULT_UBOOT_RETRY_COOLDOWN = 8
 DEFAULT_UBOOT_RETRY_BUDGET = 360
+DEFAULT_UBOOT_LOCK_FILE = "/tmp/libremesh-tests-uboot.lock"
 
 
 class Status(enum.Enum):
@@ -34,16 +37,21 @@ def _read_int_env(name: str, default: int) -> int:
     try:
         value = int(raw)
     except ValueError:
-        logger.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
+        logger.warning(
+            "Invalid integer for %s=%r, using default %d", name, raw, default
+        )
         return default
     if value < 0:
-        logger.warning("Negative integer for %s=%r, using default %d", name, raw, default)
+        logger.warning(
+            "Negative integer for %s=%r, using default %d", name, raw, default
+        )
         return default
     return value
 
 
-def _retry_action(action, cleanup, retries: int, cooldown: int, label: str,
-                  sleep_fn=time.sleep):
+def _retry_action(
+    action, cleanup, retries: int, cooldown: int, label: str, sleep_fn=time.sleep
+):
     """Run an action with bounded retries and best-effort cleanup between tries."""
     max_attempts = max(1, retries + 1)
     last_error = None
@@ -57,7 +65,11 @@ def _retry_action(action, cleanup, retries: int, cooldown: int, label: str,
                 raise
             logger.warning(
                 "%s failed on attempt %d/%d (%s), retrying in %ds",
-                label, attempt, max_attempts, type(exc).__name__, cooldown,
+                label,
+                attempt,
+                max_attempts,
+                type(exc).__name__,
+                cooldown,
             )
             try:
                 cleanup()
@@ -66,6 +78,20 @@ def _retry_action(action, cleanup, retries: int, cooldown: int, label: str,
             sleep_fn(cooldown)
 
     raise last_error
+
+
+@contextmanager
+def _uboot_gate(lock_path: str = DEFAULT_UBOOT_LOCK_FILE):
+    """Serialize the fragile U-Boot capture window across child boot processes."""
+    fh = open(lock_path, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            fh.close()
 
 
 @target_factory.reg_driver
@@ -108,8 +134,12 @@ class UBootTFTPStrategy(Strategy):
         while True:
             attempt += 1
             remaining = deadline - time.monotonic()
-            logger.info("TFTP download attempt %d, cmd='%s', %.0fs remaining",
-                        attempt, download_cmd, remaining)
+            logger.info(
+                "TFTP download attempt %d, cmd='%s', %.0fs remaining",
+                attempt,
+                download_cmd,
+                remaining,
+            )
             try:
                 self.uboot.run_check(download_cmd, timeout=60)
                 logger.info("TFTP download succeeded on attempt %d", attempt)
@@ -123,7 +153,10 @@ class UBootTFTPStrategy(Strategy):
                     ) from e
                 logger.warning(
                     "TFTP attempt %d failed (%s), retrying in %ds (%.0fs left)",
-                    attempt, type(e).__name__, TFTP_RETRY_INTERVAL, remaining,
+                    attempt,
+                    type(e).__name__,
+                    TFTP_RETRY_INTERVAL,
+                    remaining,
                 )
                 time.sleep(TFTP_RETRY_INTERVAL)
 
@@ -141,9 +174,7 @@ class UBootTFTPStrategy(Strategy):
 
     def _prepare_uboot_commands(self, staged_file, tftp_server_ip):
         """Prepare a fresh set of U-Boot init commands for this boot attempt."""
-        init_commands = (
-            f"setenv bootfile {staged_file}",
-        ) + self._base_init_commands
+        init_commands = (f"setenv bootfile {staged_file}",) + self._base_init_commands
 
         if tftp_server_ip:
             tftp_dut_ip = ipaddress.ip_address(tftp_server_ip) + 1
@@ -154,12 +185,10 @@ class UBootTFTPStrategy(Strategy):
 
         download_prefixes = ("tftp", "dhcp")
         self.uboot.init_commands = tuple(
-            c for c in init_commands
-            if not c.strip().startswith(download_prefixes)
+            c for c in init_commands if not c.strip().startswith(download_prefixes)
         )
         self._download_cmds = [
-            c for c in init_commands
-            if c.strip().startswith(download_prefixes)
+            c for c in init_commands if c.strip().startswith(download_prefixes)
         ]
 
     def _effective_uboot_retries(self) -> int:
@@ -173,23 +202,32 @@ class UBootTFTPStrategy(Strategy):
             logger.info(
                 "Capping U-Boot retries from %d to %d for login_timeout=%ds "
                 "(budget=%ds)",
-                configured, effective, login_timeout, DEFAULT_UBOOT_RETRY_BUDGET,
+                configured,
+                effective,
+                login_timeout,
+                DEFAULT_UBOOT_RETRY_BUDGET,
             )
         return effective
 
     def _transition_to_uboot_once(self):
         """Power-cycle the node and activate the U-Boot console once."""
-        self.transition(Status.off)
-        self.target.activate(self.tftp)
-        self.target.activate(self.console)
+        lock_path = os.environ.get("LG_MESH_UBOOT_LOCK_FILE", DEFAULT_UBOOT_LOCK_FILE)
+        logger.info("Waiting for U-Boot gate: %s", lock_path)
+        with _uboot_gate(lock_path):
+            logger.info("Entered U-Boot gate: %s", lock_path)
+            self.transition(Status.off)
+            self.target.activate(self.tftp)
+            self.target.activate(self.console)
 
-        staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
-        tftp_server_ip = self._resolve_tftp_server_ip()
+            staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
+            tftp_server_ip = self._resolve_tftp_server_ip()
 
-        self.power.cycle()
-        self._prepare_uboot_commands(staged_file, tftp_server_ip)
-        self.target.activate(self.uboot)
-        self.status = Status.uboot
+            self.power.cycle()
+
+            self._prepare_uboot_commands(staged_file, tftp_server_ip)
+            self.target.activate(self.uboot)
+
+            self.status = Status.uboot
 
     def transition_to_uboot_with_retry(self):
         """Reach the U-Boot prompt with bounded retries."""
