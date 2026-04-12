@@ -1,10 +1,9 @@
 import enum
-import fcntl
 import ipaddress
 import logging
 import os
+import threading
 import time
-from contextlib import contextmanager
 
 import attr
 from labgrid.driver import TFTPProviderDriver
@@ -19,9 +18,10 @@ TFTP_RETRY_INTERVAL = 5
 DEFAULT_UBOOT_RETRIES = 2
 DEFAULT_UBOOT_RETRY_COOLDOWN = 8
 DEFAULT_UBOOT_RETRY_BUDGET = 360
-DEFAULT_UBOOT_LOCK_FILE = "/tmp/libremesh-tests-uboot.lock"
 SERIAL_DRAIN_CHUNK = 4096
-SERIAL_DRAIN_TIMEOUT = 0.1
+SERIAL_DRAIN_TIMEOUT = 0.5
+INTERRUPT_INTERVAL = 0.3
+INTERRUPT_MAX_DURATION = 30
 
 
 class Status(enum.Enum):
@@ -80,20 +80,6 @@ def _retry_action(
             sleep_fn(cooldown)
 
     raise last_error
-
-
-@contextmanager
-def _uboot_gate(lock_path: str = DEFAULT_UBOOT_LOCK_FILE):
-    """Serialize the fragile U-Boot capture window across child boot processes."""
-    fh = open(lock_path, "a+", encoding="utf-8")
-    try:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-        yield
-    finally:
-        try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        finally:
-            fh.close()
 
 
 @target_factory.reg_driver
@@ -212,13 +198,7 @@ class UBootTFTPStrategy(Strategy):
         return effective
 
     def _drain_serial_buffer(self):
-        """Consume stale data from the serial console before a power cycle.
-
-        Leftover output from a previous boot (or from the node idling in
-        its OS) can confuse pexpect when it tries to match the U-Boot
-        prompt after the next power-cycle.  Draining the buffer here
-        gives activate(uboot) a clean slate.
-        """
+        """Consume stale data from the pexpect buffer after a power cycle."""
         try:
             while True:
                 data = self.console.read(
@@ -229,33 +209,56 @@ class UBootTFTPStrategy(Strategy):
         except Exception:
             pass
 
-    def _transition_to_uboot_once(self):
-        """Power-cycle the node and activate the U-Boot console once.
+    def _send_interrupts_until_stopped(self, stop_event: threading.Event):
+        """Continuously send the U-Boot interrupt character until stopped.
 
-        TFTP staging and IP resolution happen *before* acquiring the gate
-        so the gate is held only for the time-critical power-cycle +
-        U-Boot capture window.  Devices with a short bootdelay (e.g. 3s
-        on the OpenWrt One) are very sensitive to any extra latency
-        between power.cycle() and activate(uboot).
+        Runs in a background thread so the interrupt arrives during the
+        bootdelay window regardless of pexpect buffer state.  Devices with
+        short bootdelay (3s) are unreliable when interrupts are only sent
+        reactively after pattern matching.
+
+        Requires labgrid's Steps._stack to be thread-local (see
+        fcefyn-testbed/labgrid feat/thread-safe-steps) so the @step
+        decorator on console.write() does not corrupt the main thread's
+        step stack.
         """
+        interrupt_bytes = self.uboot.interrupt.encode("ASCII")
+        deadline = time.monotonic() + INTERRUPT_MAX_DURATION
+        while not stop_event.is_set() and time.monotonic() < deadline:
+            try:
+                self.console.write(interrupt_bytes)
+            except Exception:
+                break
+            stop_event.wait(INTERRUPT_INTERVAL)
+
+    def _transition_to_uboot_once(self):
+        """Power-cycle the node and activate the U-Boot console."""
         self.target.activate(self.tftp)
         staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
         tftp_server_ip = self._resolve_tftp_server_ip()
 
-        lock_path = os.environ.get("LG_MESH_UBOOT_LOCK_FILE", DEFAULT_UBOOT_LOCK_FILE)
-        logger.info("Waiting for U-Boot gate: %s", lock_path)
-        with _uboot_gate(lock_path):
-            logger.info("Entered U-Boot gate: %s", lock_path)
-            self.transition(Status.off)
-            self.target.activate(self.console)
+        self.target.deactivate(self.console)
+        self.target.activate(self.power)
+        self.target.activate(self.console)
 
-            self._drain_serial_buffer()
-            self.power.cycle()
+        self.power.cycle()
+        self._drain_serial_buffer()
 
+        stop_event = threading.Event()
+        interrupt_thread = threading.Thread(
+            target=self._send_interrupts_until_stopped,
+            args=(stop_event,),
+            daemon=True,
+        )
+        interrupt_thread.start()
+
+        try:
             self._prepare_uboot_commands(staged_file, tftp_server_ip)
             self.target.activate(self.uboot)
-
             self.status = Status.uboot
+        finally:
+            stop_event.set()
+            interrupt_thread.join(timeout=2)
 
     def transition_to_uboot_with_retry(self):
         """Reach the U-Boot prompt with bounded retries."""

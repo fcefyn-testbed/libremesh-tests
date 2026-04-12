@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 
 BOOT_TIMEOUT_BASE = 420
-BOOT_TIMEOUT_PER_NODE = 90
-NETWORK_SETTLE_TIMEOUT = 90
+BOOT_TIMEOUT_PER_NODE = 30
+NETWORK_SETTLE_TIMEOUT = 60
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
 SUBPROCESS_KILL_TIMEOUT = 10
 BOOT_PROGRESS_LOG_INTERVAL = 30
@@ -199,7 +199,7 @@ def _compute_boot_timeout(node_count: int) -> int:
 def _compute_network_settle_timeout(node_count: int) -> int:
     """Return a convergence window that scales mildly with topology size."""
     extra_nodes = max(0, node_count - 3)
-    return NETWORK_SETTLE_TIMEOUT + extra_nodes * 30
+    return NETWORK_SETTLE_TIMEOUT + extra_nodes * 15
 
 
 def _resolve_image_map() -> dict[str, str]:
@@ -565,7 +565,6 @@ def mesh_nodes(request, mesh_vlan_multi):
 
                 progress = True
                 pending.remove(place)
-                _dump_boot_log(place, log_files[place])
 
                 if status.get("ok"):
                     ssh_ip = status.get("ssh_ip") or status.get("ip", "")
@@ -615,6 +614,7 @@ def mesh_nodes(request, mesh_vlan_multi):
                         error_type,
                         summary,
                     )
+                    _dump_boot_log(place, log_files[place])
                     failed.append(place)
 
             if pending and time.time() >= next_progress_log:
@@ -644,7 +644,8 @@ def mesh_nodes(request, mesh_vlan_multi):
         if failed:
             pytest.fail(
                 f"Not all mesh nodes booted: {len(nodes)}/{len(places)} "
-                f"(failed: {failed})"
+                f"(failed: {failed})",
+                pytrace=False,
             )
 
         nodes.sort(key=lambda n: places.index(n.place))

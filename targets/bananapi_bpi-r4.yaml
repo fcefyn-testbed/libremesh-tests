@@ -11,6 +11,7 @@ targets:
       - SerialDriver:
           txdelay: 0.01
       - UBootDriver:
+          login_timeout: 30
           interrupt: "\\x0"
           prompt: "MT7988>"
           init_commands:
