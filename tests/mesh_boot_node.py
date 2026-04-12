@@ -177,7 +177,7 @@ def _boot_node_once(place: str, target, strategy) -> dict:
     try:
         strategy.transition_to_uboot_with_retry()
     except Exception as exc:
-        _raise_stage_failure("transition_to_uboot", exc, retriable=False)
+        _raise_stage_failure("transition_to_uboot", exc, retriable=True)
 
     try:
         strategy.run_download_commands()
