@@ -2,7 +2,6 @@ import enum
 import ipaddress
 import logging
 import os
-import threading
 import time
 
 import attr
@@ -20,8 +19,6 @@ DEFAULT_UBOOT_RETRY_COOLDOWN = 8
 DEFAULT_UBOOT_RETRY_BUDGET = 360
 SERIAL_DRAIN_CHUNK = 4096
 SERIAL_DRAIN_TIMEOUT = 0.5
-INTERRUPT_INTERVAL = 0.3
-INTERRUPT_MAX_DURATION = 30
 
 
 class Status(enum.Enum):
@@ -209,28 +206,6 @@ class UBootTFTPStrategy(Strategy):
         except Exception:
             pass
 
-    def _send_interrupts_until_stopped(self, stop_event: threading.Event):
-        """Continuously send the U-Boot interrupt character until stopped.
-
-        Runs in a background thread so the interrupt arrives during the
-        bootdelay window regardless of pexpect buffer state.  Devices with
-        short bootdelay (3s) are unreliable when interrupts are only sent
-        reactively after pattern matching.
-
-        Requires labgrid's Steps._stack to be thread-local (see
-        fcefyn-testbed/labgrid feat/thread-safe-steps) so the @step
-        decorator on console.write() does not corrupt the main thread's
-        step stack.
-        """
-        interrupt_bytes = self.uboot.interrupt.encode("ASCII")
-        deadline = time.monotonic() + INTERRUPT_MAX_DURATION
-        while not stop_event.is_set() and time.monotonic() < deadline:
-            try:
-                self.console.write(interrupt_bytes)
-            except Exception:
-                break
-            stop_event.wait(INTERRUPT_INTERVAL)
-
     def _transition_to_uboot_once(self):
         """Power-cycle the node and activate the U-Boot console."""
         self.target.activate(self.tftp)
@@ -244,21 +219,9 @@ class UBootTFTPStrategy(Strategy):
         self.power.cycle()
         self._drain_serial_buffer()
 
-        stop_event = threading.Event()
-        interrupt_thread = threading.Thread(
-            target=self._send_interrupts_until_stopped,
-            args=(stop_event,),
-            daemon=True,
-        )
-        interrupt_thread.start()
-
-        try:
-            self._prepare_uboot_commands(staged_file, tftp_server_ip)
-            self.target.activate(self.uboot)
-            self.status = Status.uboot
-        finally:
-            stop_event.set()
-            interrupt_thread.join(timeout=2)
+        self._prepare_uboot_commands(staged_file, tftp_server_ip)
+        self.target.activate(self.uboot)
+        self.status = Status.uboot
 
     def transition_to_uboot_with_retry(self):
         """Reach the U-Boot prompt with bounded retries."""
