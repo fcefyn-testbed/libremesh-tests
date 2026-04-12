@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-labgrid = { git = "https://github.com/aparcar/labgrid.git", branch = "aparcar/staging" }
+labgrid = { git = "https://github.com/fcefyn-testbed/labgrid.git", branch = "feat/thread-safe-steps" }
 labgrid-switch-abstraction = { git = "https://github.com/fcefyn-testbed/labgrid-switch-abstraction.git", branch = "main" }
 
 [dependency-groups]

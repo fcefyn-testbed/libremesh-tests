@@ -12,8 +12,9 @@ targets:
       - SerialDriver:
           txdelay: 0.01
       - UBootDriver:
-          login_timeout: 120
+          login_timeout: 60
           interrupt: "\\x0"
+          autoboot: "Hit any key to stop autoboot"
           prompt: "OpenWrt One>"
           init_commands:
             - dhcp
