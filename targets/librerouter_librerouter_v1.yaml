@@ -7,7 +7,8 @@ targets:
       RemotePlace:
         name: !template "$LG_PLACE"
     drivers:
-      - PDUDaemonDriver: {}
+      - PDUDaemonDriver:
+          delay: 10.0
       - TFTPProviderDriver: {}
       - SerialDriver:
           txdelay: 0.01
