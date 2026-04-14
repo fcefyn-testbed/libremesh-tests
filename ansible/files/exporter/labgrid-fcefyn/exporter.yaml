@@ -90,8 +90,8 @@ labgrid-fcefyn-librerouter_1:
     speed: 115200
   PDUDaemonPort:
     host: localhost:16421
-    pdu: fcefyn-poe
-    index: 2
+    pdu: fcefyn-arduino
+    index: 4
   TFTPProvider:
     internal: "/srv/tftp/librerouter_1/"
     external: "librerouter_1/"

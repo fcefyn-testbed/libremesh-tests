@@ -13,17 +13,17 @@
 
 - **Model:** TP-Link SG2016P (16-port Gigabit, 8 PoE)
 
-| Port | Device           | Power  |
-|------|------------------|--------|
-| 1    | OpenWRT One      | PoE    |
-| 2    | LibreRouter #1   | PoE (splitter 48V→12V) |
-| 3    | LibreRouter #2   | Relay |
-| 9    | Host             | Trunk  |
-| 10   | MikroTik         | Trunk  |
-| 11   | Belkin RT3200 #1 | Relay  |
-| 12   | Belkin RT3200 #2 | Relay  |
-| 13   | Belkin RT3200 #3 | Relay  |
-| 14   | Banana Pi R4     | Relay  |
+| Port | Device           | Power   |
+|------|------------------|---------|
+| 1    | OpenWRT One      | PoE     |
+| 2    | LibreRouter #1   | Relay   |
+| 3    | LibreRouter #2   | Relay   |
+| 9    | Host             | Trunk   |
+| 10   | MikroTik         | Trunk   |
+| 11   | Belkin RT3200 #1 | Relay   |
+| 12   | Belkin RT3200 #2 | Relay   |
+| 13   | Belkin RT3200 #3 | Relay   |
+| 14   | Banana Pi R4     | Relay   |
 
 ## DUTs
 
@@ -34,7 +34,7 @@
 | belkin_rt3200_3 | 13     | 102  | Relay  | belkin-rt3200-3   | dut-belkin-3     | mediatek-mt7622     |
 | bananapi_bpi-r4 | 14     | 103  | Relay  | bpi-r4            | dut-bananapi     | mediatek-filogic    |
 | openwrt_one     | 1      | 104  | PoE    | openwrt-one      | dut-openwrt-one  | mediatek-filogic    |
-| librerouter_1    | 2      | 105  | PoE    | librerouter-1     | dut-librerouter-1| ath79-generic       |
+| librerouter_1    | 2      | 105  | Relay  | librerouter-1     | dut-librerouter-1| ath79-generic       |
 
 
 ## Dual-mode topology (isolated + mesh)
@@ -49,7 +49,7 @@ The lab supports two network topologies controlled by the PoE switch and labgrid
 ## Misc Hardware / Notes
 
 - Default: each DUT in isolated VLAN (100–108). Mesh mode: VLAN 200 shared.
-- LibreRouter #1: PoE via 48V→12V splitter (switch port 2). Uses UBootTFTPStrategy (TFTP boot initramfs in RAM).
+- LibreRouter #1: 12V DC via Arduino relay channel 4. Uses UBootTFTPStrategy (TFTP boot initramfs in RAM).
 
 ## Maintainers
 
