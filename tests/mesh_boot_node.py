@@ -44,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
-DEFAULT_BOOT_ATTEMPTS = 1
+DEFAULT_BOOT_ATTEMPTS = 2
 DEFAULT_RETRY_COOLDOWN = 8
 DEFAULT_COORDINATOR = "localhost:20408"
 EXCEPTION_SUMMARY_MAX_LEN = 240
@@ -182,7 +182,7 @@ def _boot_node_once(place: str, target, strategy) -> dict:
     try:
         strategy.run_download_commands()
     except Exception as exc:
-        _raise_stage_failure("tftp_download", exc, retriable=False)
+        _raise_stage_failure("tftp_download", exc, retriable=True)
 
     try:
         strategy.boot_kernel()
