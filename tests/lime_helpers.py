@@ -104,12 +104,15 @@ def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
 
 
 def is_mesh_ipv4(address: str) -> bool:
-    """Return True for real LibreMesh br-lan addresses, excluding mesh SSH IPs."""
+    """Return True for real LibreMesh br-lan addresses, excluding mesh SSH IPs
+    and network/broadcast addresses."""
     try:
         ip_addr = ipaddress.IPv4Address(address)
     except ipaddress.AddressValueError:
         return False
-    return ip_addr in MESH_IP_NETWORK and ip_addr not in FIXED_IP_NETWORK
+    if ip_addr not in MESH_IP_NETWORK or ip_addr in FIXED_IP_NETWORK:
+        return False
+    return ip_addr != MESH_IP_NETWORK.network_address and ip_addr != MESH_IP_NETWORK.broadcast_address
 
 
 def select_primary_ipv4(addresses: list[str] | str) -> str | None:
