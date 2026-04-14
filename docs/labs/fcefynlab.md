@@ -16,7 +16,7 @@
 | Port | Device           | Power |
 |------|------------------|-------|
 | 1    | OpenWRT One      | PoE   |
-| 2    | LibreRouter #1   | PoE   |
+| 2    | LibreRouter #1   | Relay |
 | 3    | LibreRouter #2   | Relay |
 | 9    | Host             | Trunk |
 | 10   | MikroTik         | Trunk |
@@ -40,7 +40,7 @@
     - Target: mediatek-filogic
 
 - **LibreRouter #1** (librerouter_librerouter_v1)
-    - Power: PoE (switch port 2, via splitter 48V→12V)
+    - Power: Arduino relay (channel 4, 12V DC jack)
     - Target: ath79-generic
 
 ## Maintainers
