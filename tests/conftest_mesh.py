@@ -63,6 +63,18 @@ NETWORK_SETTLE_POLL_INTERVAL = 5
 SSH_COMMAND_TIMEOUT = 120
 BOOT_LOG_TAIL_CHARS = 3000
 
+SSH_TRANSIENT_EXIT_CODE = 255
+SSH_TRANSIENT_RETRIES = 3
+SSH_TRANSIENT_RETRY_DELAY = 3
+
+
+def _is_transient_ssh_failure(returncode: int) -> bool:
+    """Exit code 255 signals an SSH transport error (connection refused, reset,
+    timeout at the TCP/SSH layer), not a failure of the remote command itself.
+    These are inherently transient on mesh networks where routing and bridge
+    state can fluctuate briefly."""
+    return returncode == SSH_TRANSIENT_EXIT_CODE
+
 
 class SSHProxy:
     """Lightweight SSH client using subprocess, compatible with labgrid SSHDriver API.
@@ -70,6 +82,10 @@ class SSHProxy:
     Two modes:
     - Physical (vlan_iface set): Connects via labgrid-bound-connect through a VLAN.
     - Virtual (vlan_iface None): Direct SSH to host:port (e.g. 127.0.0.1:2222).
+
+    Transparently retries on SSH transport errors (exit code 255) which are
+    transient on mesh networks due to routing convergence and bridge state
+    fluctuations.
     """
 
     def __init__(
@@ -93,6 +109,8 @@ class SSHProxy:
             "UserKnownHostsFile=/dev/null",
             "-o",
             "LogLevel=ERROR",
+            "-o",
+            "ConnectTimeout=30",
         ]
         if self._vlan_iface:
             proxy_cmd = (
@@ -108,34 +126,96 @@ class SSHProxy:
         return base
 
     def run_check(self, command: str) -> list[str]:
-        """Run a command and return stdout lines. Raises on non-zero exit."""
-        result = subprocess.run(
-            self._build_ssh_cmd(command),
-            capture_output=True,
-            text=True,
-            timeout=SSH_COMMAND_TIMEOUT,
-        )
-        if result.returncode != 0:
-            raise subprocess.CalledProcessError(
-                result.returncode,
-                command,
-                output=result.stdout,
-                stderr=result.stderr,
-            )
-        return [line for line in result.stdout.splitlines() if line]
+        """Run a command and return stdout lines. Raises on non-zero exit.
 
-    def run(self, command: str) -> tuple[list[str], list[str], int]:
-        """Run a command and return (stdout_lines, stderr_lines, exit_code)."""
-        try:
+        Retries up to SSH_TRANSIENT_RETRIES times on SSH transport errors
+        (exit code 255) before propagating the failure.
+        """
+        last_result = None
+        for attempt in range(1, SSH_TRANSIENT_RETRIES + 1):
             result = subprocess.run(
                 self._build_ssh_cmd(command),
                 capture_output=True,
                 text=True,
                 timeout=SSH_COMMAND_TIMEOUT,
             )
-            stdout = [line for line in result.stdout.splitlines() if line]
-            stderr = [line for line in result.stderr.splitlines() if line]
-            return stdout, stderr, result.returncode
+            if result.returncode == 0:
+                if attempt > 1:
+                    logger.info(
+                        "SSH to %s succeeded on retry %d/%d",
+                        self._host,
+                        attempt,
+                        SSH_TRANSIENT_RETRIES,
+                    )
+                return [line for line in result.stdout.splitlines() if line]
+
+            last_result = result
+            if not _is_transient_ssh_failure(result.returncode):
+                break
+            if attempt < SSH_TRANSIENT_RETRIES:
+                logger.warning(
+                    "SSH to %s failed with transient error (rc=%d, attempt %d/%d), "
+                    "retrying in %ds",
+                    self._host,
+                    result.returncode,
+                    attempt,
+                    SSH_TRANSIENT_RETRIES,
+                    SSH_TRANSIENT_RETRY_DELAY,
+                )
+                time.sleep(SSH_TRANSIENT_RETRY_DELAY)
+
+        raise subprocess.CalledProcessError(
+            last_result.returncode,
+            command,
+            output=last_result.stdout,
+            stderr=last_result.stderr,
+        )
+
+    def run(self, command: str) -> tuple[list[str], list[str], int]:
+        """Run a command and return (stdout_lines, stderr_lines, exit_code).
+
+        Retries up to SSH_TRANSIENT_RETRIES times on SSH transport errors
+        (exit code 255) before returning the failure.
+        """
+        try:
+            last_result = None
+            for attempt in range(1, SSH_TRANSIENT_RETRIES + 1):
+                result = subprocess.run(
+                    self._build_ssh_cmd(command),
+                    capture_output=True,
+                    text=True,
+                    timeout=SSH_COMMAND_TIMEOUT,
+                )
+                if result.returncode == 0 or not _is_transient_ssh_failure(
+                    result.returncode
+                ):
+                    if attempt > 1 and result.returncode == 0:
+                        logger.info(
+                            "SSH to %s succeeded on retry %d/%d",
+                            self._host,
+                            attempt,
+                            SSH_TRANSIENT_RETRIES,
+                        )
+                    stdout = [line for line in result.stdout.splitlines() if line]
+                    stderr = [line for line in result.stderr.splitlines() if line]
+                    return stdout, stderr, result.returncode
+
+                last_result = result
+                if attempt < SSH_TRANSIENT_RETRIES:
+                    logger.warning(
+                        "SSH to %s failed with transient error (rc=%d, attempt %d/%d), "
+                        "retrying in %ds",
+                        self._host,
+                        result.returncode,
+                        attempt,
+                        SSH_TRANSIENT_RETRIES,
+                        SSH_TRANSIENT_RETRY_DELAY,
+                    )
+                    time.sleep(SSH_TRANSIENT_RETRY_DELAY)
+
+            stdout = [line for line in last_result.stdout.splitlines() if line]
+            stderr = [line for line in last_result.stderr.splitlines() if line]
+            return stdout, stderr, last_result.returncode
         except subprocess.TimeoutExpired:
             return [], ["SSH command timed out"], 1
 
@@ -197,9 +277,15 @@ def _compute_boot_timeout(node_count: int) -> int:
 
 
 def _compute_network_settle_timeout(node_count: int) -> int:
-    """Return a convergence window that scales mildly with topology size."""
+    """Return a convergence window that scales mildly with topology size.
+
+    The base timeout must be generous enough to cover batman-adv/babeld
+    convergence *plus* possible late network restarts (which can temporarily
+    remove the fixed SSH IP).  Each additional node adds 15s because
+    batman-adv OGM propagation and babeld route announcement are not instant.
+    """
     extra_nodes = max(0, node_count - 3)
-    return NETWORK_SETTLE_TIMEOUT + extra_nodes * 15
+    return NETWORK_SETTLE_TIMEOUT + extra_nodes * 20
 
 
 def _resolve_image_map() -> dict[str, str]:
@@ -671,22 +757,41 @@ def mesh_nodes(request, mesh_vlan_multi):
 
 
 def _wait_for_network(nodes: list[MeshNode], timeout: int = NETWORK_SETTLE_TIMEOUT):
-    """Wait until all nodes respond to SSH echo."""
+    """Wait until all nodes respond to SSH echo.
+
+    Uses the ``run`` method (which already retries on SSH exit code 255)
+    to avoid raising on transient SSH transport errors that are common
+    right after boot while batman-adv and babeld are still converging.
+    """
     deadline = time.time() + timeout
     pending = set(range(len(nodes)))
+    next_status_log = time.time() + 30
 
     while pending and time.time() < deadline:
         for i in list(pending):
             try:
-                output = nodes[i].ssh.run_check("echo mesh-ready")
-                if "mesh-ready" in output:
+                stdout, _, rc = nodes[i].ssh.run("echo mesh-ready")
+                if rc == 0 and "mesh-ready" in stdout:
                     logger.info("Node %s: SSH reachable", nodes[i].place)
                     pending.discard(i)
-            except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
         if pending:
+            if time.time() >= next_status_log:
+                remaining = max(0, int(deadline - time.time()))
+                names = [nodes[i].place for i in pending]
+                logger.info(
+                    "Still waiting for %d node(s) to become SSH reachable (%ds remaining): %s",
+                    len(pending),
+                    remaining,
+                    names,
+                )
+                next_status_log = time.time() + 30
             time.sleep(NETWORK_SETTLE_POLL_INTERVAL)
 
     if pending:
         names = [nodes[i].place for i in pending]
-        logger.warning("Nodes not reachable via SSH after %ds: %s", timeout, names)
+        pytest.fail(
+            f"Nodes not reachable via SSH after {timeout}s: {names}",
+            pytrace=False,
+        )
