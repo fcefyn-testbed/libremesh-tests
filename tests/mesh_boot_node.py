@@ -44,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger("mesh_boot_node")
 
 STOP_POLL_INTERVAL = 2
-DEFAULT_BOOT_ATTEMPTS = 2
+DEFAULT_BOOT_ATTEMPTS = 3
 DEFAULT_RETRY_COOLDOWN = 8
 DEFAULT_COORDINATOR = "localhost:20408"
 EXCEPTION_SUMMARY_MAX_LEN = 240
@@ -199,7 +199,7 @@ def _boot_node_once(place: str, target, strategy) -> dict:
 
     try:
         suppress_kernel_console(shell)
-        ensure_batman_mesh(target)
+        ensure_batman_mesh(target, place_name=place)
         mesh_ssh_ip = generate_mesh_ssh_ip(place)
         fixed_ip = configure_fixed_ip(
             shell,
@@ -224,7 +224,7 @@ def _boot_node_once(place: str, target, strategy) -> dict:
                 "Node %s mesh IP unavailable, falling back to %s", place, mesh_ip
             )
     except Exception as exc:
-        _raise_stage_failure("post_shell", exc, retriable=False)
+        _raise_stage_failure("post_shell", exc, retriable=True)
 
     return {
         "ssh_ip": ssh_ip,
