@@ -197,35 +197,33 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
 
 
 def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
-    """Keep the fixed IP reachable while LibreMesh reconfigures the network.
+    """Keep the fixed IP reachable while OpenWrt/LibreMesh reconfigures the network.
 
-    LibreMesh init scripts may create br-lan (absorbing eth0), restart the
-    network, or reconfigure br-lan multiple times - all of which can remove
-    the fixed IP.  This watchdog runs for 300 seconds, re-adding the IP every
-    3 seconds on the best available interface (br-lan when UP, otherwise
-    original_iface).
+    Init scripts may create br-lan (absorbing eth0), restart the network, or
+    reconfigure br-lan multiple times - all of which can remove the fixed IP.
+    This watchdog runs for 300 seconds, checking every 3 seconds that the IP
+    is on the best routable interface (br-lan when UP, otherwise original_iface).
+
+    When br-lan is UP the IP MUST be on br-lan (not on a bridge port like eth0,
+    which is L2-only and unreachable from outside).  The watchdog migrates the
+    IP if needed.
     """
-    iface_list = "br-lan" if original_iface == "br-lan" else f"br-lan {original_iface}"
     watchdog_script = (
         f"END=$(($(date +%s)+300)); "
         f'while [ "$(date +%s)" -lt "$END" ]; do '
-        f"  FOUND=0; "
-        f"  for IFACE in {iface_list}; do "
-        f'    ip addr show "$IFACE" 2>/dev/null | grep -q "{fixed_ip}" && FOUND=1 && break; '
-        f"  done; "
-        f'  if [ "$FOUND" = "0" ]; then '
-        f'    if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
-        f"      ip addr add {fixed_ip}/16 dev br-lan 2>/dev/null; "
-        f"    else "
-        f"      ip addr add {fixed_ip}/16 dev {original_iface} 2>/dev/null; "
-        f"    fi; "
+        f'  if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
+        f'    WANT=br-lan; '
+        f"  else "
+        f"    WANT={original_iface}; "
         f"  fi; "
+        f'  ip addr show "$WANT" 2>/dev/null | grep -q "{fixed_ip}" || '
+        f'    {{ ip addr add {fixed_ip}/16 dev "$WANT" 2>/dev/null; }}; '
         f"  sleep 3; "
         f"done"
     )
     shell.run(f"({watchdog_script}) &")
     logger.info(
-        "Started IP watchdog (300s): will keep %s reachable, preferring br-lan (was on %s)",
+        "Started IP watchdog (300s): will keep %s on br-lan (fallback %s)",
         fixed_ip,
         original_iface,
     )
@@ -475,12 +473,15 @@ def enable_batman_bridge_loop_avoidance(shell) -> bool:
     return False
 
 
-def ensure_batman_mesh(target) -> bool:
+def ensure_batman_mesh(target, place_name: str | None = None) -> bool:
     """Ensure batman-adv has at least one active mesh interface.
 
     If batman has no active interfaces, detect ports with carrier and
     configure batman on them.  This handles devices like BananaPi R4 where
     LibreMesh misconfigures mesh on SFP ports instead of DSA ports.
+
+    When *place_name* is provided the fixed SSH IP is re-applied after a
+    network restart so the node stays reachable.
 
     Returns ``True`` if batman is active (either already or after fix).
     """
@@ -573,7 +574,19 @@ def ensure_batman_mesh(target) -> bool:
             shell.run_check("uci commit network")
             logger.info("UCI config applied for %s, restarting network...", iface)
             shell.run_check("/etc/init.d/network restart")
-            time.sleep(15)
+            time.sleep(30)
+            if place_name:
+                ssh_ip = generate_mesh_ssh_ip(place_name)
+                logger.info(
+                    "Re-applying fixed IP %s after network restart", ssh_ip
+                )
+                configure_fixed_ip(
+                    shell,
+                    target,
+                    place_name=place_name,
+                    fixed_ip=ssh_ip,
+                    prefer_networkservice=False,
+                )
             fixed = True
             break
         except Exception as e:
