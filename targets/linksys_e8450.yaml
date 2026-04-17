@@ -20,7 +20,7 @@ targets:
         username: root
       UBootDriver:
         prompt: "MT7622>"
-        interrupt: "0\n"
+        interrupt: "\x03"
         login_timeout: 30
         init_commands:
           - dhcp
