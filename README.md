@@ -91,7 +91,7 @@ uv run pytest tests/test_base.py \
 ```shell
 export LG_PLACE=labgrid-fcefyn-belkin_rt3200_2
 export LG_PROXY=labgrid-fcefyn
-export LG_IMAGE=/srv/tftp/firmwares/belkin_rt3200/lime-...itb
+export LG_IMAGE=/srv/tftp/firmwares/belkin_rt3200/libremesh/lime-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin
 
 uv run labgrid-client lock
 uv run pytest tests/test_libremesh.py --log-cli-level=CONSOLE -v
