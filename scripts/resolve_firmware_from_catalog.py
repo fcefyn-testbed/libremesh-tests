@@ -2,8 +2,8 @@
 """
 Resolve LG_IMAGE path from firmware catalog for images on the lab TFTP server.
 
-Outputs path to file in /srv/tftp/firmwares/<device_folder>/. Labgrid's stage() creates
-the symlink in the place folder when booting.
+Outputs path to file in /srv/tftp/firmwares/<device_folder>/{openwrt,libremesh}/.
+Labgrid's stage() creates the symlink in the place folder when booting.
 
 Usage:
   resolve_firmware_from_catalog.py <device> [catalog_key]

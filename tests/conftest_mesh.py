@@ -19,12 +19,12 @@ debugging). Handled by mesh_boot_node.py subprocess; the labgrid place is still 
 
 Usage (physical, mixed device types):
     export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
-    export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/srv/tftp/firmwares/openwrt_one/openwrt-24.10.5-mediatek-filogic-openwrt_one-initramfs.itb,labgrid-fcefyn-bananapi_bpi-r4=/srv/tftp/firmwares/bananapi_bpi-r4/openwrt-24.10.5-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb"
+    export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/srv/tftp/firmwares/openwrt_one/libremesh/lime-24.10.5-mediatek-filogic-openwrt_one-initramfs.itb,labgrid-fcefyn-bananapi_bpi-r4=/srv/tftp/firmwares/bananapi_bpi-r4/libremesh/lime-24.10.5-mediatek-filogic-bananapi_bpi-r4-initramfs-recovery.itb"
     uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
 
 Usage (single image for all nodes):
     export LG_MESH_PLACES="labgrid-fcefyn-belkin_rt3200_2,labgrid-fcefyn-belkin_rt3200_3"
-    export LG_IMAGE="/srv/tftp/firmwares/belkin_rt3200/lime-...itb"
+    export LG_IMAGE="/srv/tftp/firmwares/belkin_rt3200/libremesh/lime-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin"
     uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
 """
 

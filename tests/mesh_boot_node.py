@@ -9,7 +9,7 @@ in-process parallel booting.
 Usage:
     python mesh_boot_node.py \
         --place labgrid-fcefyn-belkin_rt3200_2 \
-        --image /srv/tftp/firmwares/belkin_rt3200/lime-...itb \
+        --image /srv/tftp/firmwares/belkin_rt3200/libremesh/lime-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin \
         --target-yaml /path/to/targets/linksys_e8450.yaml \
         --status-file /tmp/mesh_node_XYZ.json \
         --stop-file /tmp/mesh_stop_XYZ
