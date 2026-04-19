@@ -463,19 +463,46 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
         if target_file.exists():
             return str(target_file)
 
-    for lab_config in labnet.get("labs", {}).values():
+    matched_base_device: str | None = None
+    matched_lab: str | None = None
+    for lab_name, lab_config in labnet.get("labs", {}).items():
         device_instances = lab_config.get("device_instances", {})
         for base_device, instances in device_instances.items():
             if device_instance in instances:
+                matched_base_device = base_device
+                matched_lab = lab_name
                 if base_device in labnet.get("devices", {}):
                     device_config = labnet["devices"][base_device]
                     target_name = device_config.get("target_file", base_device)
                     target_file = repo_root / f"targets/{target_name}.yaml"
                     if target_file.exists():
                         return str(target_file)
+                fallback = repo_root / f"targets/{base_device}.yaml"
+                if fallback.exists():
+                    logger.warning(
+                        "resolve_target_yaml: %s not declared in top-level "
+                        "'devices' of %s, using fallback %s",
+                        base_device, labnet_path, fallback,
+                    )
+                    return str(fallback)
 
+    targets_dir = repo_root / "targets"
+    available = (
+        sorted(p.name for p in targets_dir.glob("*.yaml"))
+        if targets_dir.is_dir() else []
+    )
+    base_in_devices = (
+        matched_base_device in labnet.get("devices", {})
+        if matched_base_device
+        else None
+    )
     raise FileNotFoundError(
-        f"No target YAML found for place {place_name} (instance: {device_instance})"
+        f"No target YAML found for place {place_name} "
+        f"(instance: {device_instance}, "
+        f"matched_lab={matched_lab}, base_device={matched_base_device}, "
+        f"base_in_top_level_devices={base_in_devices}). "
+        f"repo_root={repo_root}, labnet={labnet_path}, "
+        f"available targets: {available}"
     )
 
 

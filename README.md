@@ -32,7 +32,7 @@ Only DUTs used for LibreMesh / FCEFyN workflows:
 | `targets/openwrt_one.yaml` | OpenWrt One |
 | `targets/bananapi_bpi-r4.yaml` | Banana Pi R4 |
 | `targets/linksys_e8450.yaml` | Belkin RT3200 / Linksys E8450 |
-| `targets/librerouter_librerouter_v1.yaml` | LibreRouter v1 |
+| `targets/librerouter_librerouter-v1.yaml` | LibreRouter v1 |
 | `targets/qemu_x86-64_libremesh.yaml` | QEMU x86-64 LibreMesh |
 
 For other boards or vanilla OpenWrt QEMU, use **openwrt-tests** `targets/` and run upstream tests there.

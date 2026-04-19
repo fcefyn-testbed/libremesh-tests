@@ -38,8 +38,8 @@ devices:
         label: "LibreMesh 24.10.5 (BananaPi R4)"
         url: ""
 
-  librerouter_librerouter_v1:
-    firmwares_folder: "librerouter_librerouter_v1"
+  librerouter_librerouter-v1:
+    firmwares_folder: "librerouter_librerouter-v1"
     default: "openwrt-24.10.5"
     images:
       openwrt-24.10.5:
