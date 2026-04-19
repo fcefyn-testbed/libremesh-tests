@@ -4,10 +4,12 @@ Dynamic VLAN switching fixtures for unified pool architecture.
 Switches DUT ports from isolated VLANs (100-108) to mesh VLAN (200) before
 LibreMesh tests, and restores them on teardown.
 
-VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction) on the
-**lab host**, reached through SSH using the same host as ``LG_PROXY``.  When
-pytest runs directly on the lab host (no ``LG_PROXY``), ``switch-vlan`` is
-invoked locally if available in PATH.
+VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction):
+
+- **Local first**: if ``switch-vlan`` is in PATH (lab host, CI runner), it runs
+  directly as a subprocess - even when ``LG_PROXY`` is set.
+- **Remote fallback**: if ``switch-vlan`` is NOT in PATH, the command is sent
+  via SSH to the ``LG_PROXY`` host (developer laptop scenario).
 
 No local ``dut-config.yaml`` or ``labgrid-switch-abstraction`` install is
 required on the developer machine.
@@ -55,24 +57,20 @@ def _resolve_proxy_host() -> str | None:
 
 
 def _run_switch_vlan(args: list[str]) -> bool:
-    """Run ``switch-vlan`` with *args* on the lab host or locally.
-
-    Remote (LG_PROXY set): ``ssh <proxy_host> switch-vlan <args...>``
-    Local (no LG_PROXY):   ``switch-vlan <args...>`` if in PATH.
+    """Run ``switch-vlan`` locally if available, otherwise via SSH to LG_PROXY.
 
     Returns True on success, False on failure (logged, never raises).
     """
-    proxy = _resolve_proxy_host()
-
-    if proxy:
-        cmd = ["ssh", proxy, "switch-vlan " + " ".join(args)]
+    if shutil.which("switch-vlan"):
+        cmd = ["switch-vlan", *args]
     else:
-        if not shutil.which("switch-vlan"):
+        proxy = _resolve_proxy_host()
+        if not proxy:
             logger.warning(
                 "switch-vlan not in PATH and LG_PROXY not set; skipping VLAN command"
             )
             return False
-        cmd = ["switch-vlan", *args]
+        cmd = ["ssh", proxy, "switch-vlan " + " ".join(args)]
 
     logger.debug("VLAN command: %s", cmd)
     try:
