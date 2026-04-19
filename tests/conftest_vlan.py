@@ -52,12 +52,13 @@ def _try_import_switch_abstraction():
 
 @pytest.fixture(scope="session")
 def vlan_manager_mod():
-    """Provide the vlan_manager module (session-scoped, loaded once)."""
+    """Provide the vlan_manager module (session-scoped, loaded once).
+
+    Returns ``None`` if switching is disabled or the package is unavailable;
+    fixtures then skip VLAN commands without requiring ``dut-config.yaml``.
+    """
     if _is_disabled():
-        logger.info(
-            "VLAN switching disabled (VLAN_SWITCH_DISABLED); "
-            "dut-config.yaml is not loaded (use when ports are already on mesh VLAN or for bring-up without switch SSH)."
-        )
+        logger.info("VLAN switching disabled via VLAN_SWITCH_DISABLED (no dut-config required)")
         return None
     mod = _try_import_switch_abstraction()
     if mod is None:
