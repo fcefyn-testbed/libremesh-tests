@@ -11,11 +11,14 @@ For mesh tests: uses LG_MESH_PLACES (comma-separated) to switch all nodes.
 Set VLAN_SWITCH_DISABLED=1 to skip VLAN switching (e.g. when switch is
 already configured manually or running in mesh-only mode).
 
-Config path: set SWITCH_DUT_CONFIG env var to point at dut-config.yaml.
+Config path: ``SWITCH_DUT_CONFIG`` overrides; otherwise
+``/etc/testbed/dut-config.yaml`` (see labgrid-switch-abstraction). If that file
+is missing, the session fails with guidance unless VLAN switching is disabled.
 """
 
 import logging
 import os
+from pathlib import Path
 
 import pytest
 
@@ -51,7 +54,11 @@ def _try_import_switch_abstraction():
 def vlan_manager_mod():
     """Provide the vlan_manager module (session-scoped, loaded once)."""
     if _is_disabled():
-        pytest.skip("VLAN switching disabled via VLAN_SWITCH_DISABLED")
+        logger.info(
+            "VLAN switching disabled (VLAN_SWITCH_DISABLED); "
+            "dut-config.yaml is not loaded (use when ports are already on mesh VLAN or for bring-up without switch SSH)."
+        )
+        return None
     mod = _try_import_switch_abstraction()
     if mod is None:
         logger.warning(
@@ -61,12 +68,34 @@ def vlan_manager_mod():
     return mod
 
 
+def _resolved_dut_config_path() -> Path:
+    """Resolve dut-config.yaml: SWITCH_DUT_CONFIG or package default (usually /etc/testbed)."""
+    from switch_abstraction.constants import default_dut_config_path
+
+    explicit = os.environ.get("SWITCH_DUT_CONFIG", "").strip()
+    if explicit:
+        return Path(os.path.expanduser(explicit))
+    return default_dut_config_path()
+
+
+_MISSING_DUT_CONFIG_HELP = (
+    "Set SWITCH_DUT_CONFIG to a valid dut-config.yaml for labgrid-switch-abstraction, "
+    "or run pytest on the lab host where /etc/testbed/dut-config.yaml is deployed. "
+    "If VLANs are already on the mesh topology and no switch commands are needed, "
+    "use VLAN_SWITCH_DISABLED=1. Config path tried: %s"
+)
+
+
 @pytest.fixture(scope="session")
 def dut_map(vlan_manager_mod):
     """Load DUT hardware map once per session."""
     if vlan_manager_mod is None:
         return {}
-    return vlan_manager_mod.load_dut_map()
+    path = _resolved_dut_config_path()
+    try:
+        return vlan_manager_mod.load_dut_map(path)
+    except FileNotFoundError:
+        pytest.fail(_MISSING_DUT_CONFIG_HELP % path)
 
 
 @pytest.fixture(autouse=True)
