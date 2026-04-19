@@ -6,10 +6,12 @@ LibreMesh tests, and restores them on teardown.
 
 VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction):
 
-- **Local first**: if ``switch-vlan`` is in PATH (lab host, CI runner), it runs
-  directly as a subprocess - even when ``LG_PROXY`` is set.
-- **Remote fallback**: if ``switch-vlan`` is NOT in PATH, the command is sent
-  via SSH to the ``LG_PROXY`` host (developer laptop scenario).
+- **Remote first**: if ``LG_PROXY`` is set, the command is sent via SSH to the
+  proxy host (developer laptop scenario). The lab host owns the switch
+  credentials and dut-config, so VLAN changes always run there.
+- **Local fallback**: if ``LG_PROXY`` is NOT set, ``switch-vlan`` runs locally
+  (lab host, CI runner). Requires ``switch-vlan`` in PATH and a configured
+  ``SWITCH_DUT_CONFIG`` / ``SWITCH_PASSWORD``.
 
 No local ``dut-config.yaml`` or ``labgrid-switch-abstraction`` install is
 required on the developer machine.
@@ -57,20 +59,25 @@ def _resolve_proxy_host() -> str | None:
 
 
 def _run_switch_vlan(args: list[str]) -> bool:
-    """Run ``switch-vlan`` locally if available, otherwise via SSH to LG_PROXY.
+    """Run ``switch-vlan`` via SSH to LG_PROXY, or locally if no proxy is set.
+
+    Rationale: ``LG_PROXY`` indicates the lab is at a remote host, so the VLAN
+    command must run there (the proxy host owns switch credentials and
+    dut-config). Only fall back to local execution when no proxy is set
+    (lab host or CI runner).
 
     Returns True on success, False on failure (logged, never raises).
     """
-    if shutil.which("switch-vlan"):
+    proxy = _resolve_proxy_host()
+    if proxy:
+        cmd = ["ssh", proxy, "switch-vlan " + " ".join(args)]
+    elif shutil.which("switch-vlan"):
         cmd = ["switch-vlan", *args]
     else:
-        proxy = _resolve_proxy_host()
-        if not proxy:
-            logger.warning(
-                "switch-vlan not in PATH and LG_PROXY not set; skipping VLAN command"
-            )
-            return False
-        cmd = ["ssh", proxy, "switch-vlan " + " ".join(args)]
+        logger.warning(
+            "LG_PROXY not set and switch-vlan not in PATH; skipping VLAN command"
+        )
+        return False
 
     logger.debug("VLAN command: %s", cmd)
     try:
