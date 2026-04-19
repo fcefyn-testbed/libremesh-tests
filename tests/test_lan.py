@@ -7,8 +7,6 @@ the fixed 192.168.1.1 used by vanilla OpenWrt. Tests are adapted accordingly.
 import ipaddress
 from time import sleep
 
-from conftest import ubus_call
-
 
 def test_lan_wait_for_link_ready(shell_command):
     for _ in range(60):
@@ -79,8 +77,7 @@ def test_lan_interface_has_neighbor(shell_command):
             # Extract the IPv6 address from "64 bytes from fe80::xxx%br-lan:"
             parts = line.split("from ")
             if len(parts) > 1:
-                addr = parts[1].split("%")[0].split(":")[0]  # Get address before % or :
-                # Actually get the full IPv6 address
+                # Full IPv6 address before %br-lan
                 addr_full = (
                     parts[1].split("%br-lan")[0]
                     if "%br-lan" in parts[1]

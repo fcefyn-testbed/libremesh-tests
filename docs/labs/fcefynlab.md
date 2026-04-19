@@ -59,15 +59,15 @@ The lab supports two network topologies controlled by the PoE switch and labgrid
 
 ## Consistency testing
 
-For: Lab admin. Run single-node tests in a loop to detect sporadic failures.
+For: Lab admin. Run single-node LibreMesh tests in a loop to detect sporadic failures (example):
 
-| Command | Description |
-|---------|-------------|
-| `./scripts/run_single_node_consistency.sh` | LibreRouter, 10 iterations (default) |
-| `./scripts/run_single_node_consistency.sh --place labgrid-fcefyn-librerouter_1 --iterations 5` | Custom iterations |
-| `./scripts/run_single_node_consistency.sh --place labgrid-fcefyn-belkin_rt3200_1 --env targets/linksys_e8450.yaml` | Belkin RT3200 |
+```bash
+for i in $(seq 1 10); do
+  uv run pytest tests/test_libremesh.py -v --log-cli-level=CONSOLE || break
+done
+```
 
-Excludes `tests/test_mesh.py` (multi-node). Image resolved from [firmware-catalog.yaml](../../configs/firmware-catalog.yaml) via `LG_ENV` basename. Run from repo root on the labgrid coordinator.
+Set `LG_PLACE`, `LG_PROXY`, and `LG_IMAGE` as usual. Multi-node tests are in `tests/test_mesh.py`. Image paths can follow [firmware-catalog.yaml](../../configs/firmware-catalog.yaml) and `scripts/resolve_firmware_from_catalog.py`.
 
 ## Location
 

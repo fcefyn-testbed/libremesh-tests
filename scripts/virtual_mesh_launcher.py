@@ -26,7 +26,6 @@ Environment:
 from __future__ import annotations
 
 import json
-from typing import Callable
 import logging
 import os
 import shutil
@@ -37,6 +36,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +293,9 @@ def launch_virtual_mesh(
     vwifi_proc: subprocess.Popen | None = None
     qemu_procs: list[subprocess.Popen] = []
     qemu_logs: list[Path] = []
-    tap_cleanup: Callable[[], None] = lambda: None
+
+    def tap_cleanup() -> None:
+        return None
 
     def do_cleanup():
         for p in qemu_procs:

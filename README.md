@@ -1,106 +1,75 @@
-# OpenWrt Testing
+# libremesh-tests
 
-> With great many support devices comes great many tests
+Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (QEMU + vwifi). It is intentionally **not** a full fork of [openwrt-tests](https://github.com/aparcar/openwrt-tests): this repo keeps only mesh-related tests, FCEFyN target YAML, custom strategies, and lab-specific `labnet.yaml`.
 
-OpenWrt Testing is a framework to run tests on OpenWrt devices, emulated or
-real. Using [`labgrid`](https://labgrid.readthedocs.io/en/latest/) to control
-the devices, the framework offers a simple way to write tests and run them on
-different hardware.
-
-## About this fork (libremesh-tests)
-
-This repository is a fork aimed at **LibreMesh** testing. It is intended for
-contributors who want to add their DUTs to **libremesh-tests** rather than
-upstream openwrt-tests.
-
-**Documentation index:** [CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) (lab admins) · [sharing-target-files.md](docs/sharing-target-files.md) (multiple devices) · [labs/fcefynlab.md](docs/labs/fcefynlab.md) (FCEFYN hardware)
-
-Currently, only the **labgrid-fcefyn** lab contributes DUTs to both libremesh-tests
-and openwrt-tests. In the future, we may facilitate a hybrid setup so that
-other labs can contribute to both projects—for now, new labs added to this project would contribute
-to libremesh-tests only.
+**Vanilla OpenWrt healthchecks** (apk/opkg, stock assumptions) run in **openwrt-tests** against the same global coordinator. **LibreMesh single-node, multi-node mesh, and LiMe QEMU** run here.
 
 ## Requirements
 
-- An OpenWrt firmware image
-- Python and [`uv`](https://docs.astral.sh/uv/)
-- QEMU
-
+- Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)
+- On the lab host: labgrid client, coordinator, exporter (deployed from **openwrt-tests** Ansible; see below)
+- For QEMU: `qemu-system-x86_64` and related packages (see virtual mesh docs)
 
 ## Setup
 
-For maximum convenience, clone this repository inside the `openwrt.git`
-repository as `tests/`:
-
 ```shell
-cd /path/to/openwrt.git/
-git clone https://github.com/francoriba/libremesh-tests.git tests/
+cd /path/to/libremesh-tests
+uv sync
 ```
 
-Install required packages to use Labgrid and QEMU:
+Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in **openwrt-tests** and **fcefyn_testbed_utils**; this repo does not ship `ansible/`.
 
-```shell
-curl -LsSf https://astral.sh/uv/install.sh | sh
+## Targets shipped here
 
-sudo apt-get update
-sudo apt-get -y install \
-    qemu-system-mips \
-    qemu-system-x86 \
-    qemu-system-aarch64 \
-    make
-```
+Only DUTs used for LibreMesh / FCEFyN workflows:
 
-Verify the installation by running the tests:
+| File | Role |
+|------|------|
+| `targets/openwrt_one.yaml` | OpenWrt One |
+| `targets/bananapi_bpi-r4.yaml` | Banana Pi R4 |
+| `targets/linksys_e8450.yaml` | Belkin RT3200 / Linksys E8450 |
+| `targets/librerouter_librerouter_v1.yaml` | LibreRouter v1 |
+| `targets/qemu_x86-64_libremesh.yaml` | QEMU x86-64 LibreMesh |
 
-```shell
-make tests/setup V=s
-```
+For other boards or vanilla OpenWrt QEMU, use **openwrt-tests** `targets/` and run upstream tests there.
 
 ## Running tests
 
-Tests support both **physical DUTs** (via labgrid) and **QEMU virtual machines**.
-Single-node and multi-node (mesh) tests can each run in either mode.
-
-| | Physical DUT | QEMU VM |
-|---|---|---|
-| **Single-node** | `LG_PLACE` + labgrid | `--lg-env targets/qemu_*.yaml` + labgrid |
-| **Multi-node mesh** | `LG_MESH_PLACES` + labgrid | `LG_VIRTUAL_MESH=1` (no labgrid) |
-
-### Single-node tests on QEMU (virtual)
-
-Run LibreMesh single-node tests against a QEMU x86-64 VM. No hardware required.
-
-```shell
-uv run pytest tests/test_base.py tests/test_lan.py tests/test_libremesh.py \
-    --lg-env targets/qemu_x86-64_libremesh.yaml \
-    --firmware /path/to/lime-x86-64-generic-ext4-combined.img \
-    --lg-log --log-cli-level=CONSOLE --lg-colored-steps -v
-```
-
-For vanilla OpenWrt (non-LibreMesh) images, use the upstream targets instead:
-
-```shell
-uv run pytest tests/test_base.py \
-    --lg-env targets/qemu_x86-64.yaml \
-    --firmware /path/to/openwrt-x86-64-generic-squashfs-combined.img \
-    --lg-log --log-cli-level=CONSOLE --lg-colored-steps -v
-```
-
-### Single-node tests on physical DUTs
+### Single-node LibreMesh (physical DUT)
 
 ```shell
 export LG_PLACE=labgrid-fcefyn-belkin_rt3200_2
 export LG_PROXY=labgrid-fcefyn
-export LG_IMAGE=/srv/tftp/firmwares/belkin_rt3200/libremesh/lime-24.10.5-mediatek-mt7622-linksys_e8450-initramfs-kernel.bin
+export LG_IMAGE=/srv/tftp/firmwares/.../lime-....bin
 
 uv run labgrid-client lock
 uv run pytest tests/test_libremesh.py --log-cli-level=CONSOLE -v
 uv run labgrid-client unlock
 ```
 
-### Multi-node mesh tests on QEMU (virtual)
+`LG_IMAGE` must be a real file on the machine running labgrid-client (see remote access docs in fcefyn_testbed_utils).
 
-Launches N QEMU VMs with vwifi for mesh simulation. No labgrid needed.
+### Single-node on QEMU (LibreMesh image)
+
+```shell
+uv run pytest tests/test_base.py tests/test_lan.py tests/test_libremesh.py \
+  --lg-env targets/qemu_x86-64_libremesh.yaml \
+  --firmware /path/to/lime-x86-64-generic-ext4-combined.img \
+  --lg-log --log-cli-level=CONSOLE --lg-colored-steps -v
+```
+
+### Multi-node mesh (physical)
+
+Requires `LG_MESH_PLACES`, images, and mesh VLAN (see `tests/conftest_mesh.py`).
+
+```shell
+export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
+export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/path/img1.itb,labgrid-fcefyn-bananapi_bpi-r4=/path/img2.itb"
+
+uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
+```
+
+### Virtual mesh (QEMU + vwifi, no labgrid)
 
 ```shell
 export LG_VIRTUAL_MESH=1
@@ -110,100 +79,25 @@ export VIRTUAL_MESH_NODES=3
 uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
 ```
 
-### Multi-node mesh tests on physical DUTs
+## Firmware catalog
+
+`configs/firmware-catalog.yaml` lists TFTP paths for CI and local scripts. Resolve paths with:
 
 ```shell
-export LG_MESH_PLACES="labgrid-fcefyn-openwrt_one,labgrid-fcefyn-bananapi_bpi-r4"
-export LG_IMAGE_MAP="labgrid-fcefyn-openwrt_one=/path/to/img1,labgrid-fcefyn-bananapi_bpi-r4=/path/to/img2"
-
-uv run pytest tests/test_mesh.py -v --log-cli-level=INFO
+uv run python scripts/resolve_firmware_from_catalog.py linksys_e8450
 ```
 
-### Using the Makefile (OpenWrt upstream)
+## CI
 
-For running upstream OpenWrt tests from inside the `openwrt.git` tree:
+Workflows use the **self-hosted** runner `testbed-fcefyn` (not aparcar’s global-coordinator VM). See `.github/workflows/daily.yml` and `pull_requests.yml`.
 
-```shell
-cd /path/to/openwrt.git
-make tests/x86-64 V=s
-```
+## Contributing a lab
 
-## Writing tests
+See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md). Labgrid/Ansible exporter setup lives in **openwrt-tests**; this repo only needs `labnet.yaml` aligned with the upstream registry for shared devices.
 
-The framework uses `pytest` to execute commands and evaluate the output. Test
-cases use the two _fixture_ `ssh_command` or `shell_command`. The object offers
-the function `run(cmd)` and returns _stdout_, _stderr_ (SSH only) and the exit
-code.
+## Docs
 
-The example below runs `uname -a` and checks that the device is running
-_GNU/Linux_
+- [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) - lab onboarding (points to openwrt-tests for infra)
+- [docs/labs/fcefynlab.md](docs/labs/fcefynlab.md) - FCEFyN hardware reference
 
-```python
-def test_uname(shell_command):
-    assert "GNU/Linux" in shell_command.run("uname -a")[0][0]
-```
-
-## Remote Access
-
-With *labgrid*, you can remotely access devices. Key capabilities include
-**power control**, **console**, and **SSH access**.
-
-To enable remote access, you need SSH access with forwarding enabled on the host
-exporting the device. For example, to reach the device `openwrt_one` located in
-the lab `labgrid-fcefyn`, you must have access to the `labgrid-fcefyn` host
-(coordinator and exporter run on the same host):
-
-```shell
-labgrid-fcefyn -> openwrt_one
-```
-
-You can request access to existing labs or contribute your own. To do this,
-submit a pull request modifying the `labnet.yaml` file. If you have multiple
-devices of the same model, see [docs/sharing-target-files.md](docs/sharing-target-files.md)
-for how to avoid duplicate target files.
-
-**Lab setup**: See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) for how to contribute your lab. The `ansible/` directory contains the playbook; labs add host-specific configs in `ansible/files/exporter/<host>/`. Optionally add `dut-proxy.yaml` for SSH aliases (installed only when present).
-
-To access a remote device, configure the following environment variables.
-Notably, `LG_PROXY` sets the proxy host (always the lab name):
-
-```shell
-export LG_IMAGE=~/firmware/openwrt-mediatek-mt7622-linksys_e8450-ubi-initramfs-kernel.bin # Firmware to boot
-export LG_PLACE=labgrid-fcefyn-belkin_rt3200_1 # Target device, formatted as <lab>-<device>
-export LG_PROXY=labgrid-fcefyn # Proxy to use, typically the lab name
-export LG_ENV=targets/linksys_e8450.yaml # Environment definition (optional when using device_instances)
-```
-
-**Note**: `LG_ENV` is optional when using `device_instances`. If not set, pytest automatically resolves the target file from `LG_PLACE`. Explicitly setting `LG_ENV` takes precedence over automatic resolution. See [docs/sharing-target-files.md](docs/sharing-target-files.md) for details.
-
-To avoid interference from CI or other developers, lock the device before use:
-
-```shell
-uv run labgrid-client lock
-```
-
-Once locked, you can power-cycle the device and access its console:
-
-```shell
-uv run labgrid-client power cycle
-uv run labgrid-client console
-```
-
-To bring the device into a specific state—such as booting your firmware defined
-by `LG_IMAGE`—use a state definition:
-
-```shell
-uv run labgrid-client --state shell console
-```
-
-You can also run local tests directly on the remote device:
-
-```shell
-pytest tests/ --log-cli-level=CONSOLE
-```
-
-Lastly, unlock your device when you're done:
-
-```shell
-uv run labgrid-client unlock
-```
+Upstream reference for shared target files and `device_instances`: [openwrt-tests docs/sharing-target-files](https://github.com/aparcar/openwrt-tests/blob/main/docs/sharing-target-files.md).
