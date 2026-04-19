@@ -39,7 +39,7 @@
     - Power: PoE (switch port 1)
     - Target: mediatek-filogic
 
-- **LibreRouter #1** (librerouter_librerouter_v1)
+- **LibreRouter #1** (librerouter_librerouter-v1)
     - Power: Arduino relay (channel 4, 12V DC jack)
     - Target: ath79-generic
 

@@ -132,7 +132,7 @@ devices:
     target: mediatek-mt7622
     firmware: initramfs-kernel.bin
 
-  librerouter_librerouter_v1:
+  librerouter_librerouter-v1:
     name: LibreRouter v1
     target: ath79-generic
     firmware: initramfs-kernel.bin
@@ -227,13 +227,13 @@ labs:
       - linksys_e8450
       - openwrt_one
       - bananapi_bpi-r4
-      - librerouter_librerouter_v1
+      - librerouter_librerouter-v1
     device_instances:
       linksys_e8450:
         - belkin_rt3200_1
         - belkin_rt3200_2
         - belkin_rt3200_3
-      librerouter_librerouter_v1:
+      librerouter_librerouter-v1:
         - librerouter_1
     developers:
       - francoriba
