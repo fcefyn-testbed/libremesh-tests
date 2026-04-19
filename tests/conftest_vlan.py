@@ -89,11 +89,22 @@ def _run_switch_vlan(args: list[str]) -> bool:
         return False
 
     if result.returncode != 0:
+        stderr = result.stderr.strip()
+        hint = ""
+        if "password required" in stderr.lower() and proxy:
+            hint = (
+                f"\nHint: switch-vlan ran on '{proxy}' as the SSH user. "
+                f"That user needs a readable switch.conf "
+                f"(per-user '~/.config/switch.conf' or system-wide "
+                f"'/etc/switch.conf' with group access). "
+                f"See libremesh-tests CONTRIBUTING_LAB.md."
+            )
         logger.error(
-            "switch-vlan failed (rc=%d): %s\nstderr: %s",
+            "switch-vlan failed (rc=%d): %s\nstderr: %s%s",
             result.returncode,
             cmd,
-            result.stderr.strip(),
+            stderr,
+            hint,
         )
         return False
 
