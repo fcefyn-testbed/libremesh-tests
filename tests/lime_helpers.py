@@ -5,8 +5,8 @@ Functions used by both single-node (conftest.py) and multi-node
 avoid duplication and keep a single source of truth.
 """
 
-import ipaddress
 import hashlib
+import ipaddress
 import logging
 import os
 import re
@@ -112,7 +112,10 @@ def is_mesh_ipv4(address: str) -> bool:
         return False
     if ip_addr not in MESH_IP_NETWORK or ip_addr in FIXED_IP_NETWORK:
         return False
-    return ip_addr != MESH_IP_NETWORK.network_address and ip_addr != MESH_IP_NETWORK.broadcast_address
+    return (
+        ip_addr != MESH_IP_NETWORK.network_address
+        and ip_addr != MESH_IP_NETWORK.broadcast_address
+    )
 
 
 def select_primary_ipv4(addresses: list[str] | str) -> str | None:
@@ -212,7 +215,7 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
         f"END=$(($(date +%s)+300)); "
         f'while [ "$(date +%s)" -lt "$END" ]; do '
         f'  if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
-        f'    WANT=br-lan; '
+        f"    WANT=br-lan; "
         f"  else "
         f"    WANT={original_iface}; "
         f"  fi; "
@@ -577,9 +580,7 @@ def ensure_batman_mesh(target, place_name: str | None = None) -> bool:
             time.sleep(30)
             if place_name:
                 ssh_ip = generate_mesh_ssh_ip(place_name)
-                logger.info(
-                    "Re-applying fixed IP %s after network restart", ssh_ip
-                )
+                logger.info("Re-applying fixed IP %s after network restart", ssh_ip)
                 configure_fixed_ip(
                     shell,
                     target,

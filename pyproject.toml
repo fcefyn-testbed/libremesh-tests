@@ -1,11 +1,10 @@
 [project]
 name = "tests"
 version = "0.1.0"
-description = "Add your description here"
+description = "LibreMesh-focused pytest suite for labgrid HIL (FCEFyN and compatible labs)"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "ansible<12.0.0",
     "labgrid>=25.0",
     "labgrid-switch-abstraction>=0.1.0",
     "pytest>=8.4.1",

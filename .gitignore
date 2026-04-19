@@ -5,6 +5,4 @@
 __pycache__
 console_*
 results.json
-ansible/host_vars
 env
-firmware
