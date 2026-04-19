@@ -1,6 +1,6 @@
 # libremesh-tests
 
-Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (QEMU + vwifi). It is intentionally **not** a full fork of [openwrt-tests](https://github.com/aparcar/openwrt-tests): this repo keeps only mesh-related tests, FCEFyN target YAML, custom strategies, and lab-specific `labnet.yaml`.
+Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (QEMU + vwifi). It is intentionally **not** a full fork of [openwrt-tests](https://github.com/aparcar/openwrt-tests): this repo keeps mesh-related tests, FCEFyN target YAML, and custom strategies. The shared device/lab inventory is **`labnet.yaml` in [openwrt-tests](https://github.com/aparcar/openwrt-tests)** (not duplicated here).
 
 **Vanilla OpenWrt healthchecks** (apk/opkg, stock assumptions) run in **openwrt-tests** against the same global coordinator. **LibreMesh single-node, multi-node mesh, and LiMe QEMU** run here.
 
@@ -16,6 +16,8 @@ Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (
 cd /path/to/libremesh-tests
 uv sync
 ```
+
+**`labnet.yaml` location:** pytest resolves the inventory file in this order: `LABNET_PATH` (explicit file), `OPENWRT_TESTS_DIR/labnet.yaml`, or a **sibling clone** `../openwrt-tests/labnet.yaml` (recommended layout: check out **aparcar/openwrt-tests** next to this repository). For ad-hoc or CI use without that layout, set `LABNET_PATH` or `OPENWRT_TESTS_DIR`.
 
 Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in **openwrt-tests** and **fcefyn_testbed_utils**; this repo does not ship `ansible/`.
 
@@ -89,11 +91,11 @@ uv run python scripts/resolve_firmware_from_catalog.py linksys_e8450
 
 ## CI
 
-Workflows use the **self-hosted** runner `testbed-fcefyn` (not aparcar’s global-coordinator VM). See `.github/workflows/daily.yml` and `pull_requests.yml`.
+Workflows use the **self-hosted** runner `testbed-fcefyn` (not the global-coordinator used in openwrt-tests). See `.github/workflows/daily.yml` and `pull_requests.yml`. Jobs check out **aparcar/openwrt-tests** for `labnet.yaml`; the matrix is filtered to **`labgrid-fcefyn`** by default (override with **`LIBREMESH_CI_ALLOW_PROXY`**, comma-separated proxy names, when extending CI to other labs).
 
 ## Contributing a lab
 
-See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md). Labgrid/Ansible exporter setup lives in **openwrt-tests**; this repo only needs `labnet.yaml` aligned with the upstream registry for shared devices.
+See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md). Labgrid/Ansible exporter setup lives in **openwrt-tests**; local runs need the shared **`openwrt-tests/labnet.yaml`** (via sibling clone or `OPENWRT_TESTS_DIR` / `LABNET_PATH`).
 
 ## Docs
 

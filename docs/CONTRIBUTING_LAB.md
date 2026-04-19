@@ -7,10 +7,11 @@ This guide is for lab administrators who want DUTs to appear in **libremesh-test
 | Topic | Where it lives |
 |-------|----------------|
 | Labgrid coordinator, exporter, TFTP, Ansible playbooks, per-lab `exporter/` files | [aparcar/openwrt-tests](https://github.com/aparcar/openwrt-tests) (`ansible/playbook_labgrid.yml`, `ansible/files/exporter/<lab>/`) |
+| Global `labnet.yaml` (devices, labs, `developers`, inventory for coordinators) | **openwrt-tests** [`labnet.yaml`](https://github.com/aparcar/openwrt-tests/blob/main/labnet.yaml) |
 | FCEFyN host-only roles (Arduino relay, PoE, ZeroTier, etc.) | [fcefyn_testbed_utils](https://github.com/fcefyn-testbed/fcefyn_testbed_utils) (`ansible/playbook_testbed.yml`) |
-| This repo | `labnet.yaml` (devices and labs for **mesh/LibreMesh** workflows), `targets/*.yaml` only for boards you run tests on here |
+| This repo | `targets/*.yaml` only for boards LibreMesh tests run against here |
 
-**libremesh-tests** does not ship `ansible/`. Deploy infrastructure from **openwrt-tests** first, then add or adjust entries in this repo’s `labnet.yaml` so workflows and `resolve_target_yaml` match your places.
+**libremesh-tests** does not ship `ansible/` or a copy of `labnet.yaml`. Deploy infrastructure from **openwrt-tests** first. The suite reads inventory via `LABNET_PATH`, `OPENWRT_TESTS_DIR`, or a **sibling** `../openwrt-tests/labnet.yaml` (see [README](../README.md) setup).
 
 ## Prerequisites
 
@@ -31,20 +32,19 @@ Follow upstream docs for exporter files and Ansible:
 
 - [Sharing target files / device_instances](https://github.com/aparcar/openwrt-tests/blob/main/docs/sharing-target-files.md)
 
-### 2. Mirror or extend in this repo
+### 2. Target YAML in this repo when needed
 
-Edit **this** repository’s `labnet.yaml`:
-
-- Add the same `labs` / `devices` / `device_instances` entries you need for **LibreMesh** jobs (mesh VLAN, places names).
-- Add a `targets/<device>.yaml` **only** if this repo runs tests on that board; otherwise rely on upstream targets and openwrt-tests for generic runs.
+Add a `targets/<device>.yaml` **only** if **libremesh-tests** runs on that board; otherwise rely on upstream targets and openwrt-tests for generic runs.
 
 Place names must match the exporter (`labgrid-<lab>-<instance>`).
 
 ### 3. SSH keys for developers
 
-In `labnet.yaml`, under `developers`, add SSH public keys for people who should run tests against your lab (same pattern as openwrt-tests).
+In **openwrt-tests** `labnet.yaml`, under `developers`, add SSH public keys for people who should run tests against your lab (same pattern as upstream coordinator users).
 
 ### 4. Verify
+
+With `openwrt-tests` cloned next to **libremesh-tests** (or `OPENWRT_TESTS_DIR` set):
 
 ```bash
 uv run labgrid-client lock
@@ -56,7 +56,7 @@ uv run labgrid-client unlock
 ## libremesh-only vs hybrid
 
 | Lab type | Topology | Notes |
-|----------|----------|--------|
+|----------|----------|-------|
 | **libremesh-only** | Mesh VLAN shared | Simpler exporter |
 | **hybrid** | Isolated VLANs + mesh VLAN 200 | FCEFyN-style; switch automation via `labgrid-switch-abstraction` in tests |
 
