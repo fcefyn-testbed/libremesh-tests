@@ -13,6 +13,8 @@ This guide is for lab administrators who want DUTs to appear in **libremesh-test
 
 **libremesh-tests** does not ship `ansible/` or a copy of `labnet.yaml`. Deploy infrastructure from **openwrt-tests** first. The suite reads inventory via `LABNET_PATH`, `OPENWRT_TESTS_DIR`, or a **sibling** `../openwrt-tests/labnet.yaml` (see [README](../README.md) setup).
 
+**Switch / VLAN automation:** labs with isolated-per-DUT VLANs (hybrid mode) should install [labgrid-switch-abstraction](https://github.com/fcefyn-testbed/labgrid-switch-abstraction) **on the lab host** so that `switch-vlan` is in PATH for the labgrid user. The test suite invokes it remotely via `LG_PROXY` SSH - developers do not need the package or a `dut-config.yaml` locally.
+
 ## Prerequisites
 
 - Labgrid host (coordinator + exporter) with VLAN-capable switch

@@ -19,6 +19,8 @@ uv sync
 
 **`labnet.yaml` location:** pytest resolves the inventory file in this order: `LABNET_PATH` (explicit file), `OPENWRT_TESTS_DIR/labnet.yaml`, or a **sibling clone** `../openwrt-tests/labnet.yaml` (recommended layout: check out **aparcar/openwrt-tests** next to this repository). For ad-hoc or CI use without that layout, set `LABNET_PATH` or `OPENWRT_TESTS_DIR`.
 
+**Dynamic VLAN switching:** LibreMesh tests that need mesh VLAN (200) run `switch-vlan` on the **lab host** via SSH (the same host as `LG_PROXY`). No local `dut-config.yaml` or `labgrid-switch-abstraction` install is needed on the developer machine - only on the lab host. If VLANs are already correct, `VLAN_SWITCH_DISABLED=1` skips switch commands.
+
 Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in **openwrt-tests** and **fcefyn_testbed_utils**; this repo does not ship `ansible/`.
 
 ## Targets shipped here
