@@ -48,7 +48,50 @@ MESH_SSH_IP_NETWORK = ipaddress.IPv4Network(f"{MESH_SSH_IP_PREFIX}.0/24")
 FIXED_IP_NETWORK = MESH_SSH_IP_NETWORK
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LABNET_PATH = REPO_ROOT / "labnet.yaml"
+
+
+def resolve_labnet_path(repo_root: Path | None = None) -> Path:
+    """Return the path to ``labnet.yaml`` (devices, labs).
+
+    Resolution: ``LABNET_PATH``, ``OPENWRT_TESTS_DIR/labnet.yaml``, or
+    ``<repo_parent>/openwrt-tests/labnet.yaml`` if present.
+
+    *repo_root* is the libremesh-tests root (contains ``targets/``).
+    """
+    root = repo_root if repo_root is not None else REPO_ROOT
+
+    explicit = os.environ.get("LABNET_PATH", "").strip()
+    if explicit:
+        path = Path(os.path.expanduser(explicit)).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"LABNET_PATH is set but file not found: {path} "
+                "(check LABNET_PATH or unset it to use OPENWRT_TESTS_DIR / sibling clone)"
+            )
+        return path
+
+    openwrt_dir = os.environ.get("OPENWRT_TESTS_DIR", "").strip()
+    if openwrt_dir:
+        path = Path(os.path.expanduser(openwrt_dir)).resolve() / "labnet.yaml"
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"OPENWRT_TESTS_DIR is set but labnet.yaml not found at {path}. "
+                "Point OPENWRT_TESTS_DIR at the root of an openwrt-tests clone, "
+                "or set LABNET_PATH to the file directly."
+            )
+        return path
+
+    sibling = root.parent / "openwrt-tests" / "labnet.yaml"
+    if sibling.is_file():
+        return sibling.resolve()
+
+    raise FileNotFoundError(
+        "labnet.yaml not found. Either:\n"
+        "  - Clone aparcar/openwrt-tests next to this repo (e.g. "
+        f"{root.parent / 'openwrt-tests'}), or\n"
+        "  - Set OPENWRT_TESTS_DIR to the root of an openwrt-tests checkout, or\n"
+        "  - Set LABNET_PATH to the labnet.yaml file path."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +443,7 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
     ``FileNotFoundError`` if no match is found.
     """
     repo_root = repo_root or REPO_ROOT
-    labnet_path = repo_root / "labnet.yaml"
+    labnet_path = resolve_labnet_path(repo_root)
 
     parts = place_name.split("-", 2)
     if len(parts) < 3:

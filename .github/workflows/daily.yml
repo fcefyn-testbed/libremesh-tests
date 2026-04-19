@@ -39,6 +39,13 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v6
 
+      - name: Check out openwrt-tests (labnet.yaml)
+        uses: actions/checkout@v6
+        with:
+          repository: aparcar/openwrt-tests
+          ref: main
+          path: openwrt-tests
+
       - name: Generate matrix
         run: |
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
@@ -66,7 +73,13 @@ jobs:
                   )
               )
             | flatten
-          ' labnet.yaml)
+          ' openwrt-tests/labnet.yaml)
+
+          matrix=$(echo "$matrix" | jq -c --arg allow "${LIBREMESH_CI_ALLOW_PROXY:-labgrid-fcefyn}" '
+            ($allow | split(",") | map(gsub("^ +| +$"; "")) | map(select(length > 0))) as $allowed |
+            map(select(.proxy as $p | ($allowed | index($p) != null)))
+          ')
+
           echo "matrix=$(echo "$matrix" | jq -c '.')" >> $GITHUB_ENV
 
       - name: Filter out devices with open healthcheck issues
@@ -103,6 +116,16 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v6
+
+      - name: Check out openwrt-tests (labnet inventory for pytest)
+        uses: actions/checkout@v6
+        with:
+          repository: aparcar/openwrt-tests
+          ref: main
+          path: openwrt-tests
+
+      - name: Set OPENWRT_TESTS_DIR for pytest
+        run: echo "OPENWRT_TESTS_DIR=$GITHUB_WORKSPACE/openwrt-tests" >> $GITHUB_ENV
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
