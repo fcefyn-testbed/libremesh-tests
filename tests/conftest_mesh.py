@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
+from conftest_vlan import _resolve_proxy_host
 from lime_helpers import REPO_ROOT, generate_mesh_ssh_ip, resolve_target_yaml
 
 # Allow importing scripts from repo root
@@ -80,7 +81,10 @@ class SSHProxy:
     """Lightweight SSH client using subprocess, compatible with labgrid SSHDriver API.
 
     Two modes:
-    - Physical (vlan_iface set): Connects via labgrid-bound-connect through a VLAN.
+    - Physical (vlan_iface set): Connects via ``labgrid-bound-connect`` through a VLAN.
+      When ``LG_PROXY`` is set the bound-connect runs on the lab host via SSH
+      (the host owns the VLAN interface and ``sudo NOPASSWD`` for the binary);
+      when not set it runs locally (lab host or CI runner).
     - Virtual (vlan_iface None): Direct SSH to host:port (e.g. 127.0.0.1:2222).
 
     Transparently retries on SSH transport errors (exit code 255) which are
@@ -113,10 +117,18 @@ class SSHProxy:
             "ConnectTimeout=30",
         ]
         if self._vlan_iface:
-            proxy_cmd = (
+            bound_connect_cmd = (
                 f"sudo /usr/local/sbin/labgrid-bound-connect "
                 f"{self._vlan_iface} {self._host} {self._port}"
             )
+            # When LG_PROXY is set the mesh VLAN interface lives on the lab
+            # host, not on the local machine. Run labgrid-bound-connect there
+            # via SSH (the proxy host owns sudo NOPASSWD for the binary).
+            proxy_host = _resolve_proxy_host()
+            if proxy_host:
+                proxy_cmd = f"ssh -o BatchMode=yes {proxy_host} {bound_connect_cmd}"
+            else:
+                proxy_cmd = bound_connect_cmd
             base.extend(
                 ["-o", f"ProxyCommand={proxy_cmd}", f"{self._username}@{self._host}"]
             )
