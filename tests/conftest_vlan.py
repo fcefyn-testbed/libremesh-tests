@@ -2,23 +2,27 @@
 Dynamic VLAN switching fixtures for unified pool architecture.
 
 Switches DUT ports from isolated VLANs (100-108) to mesh VLAN (200) before
-LibreMesh tests, and restores them on teardown. Uses the labgrid-switch-abstraction
-package (pip install).
+LibreMesh tests, and restores them on teardown.
+
+VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction) on the
+**lab host**, reached through SSH using the same host as ``LG_PROXY``.  When
+pytest runs directly on the lab host (no ``LG_PROXY``), ``switch-vlan`` is
+invoked locally if available in PATH.
+
+No local ``dut-config.yaml`` or ``labgrid-switch-abstraction`` install is
+required on the developer machine.
 
 For single-node tests: uses LG_PLACE to identify the DUT.
 For mesh tests: uses LG_MESH_PLACES (comma-separated) to switch all nodes.
 
 Set VLAN_SWITCH_DISABLED=1 to skip VLAN switching (e.g. when switch is
 already configured manually or running in mesh-only mode).
-
-Config path: ``SWITCH_DUT_CONFIG`` overrides; otherwise
-``/etc/testbed/dut-config.yaml`` (see labgrid-switch-abstraction). If that file
-is missing, the session fails with guidance unless VLAN switching is disabled.
 """
 
 import logging
 import os
-from pathlib import Path
+import shutil
+import subprocess
 
 import pytest
 
@@ -27,6 +31,8 @@ logger = logging.getLogger(__name__)
 VLAN_MESH = 200
 MESH_TFTP_IP_DEFAULT = "192.168.200.1"
 PLACE_PREFIX = "labgrid-fcefyn-"
+
+SSH_TIMEOUT = 30
 
 
 def _place_to_dut_name(place: str) -> str:
@@ -40,73 +46,72 @@ def _is_disabled() -> bool:
     return os.environ.get("VLAN_SWITCH_DISABLED", "").lower() in ("1", "true", "yes")
 
 
-def _try_import_switch_abstraction():
-    """Try to import switch_abstraction; return module or None."""
-    try:
-        from switch_abstraction import vlan_manager
-
-        return vlan_manager
-    except ImportError:
+def _resolve_proxy_host() -> str | None:
+    """Extract SSH host from LG_PROXY (e.g. 'ssh://labgrid-fcefyn' -> 'labgrid-fcefyn')."""
+    raw = os.environ.get("LG_PROXY", "").strip()
+    if not raw:
         return None
+    return raw.removeprefix("ssh://")
 
 
-@pytest.fixture(scope="session")
-def vlan_manager_mod():
-    """Provide the vlan_manager module (session-scoped, loaded once).
+def _run_switch_vlan(args: list[str]) -> bool:
+    """Run ``switch-vlan`` with *args* on the lab host or locally.
 
-    Returns ``None`` if switching is disabled or the package is unavailable;
-    fixtures then skip VLAN commands without requiring ``dut-config.yaml``.
+    Remote (LG_PROXY set): ``ssh <proxy_host> switch-vlan <args...>``
+    Local (no LG_PROXY):   ``switch-vlan <args...>`` if in PATH.
+
+    Returns True on success, False on failure (logged, never raises).
     """
-    if _is_disabled():
-        logger.info("VLAN switching disabled via VLAN_SWITCH_DISABLED (no dut-config required)")
-        return None
-    mod = _try_import_switch_abstraction()
-    if mod is None:
-        logger.warning(
-            "labgrid-switch-abstraction not installed; VLAN switching skipped. "
-            "Install: pip install git+https://github.com/<org>/labgrid-switch-abstraction.git"
-        )
-    return mod
+    proxy = _resolve_proxy_host()
 
+    if proxy:
+        cmd = ["ssh", proxy, "switch-vlan " + " ".join(args)]
+    else:
+        if not shutil.which("switch-vlan"):
+            logger.warning(
+                "switch-vlan not in PATH and LG_PROXY not set; skipping VLAN command"
+            )
+            return False
+        cmd = ["switch-vlan", *args]
 
-def _resolved_dut_config_path() -> Path:
-    """Resolve dut-config.yaml: SWITCH_DUT_CONFIG or package default (usually /etc/testbed)."""
-    from switch_abstraction.constants import default_dut_config_path
-
-    explicit = os.environ.get("SWITCH_DUT_CONFIG", "").strip()
-    if explicit:
-        return Path(os.path.expanduser(explicit))
-    return default_dut_config_path()
-
-
-_MISSING_DUT_CONFIG_HELP = (
-    "Set SWITCH_DUT_CONFIG to a valid dut-config.yaml for labgrid-switch-abstraction, "
-    "or run pytest on the lab host where /etc/testbed/dut-config.yaml is deployed. "
-    "If VLANs are already on the mesh topology and no switch commands are needed, "
-    "use VLAN_SWITCH_DISABLED=1. Config path tried: %s"
-)
-
-
-@pytest.fixture(scope="session")
-def dut_map(vlan_manager_mod):
-    """Load DUT hardware map once per session."""
-    if vlan_manager_mod is None:
-        return {}
-    path = _resolved_dut_config_path()
+    logger.debug("VLAN command: %s", cmd)
     try:
-        return vlan_manager_mod.load_dut_map(path)
-    except FileNotFoundError:
-        pytest.fail(_MISSING_DUT_CONFIG_HELP % path)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=SSH_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("switch-vlan timed out after %ds: %s", SSH_TIMEOUT, cmd)
+        return False
+
+    if result.returncode != 0:
+        logger.error(
+            "switch-vlan failed (rc=%d): %s\nstderr: %s",
+            result.returncode,
+            cmd,
+            result.stderr.strip(),
+        )
+        return False
+
+    logger.debug("switch-vlan stdout: %s", result.stdout.strip())
+    return True
+
+
+def _switch_to_mesh(dut_names: list[str]) -> bool:
+    return _run_switch_vlan([*dut_names, str(VLAN_MESH)])
+
+
+def _restore_vlans(dut_names: list[str]) -> bool:
+    return _run_switch_vlan([*dut_names, "--restore"])
 
 
 @pytest.fixture(autouse=True)
-def mesh_vlan_single(request, vlan_manager_mod, dut_map):
+def mesh_vlan_single(request):
     """Switch DUT port to VLAN 200 for single-node LibreMesh tests.
 
     Activates when LG_PLACE is set and LG_MESH_PLACES is not (mesh tests
     handle their own VLAN switching via mesh_vlan_multi).
     """
-    if _is_disabled() or vlan_manager_mod is None:
+    if _is_disabled():
         yield
         return
 
@@ -120,13 +125,9 @@ def mesh_vlan_single(request, vlan_manager_mod, dut_map):
         return
 
     dut_name = _place_to_dut_name(place)
-    if dut_name not in dut_map:
-        logger.warning("DUT '%s' not in config, skipping VLAN switch", dut_name)
-        yield
-        return
 
     logger.info("Switching DUT '%s' to VLAN %d", dut_name, VLAN_MESH)
-    ok = vlan_manager_mod.set_port_vlan(dut_name, VLAN_MESH, dut_map=dut_map)
+    ok = _switch_to_mesh([dut_name])
     if not ok:
         pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
 
@@ -138,20 +139,17 @@ def mesh_vlan_single(request, vlan_manager_mod, dut_map):
 
     os.environ.pop("TFTP_SERVER_IP", None)
     logger.info("Restoring DUT '%s' to isolated VLAN", dut_name)
-    vlan_manager_mod.restore_port_vlan(dut_name, dut_map=dut_map)
+    _restore_vlans([dut_name])
 
 
 @pytest.fixture(scope="session")
-def mesh_vlan_multi(vlan_manager_mod, dut_map):
+def mesh_vlan_multi():
     """Switch all mesh DUT ports to VLAN 200 for multi-node tests.
 
     Activates based on LG_MESH_PLACES. Session-scoped: switches VLANs once
     for all mesh tests, restores on session teardown.
-
-    Uses batch functions to send all VLAN commands in a single SSH session,
-    avoiding one connection per DUT.
     """
-    if _is_disabled() or vlan_manager_mod is None:
+    if _is_disabled():
         yield []
         return
 
@@ -162,22 +160,16 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
 
     places = [p.strip() for p in places_str.split(",") if p.strip()]
     dut_names = [_place_to_dut_name(p) for p in places]
-    valid_duts = [d for d in dut_names if d in dut_map]
-
-    if not valid_duts:
-        logger.warning("No mesh DUTs found in config, skipping VLAN switch")
-        yield dut_names
-        return
 
     logger.info(
-        "Switching %d mesh DUTs to VLAN %d in batch: %s",
-        len(valid_duts),
+        "Switching %d mesh DUTs to VLAN %d: %s",
+        len(dut_names),
         VLAN_MESH,
-        valid_duts,
+        dut_names,
     )
-    ok = vlan_manager_mod.set_ports_vlan_batch(valid_duts, VLAN_MESH, dut_map=dut_map)
+    ok = _switch_to_mesh(dut_names)
     if not ok:
-        pytest.fail(f"Batch VLAN switch to {VLAN_MESH} failed for DUTs: {valid_duts}")
+        pytest.fail(f"VLAN switch to {VLAN_MESH} failed for DUTs: {dut_names}")
 
     mesh_tftp_ip = os.environ.get("LG_MESH_TFTP_IP", MESH_TFTP_IP_DEFAULT)
     os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
@@ -186,5 +178,5 @@ def mesh_vlan_multi(vlan_manager_mod, dut_map):
     yield dut_names
 
     os.environ.pop("TFTP_SERVER_IP", None)
-    logger.info("Restoring %d mesh DUTs to isolated VLANs in batch", len(valid_duts))
-    vlan_manager_mod.restore_ports_vlan_batch(valid_duts, dut_map=dut_map)
+    logger.info("Restoring %d mesh DUTs to isolated VLANs", len(dut_names))
+    _restore_vlans(dut_names)
