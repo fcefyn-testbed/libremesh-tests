@@ -1,40 +1,86 @@
 # Switch abstraction - dynamic VLAN switching
 
-Optional integration with [labgrid-switch-abstraction](https://github.com/fcefyn-testbed/labgrid-switch-abstraction) for dynamic per-port VLAN management during multi-node tests.
+Optional integration with the `switch-vlan` CLI from
+[labgrid-switch-abstraction](https://github.com/fcefyn-testbed/labgrid-switch-abstraction)
+for dynamic per-port VLAN management during multi-node tests.
 
-When enabled, test fixtures reconfigure the managed switch before tests (moving DUTs to a shared VLAN) and restore the original topology afterward. This is **opt-in**: labs without managed switches can skip it.
+When enabled, the `shared_vlan_multi` fixture (session-scoped) reconfigures
+the managed switch before the test (moving all listed DUTs to a shared VLAN)
+and restores the original topology on teardown. This is **opt-in**: labs
+without a managed switch can ignore it entirely.
 
-## Setup
+## Where `switch-vlan` runs
 
-1. Install the dependency:
+The fixture invokes the `switch-vlan` CLI via subprocess. Two execution modes:
 
-```bash
-pip install .[switch]
-```
+| `LG_PROXY` | Command runs on            | What you need locally                                                  |
+|------------|----------------------------|------------------------------------------------------------------------|
+| Set        | The proxy/lab host via SSH | Just SSH access (no switch credentials, no `switch-vlan` install)      |
+| Unset      | Current host               | `switch-vlan` in PATH and a configured `switch.conf` / `dut-config.yaml` |
 
-2. Configure the switch credentials and DUT hardware map on the lab host. See the [labgrid-switch-abstraction README](https://github.com/fcefyn-testbed/labgrid-switch-abstraction#readme) for full configuration reference (`switch.conf`, `dut-config.yaml`).
+Remote developers therefore **do not need switch credentials** or any
+switch-related install: the lab host owns the credentials, and the fixture
+tunnels the command over SSH transparently.
 
-3. Enable VLAN switching:
+## Setup (lab host only)
 
-```bash
-export VLAN_SWITCH_ENABLED=1
-```
+1. Install
+   [labgrid-switch-abstraction](https://github.com/fcefyn-testbed/labgrid-switch-abstraction)
+   on the lab host. This installs the `switch-vlan` CLI.
 
-Without this variable (or set to `0`), VLAN switching is completely skipped.
+2. Configure `~/.config/switch.conf` (or `/etc/switch.conf` for multi-user
+   labs) with the switch credentials, and `dut-config.yaml` with the
+   DUT-to-port map. See the
+   [labgrid-switch-abstraction README](https://github.com/fcefyn-testbed/labgrid-switch-abstraction#readme)
+   for the full reference.
 
-## How it works
+3. Verify on the lab host:
 
-When `LG_MULTI_PLACES` is set, the `shared_vlan_multi` fixture (session-scoped) switches all listed DUT ports to the shared VLAN (`switch.vlan_topology` from `dut-config.yaml`, default 200) in a single SSH session. Isolated VLANs are restored on teardown.
+   ```bash
+   switch-vlan --help
+   ```
+
+## Setup (test runner)
+
+1. Enable VLAN switching:
+
+   ```bash
+   export VLAN_SWITCH_ENABLED=1
+   ```
+
+   Without this variable (or set to `0`), the fixture is a no-op.
+
+2. List the DUTs participating in the multi-node test:
+
+   ```bash
+   export LG_MULTI_PLACES="labgrid-mylab-router_1,labgrid-mylab-router_2"
+   ```
+
+3. (Remote runs only) Set `LG_PROXY` to reach the lab host:
+
+   ```bash
+   export LG_PROXY=labgrid-mylab
+   ```
+
+That is all. The fixture handles the rest.
+
+## Optional configuration
+
+| Env var          | Purpose                                                  | Default                              |
+|------------------|----------------------------------------------------------|--------------------------------------|
+| `VLAN_SHARED`    | Target VLAN ID for the multi-node test                   | 200                                  |
+| `PLACE_PREFIX`   | Prefix to strip from place names to derive DUT names     | unset (strip up to second hyphen)    |
 
 ## Place name mapping
 
-DUT names are extracted from labgrid place names by stripping the lab prefix (everything up to the second hyphen):
+DUT names passed to `switch-vlan` are derived from labgrid place names. By
+default, everything up to and including the second hyphen is stripped:
 
 ```
 labgrid-mylab-router_1  ->  router_1
 ```
 
-Override with `PLACE_PREFIX` env var if the lab uses a different convention:
+Override with `PLACE_PREFIX` if your lab uses a different convention:
 
 ```bash
 export PLACE_PREFIX="labgrid-mylab-"
