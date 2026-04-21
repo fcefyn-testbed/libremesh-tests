@@ -19,6 +19,9 @@ DEFAULT_UBOOT_RETRY_COOLDOWN = 5
 DEFAULT_UBOOT_RETRY_BUDGET = 360
 SERIAL_DRAIN_CHUNK = 4096
 SERIAL_DRAIN_TIMEOUT = 0.5
+SERIAL_DRAIN_TOTAL_MAX = 3.0
+DEFAULT_UBOOT_INTERRUPT_SPAM_SEC = 12.0
+DEFAULT_UBOOT_INTERRUPT_SPAM_INTERVAL = 0.05
 
 
 class Status(enum.Enum):
@@ -43,6 +46,26 @@ def _read_int_env(name: str, default: int) -> int:
     if value < 0:
         logger.warning(
             "Negative integer for %s=%r, using default %d", name, raw, default
+        )
+        return default
+    return value
+
+
+def _read_float_env(name: str, default: float) -> float:
+    """Return a non-negative float from the environment."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid float for %s=%r, using default %.3f", name, raw, default
+        )
+        return default
+    if value < 0:
+        logger.warning(
+            "Negative float for %s=%r, using default %.3f", name, raw, default
         )
         return default
     return value
@@ -195,9 +218,15 @@ class UBootTFTPStrategy(Strategy):
         return effective
 
     def _drain_serial_buffer(self):
-        """Consume stale data from the pexpect buffer after a power cycle."""
+        """Consume stale data from the pexpect buffer after a power cycle.
+
+        Bounded by SERIAL_DRAIN_TOTAL_MAX so that a DUT which ended up
+        booting into Linux (continuous serial output) does not block
+        the strategy indefinitely.
+        """
+        deadline = time.monotonic() + SERIAL_DRAIN_TOTAL_MAX
         try:
-            while True:
+            while time.monotonic() < deadline:
                 data = self.console.read(
                     size=SERIAL_DRAIN_CHUNK, timeout=SERIAL_DRAIN_TIMEOUT
                 )
@@ -205,6 +234,53 @@ class UBootTFTPStrategy(Strategy):
                     break
         except Exception:
             pass
+
+    def _spam_uboot_interrupt(self):
+        """Blast the U-Boot interrupt byte at a steady rate right after power-up.
+
+        Rationale: when the serial console is proxied over a high-latency SSH
+        tunnel (e.g. remote developer running via labgrid-coordinator
+        ProxyJump + WireGuard), labgrid's pattern-match on the autoboot string
+        can react too late and U-Boot auto-boots the kernel. The UBootDriver
+        then waits up to login_timeout seconds for a prompt that will never
+        appear and fails with TIMEOUT.
+
+        Writing the interrupt character continuously during the expected
+        autoboot window lands the stop signal inside U-Boot regardless of
+        jitter. Bytes at the U-Boot prompt are harmless (they produce empty
+        command echoes that are consumed by the next expect).
+
+        Opt-out with LG_MESH_UBOOT_INTERRUPT_SPAM_SEC=0.
+        """
+        duration = _read_float_env(
+            "LG_MESH_UBOOT_INTERRUPT_SPAM_SEC", DEFAULT_UBOOT_INTERRUPT_SPAM_SEC
+        )
+        if duration <= 0:
+            return
+
+        interval = _read_float_env(
+            "LG_MESH_UBOOT_INTERRUPT_SPAM_INTERVAL",
+            DEFAULT_UBOOT_INTERRUPT_SPAM_INTERVAL,
+        )
+        raw_char = getattr(self.uboot, "interrupt", None) or "\n"
+        interrupt_bytes = raw_char.encode("ASCII")
+
+        logger.info(
+            "Spamming U-Boot interrupt for %.1fs (interval=%.3fs)",
+            duration,
+            interval,
+        )
+        deadline = time.monotonic() + duration
+        writes = 0
+        while time.monotonic() < deadline:
+            try:
+                self.console.write(interrupt_bytes)
+                writes += 1
+            except Exception:
+                logger.debug("U-Boot interrupt spam write failed", exc_info=True)
+                break
+            time.sleep(interval)
+        logger.debug("U-Boot interrupt spam sent %d writes", writes)
 
     def _transition_to_uboot_once(self):
         """Power-cycle the node and activate the U-Boot console."""
@@ -217,6 +293,17 @@ class UBootTFTPStrategy(Strategy):
         self.target.activate(self.console)
 
         self.power.cycle()
+        # ORDER MATTERS: spam BEFORE drain.
+        # The DUT begins producing serial output immediately after
+        # power-on. If we drain first, the drain blocks for as long as
+        # the DUT keeps talking (boot banner, Linux bootlog, etc.),
+        # which on a jittery tunnel can take 15-20 s. By then the
+        # U-Boot autoboot window (~1-3 s post power-on) has closed and
+        # the kernel is booting. Spamming first ensures our interrupt
+        # bytes hit the serial inside that narrow window; the drain
+        # afterwards consumes our own echoes and the boot banner so
+        # that pexpect's buffer is clean when _await_prompt() runs.
+        self._spam_uboot_interrupt()
         self._drain_serial_buffer()
 
         self._prepare_uboot_commands(staged_file, tftp_server_ip)
