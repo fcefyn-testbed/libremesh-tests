@@ -7,7 +7,7 @@ LibreMesh tests, and restores them on teardown.
 VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction):
 
 - **Remote first**: if ``LG_PROXY`` is set, the command is sent via SSH to the
-  proxy host (developer laptop scenario). The lab host owns the switch
+  proxy host (developer machine scenario). The lab host owns the switch
   credentials and dut-config, so VLAN changes always run there.
 - **Local fallback**: if ``LG_PROXY`` is NOT set, ``switch-vlan`` runs locally
   (lab host, CI runner). Requires ``switch-vlan`` in PATH and a configured
