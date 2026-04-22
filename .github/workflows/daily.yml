@@ -286,6 +286,21 @@ jobs:
           name: results-${{ matrix.device }}-${{ matrix.version_name }}
           path: ${{ matrix.device }}-${{ matrix.version_name }}/*
 
+      - name: Publish results to R2
+        if: always() && env.SKIP_TEST != 'true' && env.FIRMWARE_VERSION != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          aws s3 sync \
+            --endpoint-url "${{ secrets.R2_ENDPOINT_URL }}" \
+            "${{ matrix.device }}-${{ matrix.version_name }}/" \
+            "s3://${{ secrets.R2_BUCKET }}/${{ matrix.version_name }}/$FIRMWARE_VERSION/${{ matrix.device }}/"
+
   test-qemu:
     name: QEMU ${{ matrix.target }} (${{ matrix.version_name }})
     needs: generate-matrix
@@ -385,6 +400,21 @@ jobs:
         with:
           name: results-qemu_${{ matrix.target }}-${{ matrix.version_name }}
           path: ${{ matrix.target }}-${{ matrix.version_name }}/*
+
+      - name: Publish results to R2
+        if: always() && env.SKIP_TEST != 'true' && env.FIRMWARE_VERSION != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          aws s3 sync \
+            --endpoint-url "${{ secrets.R2_ENDPOINT_URL }}" \
+            "${{ matrix.target }}-${{ matrix.version_name }}/" \
+            "s3://${{ secrets.R2_BUCKET }}/${{ matrix.version_name }}/$FIRMWARE_VERSION/qemu_${{ matrix.target }}/"
 
   results:
     name: Deploy results page
