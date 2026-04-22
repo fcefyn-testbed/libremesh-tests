@@ -12,7 +12,7 @@ targets:
       SerialDriver:
         txdelay: 0.01
       ShellDriver:
-        prompt: 'root@[\w\-()]+:[^ ]+ '
+        prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@.*?[#$] "
         login_prompt: Please press Enter to activate this console.
         await_login_timeout: 15
         login_timeout: 120

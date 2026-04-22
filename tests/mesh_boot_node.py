@@ -48,6 +48,9 @@ DEFAULT_BOOT_ATTEMPTS = 3
 DEFAULT_RETRY_COOLDOWN = 8
 DEFAULT_COORDINATOR = "localhost:20408"
 EXCEPTION_SUMMARY_MAX_LEN = 240
+CONSOLE_DUMP_READ_CHUNK = 8192
+CONSOLE_DUMP_READ_TIMEOUT = 1.0
+CONSOLE_DUMP_TOTAL_MAX_SEC = 3.0
 STOP_REQUESTED = False
 
 
@@ -144,6 +147,149 @@ def _raise_stage_failure(stage: str, exc: Exception, retriable: bool) -> None:
     ) from exc
 
 
+def _decode_console_bytes(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8", errors="replace")
+    except Exception:
+        return repr(raw)
+
+
+def _collect_pexpect_unmatched(strategy) -> bytes:
+    """Return the bytes pexpect received but did not match at the failure point.
+
+    Labgrid console drivers hold a pexpect instance at ``console._expect``
+    that exposes ``before`` (pre-match/timeout content) and ``buffer`` (lookahead
+    buffer). Both together give the last thing the DUT actually printed before
+    ShellDriver._await_login ran out of time. This is the data that matters,
+    not new bytes, because after the timeout the DUT may be idle (askfirst
+    consoles on Belkin-class devices wait silently for Enter).
+    """
+    console = getattr(strategy, "console", None)
+    if console is None:
+        return b""
+    expect_obj = getattr(console, "_expect", None)
+    if expect_obj is None:
+        return b""
+    parts = []
+    for attr in ("before", "buffer"):
+        value = getattr(expect_obj, attr, None)
+        if not value:
+            continue
+        if isinstance(value, str):
+            value = value.encode("utf-8", errors="replace")
+        parts.append(value)
+    return b"".join(parts)
+
+
+def _drain_console_new_bytes(strategy) -> bytes:
+    """Drain any bytes still flowing from the DUT after the failure."""
+    console = getattr(strategy, "console", None)
+    if console is None:
+        return b""
+    deadline = time.monotonic() + CONSOLE_DUMP_TOTAL_MAX_SEC
+    chunks = []
+    try:
+        while time.monotonic() < deadline:
+            data = console.read(
+                size=CONSOLE_DUMP_READ_CHUNK, timeout=CONSOLE_DUMP_READ_TIMEOUT
+            )
+            if not data:
+                break
+            chunks.append(data)
+    except Exception:
+        logger.debug("Console new-bytes drain failed", exc_info=True)
+    return b"".join(chunks)
+
+
+def _hex_dump_tail(raw: bytes, max_bytes: int = 512) -> str:
+    """Return a human-readable hex+ASCII dump of the last bytes of raw."""
+    tail = raw[-max_bytes:]
+    lines = []
+    for off in range(0, len(tail), 16):
+        chunk = tail[off : off + 16]
+        hex_part = " ".join(f"{b:02x}" for b in chunk)
+        ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+        lines.append(f"{off:04x}  {hex_part:<48}  {ascii_part}")
+    return "\n".join(lines)
+
+
+def _probe_shell_prompt(strategy, raw: bytes) -> str:
+    """Apply the ShellDriver prompt regex to the captured buffer ourselves.
+
+    If labgrid's own _await_login could not match the prompt inside the buffer
+    but our manual compile does, the mismatch points to an environment-level
+    issue (buffer reset, driver races, encoding) rather than a bad pattern.
+    """
+    try:
+        target = getattr(strategy, "target", None)
+        if target is None:
+            return "no target"
+        shell = target.get_driver("ShellDriver", activate=False)
+        pattern = getattr(shell, "prompt", None)
+        if not pattern:
+            return "no prompt attribute"
+        import re
+
+        compiled = re.compile(pattern.encode() if isinstance(pattern, str) else pattern)
+        matches = list(compiled.finditer(raw))
+        if not matches:
+            return f"pattern={pattern!r} -> NO MATCH in {len(raw)} bytes"
+        last = matches[-1]
+        return (
+            f"pattern={pattern!r} -> {len(matches)} matches; "
+            f"last at offset {last.start()}..{last.end()}: {last.group()!r}"
+        )
+    except Exception as exc:
+        return f"probe failed: {type(exc).__name__}: {exc}"
+
+
+def _dump_console_tail(strategy, place: str, stage: str) -> None:
+    """Dump both the pexpect-unmatched buffer and any still-arriving bytes.
+
+    When activate_shell times out on a remote tunnel, the immediately useful
+    diagnostic is what the DUT actually printed before we gave up. Pexpect
+    keeps that as ``before`` after a TIMEOUT; the post-mortem drain captures
+    any late output that arrived during our sampling window.
+
+    Also emits a hex dump of the last bytes and a manual re-apply of the
+    ShellDriver prompt regex, so invisible-byte mismatches (ANSI codes,
+    encoding, non-breaking spaces) become visible. Best-effort: failures
+    here must not mask the original boot failure.
+    """
+    unmatched = _collect_pexpect_unmatched(strategy)
+    new_bytes = _drain_console_new_bytes(strategy)
+    if not unmatched and not new_bytes:
+        logger.info("=== Console tail for %s at %s: (empty) ===", place, stage)
+        return
+    if unmatched:
+        logger.info(
+            "=== Pexpect unmatched for %s at %s (%d bytes) ===\n%s\n=== End unmatched ===",
+            place,
+            stage,
+            len(unmatched),
+            _decode_console_bytes(unmatched),
+        )
+        logger.info(
+            "=== Unmatched tail hex (%d bytes) for %s ===\n%s\n=== End hex ===",
+            min(len(unmatched), 512),
+            place,
+            _hex_dump_tail(unmatched),
+        )
+        logger.info(
+            "=== ShellDriver prompt probe for %s: %s ===",
+            place,
+            _probe_shell_prompt(strategy, unmatched),
+        )
+    if new_bytes:
+        logger.info(
+            "=== Post-timeout console for %s at %s (%d bytes) ===\n%s\n=== End post-timeout ===",
+            place,
+            stage,
+            len(new_bytes),
+            _decode_console_bytes(new_bytes),
+        )
+
+
 def _patch_reg_driver_idempotent():
     """Make target_factory.reg_driver idempotent for multiple Environment objects."""
     from labgrid.factory import target_factory
@@ -192,6 +338,7 @@ def _boot_node_once(place: str, target, strategy) -> dict:
     try:
         strategy.activate_shell()
     except Exception as exc:
+        _dump_console_tail(strategy, place, "activate_shell")
         _raise_stage_failure("activate_shell", exc, retriable=True)
 
     logger.info("Shell ready on %s", place)
