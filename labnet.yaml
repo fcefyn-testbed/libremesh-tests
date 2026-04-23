@@ -120,3 +120,5 @@ developers:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDhbJDeGBfpn8vkd1wjHgOWvN9WGWS3mRgqqFqNqgpNE
   francoriba:
     sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaNY9LyGgQlwlMaWxSWq5xD++UGCJtdqxHPHDADFACi
+  ccasanueva7:
+    sshkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGU6y86ePObsJEDXpWjoxAYJXUDD/CPLe2MDwi5e39Zu
