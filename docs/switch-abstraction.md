@@ -24,9 +24,10 @@ tunnels the command over SSH transparently.
 
 ## Setup (lab host only)
 
-1. Install
-   [labgrid-switch-abstraction](https://github.com/fcefyn-testbed/labgrid-switch-abstraction)
-   on the lab host. This installs the `switch-vlan` CLI.
+1. Run the `playbook_labgrid.yml` playbook. The `switch-vlan` CLI is
+   installed via pipx alongside `labgrid` and `usbsdmux`; no manual pip
+   step is required. Labs without a managed switch can ignore the next
+   step and the CLI will simply stay unused.
 
 2. Configure `~/.config/switch.conf` (or `/etc/switch.conf` for multi-user
    labs) with the switch credentials, and `dut-config.yaml` with the
