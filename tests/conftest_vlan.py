@@ -21,6 +21,15 @@ For mesh tests: uses LG_MESH_PLACES (comma-separated) to switch all nodes.
 
 Set VLAN_SWITCH_DISABLED=1 to skip VLAN switching (e.g. when switch is
 already configured manually or running in mesh-only mode).
+
+Place-to-DUT mapping
+--------------------
+
+The DUT name passed to ``switch-vlan`` is derived from the labgrid place
+name. The default prefix is ``labgrid-fcefyn-`` (FCEFyN lab convention).
+Labs using a different naming scheme can override with ``PLACE_PREFIX``
+(empty string disables and falls back to stripping up to the second
+hyphen, so ``labgrid-<lab>-<dut>`` -> ``<dut>``).
 """
 
 import logging
@@ -34,15 +43,29 @@ logger = logging.getLogger(__name__)
 
 VLAN_MESH = 200
 MESH_TFTP_IP_DEFAULT = "192.168.200.1"
-PLACE_PREFIX = "labgrid-fcefyn-"
+DEFAULT_PLACE_PREFIX = "labgrid-fcefyn-"
 
 SSH_TIMEOUT = 30
 
 
 def _place_to_dut_name(place: str) -> str:
-    """Extract DUT name from labgrid place name."""
-    if place.startswith(PLACE_PREFIX):
-        return place[len(PLACE_PREFIX) :]
+    """Map a labgrid place name to the DUT name expected by ``switch-vlan``.
+
+    Resolution order:
+    1. ``PLACE_PREFIX`` env var (explicit override; empty string disables).
+    2. Default prefix ``labgrid-fcefyn-`` (FCEFyN lab convention).
+    3. Fallback: strip everything up to and including the second hyphen
+       (``labgrid-<lab>-<dut>`` -> ``<dut>``).
+    """
+    prefix_env = os.environ.get("PLACE_PREFIX")
+    prefix = prefix_env if prefix_env is not None else DEFAULT_PLACE_PREFIX
+
+    if prefix and place.startswith(prefix):
+        return place[len(prefix) :]
+
+    parts = place.split("-", 2)
+    if len(parts) == 3:
+        return parts[2]
     return place
 
 
