@@ -21,6 +21,8 @@ uv sync
 
 **Dynamic VLAN switching:** LibreMesh tests that need mesh VLAN (200) run `switch-vlan` on the **lab host** via SSH (the same host as `LG_PROXY`). No local `dut-config.yaml` or `labgrid-switch-abstraction` install is needed on the developer machine - only on the lab host. If VLANs are already correct, `VLAN_SWITCH_DISABLED=1` skips switch commands.
 
+Place-to-DUT name mapping defaults to the FCEFyN convention (strips `labgrid-fcefyn-`). For other labs, override with `PLACE_PREFIX` (e.g. `export PLACE_PREFIX="labgrid-mylab-"`, or `PLACE_PREFIX=""` to fall back to stripping up to the second hyphen).
+
 Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in **openwrt-tests** and **fcefyn_testbed_utils**; this repo does not ship `ansible/`.
 
 ## Targets shipped here
