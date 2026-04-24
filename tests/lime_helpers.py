@@ -482,14 +482,17 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
                     logger.warning(
                         "resolve_target_yaml: %s not declared in top-level "
                         "'devices' of %s, using fallback %s",
-                        base_device, labnet_path, fallback,
+                        base_device,
+                        labnet_path,
+                        fallback,
                     )
                     return str(fallback)
 
     targets_dir = repo_root / "targets"
     available = (
         sorted(p.name for p in targets_dir.glob("*.yaml"))
-        if targets_dir.is_dir() else []
+        if targets_dir.is_dir()
+        else []
     )
     base_in_devices = (
         matched_base_device in labnet.get("devices", {})
