@@ -3,10 +3,10 @@ import subprocess
 from collections import defaultdict
 
 
-def test_ssh_supported_algorithms(ssh_command):
+def test_ssh_supported_algorithms(ssh_command, results_bag):
     with ssh_command.forward_local_port(22) as localport:
         output = subprocess.check_output(
-            f"nmap --script ssh2-enum-algos -sV -p {localport} localhost",
+            f"nmap --script ssh2-enum-algos -sV -p {localport} 127.0.0.1",
             text=True,
             shell=True,
         )
@@ -29,8 +29,8 @@ def test_ssh_supported_algorithms(ssh_command):
                 algorithms[current_category].append(match.group("algorithm").strip())
 
         algorithms = dict(algorithms)
+        results_bag["algorithms"] = algorithms
 
-        print(algorithms)
         assert "curve25519-sha256" in algorithms["kex_algorithms"]
         assert "curve25519-sha256@libssh.org" in algorithms["kex_algorithms"]
         assert "diffie-hellman-group14-sha256" in algorithms["kex_algorithms"]
@@ -45,5 +45,3 @@ def test_ssh_supported_algorithms(ssh_command):
         assert "aes256-ctr" in algorithms["encryption_algorithms"]
 
         assert "hmac-sha2-256" in algorithms["mac_algorithms"]
-
-        print(algorithms)

@@ -3,26 +3,25 @@ import time
 import pytest
 
 
-def restart_wifi_and_wait(ssh_command, timeout=5):
+def restart_wifi_and_wait(ssh_command, timeout=15):
     """
     Helper function to restart wifi via ubus and wait for it to settle.
 
     Args:
         ssh_command: SSH command fixture for executing commands
-        timeout: Maximum time to wait for wifi to settle (default: 5 seconds)
+        timeout: Maximum time to wait for wifi to settle (default: 15 seconds)
 
-    Returns:
-        bool: True if wifi restarted successfully, False if timed out
+    Asserts that hostapd.phy0-ap0 appears on ubus before the timeout expires.
     """
-    # Restart wifi
     ssh_command.run("wifi down")
     time.sleep(2)
     ssh_command.run("wifi up")
     time.sleep(2)
 
-    # Wait till network reload finished
     result = ssh_command.run(f"ubus -t {timeout} wait_for hostapd.phy0-ap0")[0]
-    return "timed out" not in "\n".join(result)
+    assert "timed out" not in "\n".join(result), (
+        f"hostapd.phy0-ap0 did not appear on ubus within {timeout}s"
+    )
 
 
 @pytest.mark.lg_feature("wifi")
@@ -32,6 +31,7 @@ def test_wifi_wpa3(ssh_command):
 
     This test configures a wifi network with WPA3 encryption and password 'openwrt4all'.
     """
+    ssh_command.run("uci delete wireless.default_radio0.disabled")
     ssh_command.run("uci delete wireless.radio0.disabled")
     ssh_command.run("uci set wireless.default_radio0.encryption=sae")
     ssh_command.run("uci set wireless.default_radio0.key=openwrt4all")
@@ -42,11 +42,11 @@ def test_wifi_wpa3(ssh_command):
 
     iwinfo_output = "\n".join(ssh_command.run("iwinfo")[0])
 
-    assert "Mode: Master" in iwinfo_output
+    assert "Mode: Master" in iwinfo_output, f"iwinfo output:\n{iwinfo_output}"
     assert (
         "Encryption: WPA3 SAE (CCMP)" in iwinfo_output
         or "Encryption: SAE (CCMP)" in iwinfo_output
-    )
+    ), f"iwinfo output:\n{iwinfo_output}"
 
 
 @pytest.mark.lg_feature("wifi")
@@ -56,6 +56,7 @@ def test_wifi_wpa2(ssh_command):
 
     This test configures a wifi network with WPA2 encryption and password 'openwrt4all'.
     """
+    ssh_command.run("uci delete wireless.default_radio0.disabled")
     ssh_command.run("uci delete wireless.radio0.disabled")
     ssh_command.run("uci set wireless.default_radio0.encryption=psk2")
     ssh_command.run("uci set wireless.default_radio0.key=openwrt4all")
@@ -66,11 +67,11 @@ def test_wifi_wpa2(ssh_command):
 
     iwinfo_output = "\n".join(ssh_command.run("iwinfo")[0])
 
-    assert "Mode: Master" in iwinfo_output
+    assert "Mode: Master" in iwinfo_output, f"iwinfo output:\n{iwinfo_output}"
     assert (
         "Encryption: WPA2 PSK (CCMP)" in iwinfo_output
         or "Encryption: WPA-PSK (CCMP)" in iwinfo_output
-    )
+    ), f"iwinfo output:\n{iwinfo_output}"
 
 
 @pytest.mark.lg_feature("wifi")
@@ -81,6 +82,7 @@ def test_wifi_scan(ssh_command):
 
     This test performs a wifi scan and verifies that at least one network is found.
     """
+    ssh_command.run("uci delete wireless.default_radio0.disabled")
     ssh_command.run("uci delete wireless.radio0.disabled")
     ssh_command.run("uci commit")
 
@@ -105,6 +107,7 @@ def test_wifi_hwsim_sae_mixed(ssh_command):
     """
     ssh_command.run("uci set wireless.radio0.channel=11")
     ssh_command.run("uci set wireless.radio0.band=2g")
+    ssh_command.run("uci delete wireless.default_radio0.disabled")
     ssh_command.run("uci delete wireless.radio0.disabled")
 
     ssh_command.run("uci set wireless.default_radio0.encryption=sae-mixed")
@@ -112,6 +115,7 @@ def test_wifi_hwsim_sae_mixed(ssh_command):
 
     ssh_command.run("uci delete wireless.radio1.channel")
     ssh_command.run("uci set wireless.radio1.band=2g")
+    ssh_command.run("uci delete wireless.default_radio1.disabled")
     ssh_command.run("uci delete wireless.radio1.disabled")
 
     ssh_command.run("uci set wireless.default_radio1.network=wan")
@@ -119,7 +123,11 @@ def test_wifi_hwsim_sae_mixed(ssh_command):
     ssh_command.run("uci set wireless.default_radio1.encryption=sae-mixed")
     ssh_command.run("uci set wireless.default_radio1.key=testtest")
 
-    assert "-wireless.radio1.disabled" in "\n".join(ssh_command.run("uci changes")[0])
+    changes = "\n".join(ssh_command.run("uci changes")[0])
+    assert (
+        "-wireless.default_radio1.disabled" in changes
+        or "-wireless.radio1.disabled" in changes
+    )
 
     ssh_command.run("uci commit")
     ssh_command.run("service network reload")

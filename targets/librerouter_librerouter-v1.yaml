@@ -1,7 +1,7 @@
 openwrt:
-  name: Bananapi BPi-R64
-  target: mediatek-mt7622
-  profile: bananapi_bpi-r64
+  name: LibreRouter v1
+  target: ath79-generic
+  profile: librerouter_librerouter-v1
 targets:
   main:
     features:
@@ -16,11 +16,11 @@ targets:
       - SerialDriver:
           txdelay: 0.01
       - UBootDriver:
-          interrupt: "\\x0"
-          prompt: "MT7622>"
+          interrupt: "\n"
+          prompt: "ath>"
           init_commands:
-            - dhcp
-          boot_command: bootm $loadaddr#$bootconf
+            - tftp 0x82000000
+          boot_command: bootm 0x82000000
       - ShellDriver:
           prompt: 'root@[\w()]+:[^ ]+ '
           login_prompt: Please press Enter to activate this console.

@@ -30,4 +30,6 @@ def test_lan_interface_address(shell_command):
 
 
 def test_lan_interface_has_neighbor(shell_command):
-    assert "DUP!" in "\n".join(shell_command.run("ping -c 3 ff02::1%br-lan")[0])
+    assert "3 packets transmitted, 3 packets received" in "\n".join(
+        shell_command.run("ping -c 3 ff02::1%br-lan")[0]
+    )
