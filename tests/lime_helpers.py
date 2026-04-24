@@ -436,8 +436,11 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
     """Resolve the target YAML path for a labgrid place via labnet.yaml.
 
     The place name format is ``<lab>-<host>-<device_instance>``.  The function
-    looks up the device instance in ``labnet.yaml`` (direct match first, then
-    via the lab's ``device_instances`` mapping).
+    looks up the device instance in ``labnet.yaml`` using three strategies:
+
+    1. Top-level ``devices`` section (legacy format with device metadata).
+    2. Lab ``device_instances`` mapping (instance → base device).
+    3. Lab ``devices`` list (device name matches target YAML directly).
 
     Returns an absolute path string to the target YAML, or raises
     ``FileNotFoundError`` if no match is found.
@@ -456,8 +459,10 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
     with open(labnet_path) as f:
         labnet = yaml.safe_load(f)
 
-    if device_instance in labnet.get("devices", {}):
-        device_config = labnet["devices"][device_instance]
+    top_devices = labnet.get("devices", {})
+
+    if device_instance in top_devices:
+        device_config = top_devices[device_instance]
         target_name = device_config.get("target_file", device_instance)
         target_file = repo_root / f"targets/{target_name}.yaml"
         if target_file.exists():
@@ -471,36 +476,33 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
             if device_instance in instances:
                 matched_base_device = base_device
                 matched_lab = lab_name
-                if base_device in labnet.get("devices", {}):
-                    device_config = labnet["devices"][base_device]
+                if base_device in top_devices:
+                    device_config = top_devices[base_device]
                     target_name = device_config.get("target_file", base_device)
                     target_file = repo_root / f"targets/{target_name}.yaml"
                     if target_file.exists():
                         return str(target_file)
                 fallback = repo_root / f"targets/{base_device}.yaml"
                 if fallback.exists():
-                    logger.warning(
-                        "resolve_target_yaml: %s not declared in top-level "
-                        "'devices' of %s, using fallback %s",
-                        base_device, labnet_path, fallback,
-                    )
                     return str(fallback)
+
+    for lab_name, lab_config in labnet.get("labs", {}).items():
+        lab_devices = lab_config.get("devices", [])
+        if device_instance in lab_devices:
+            target_file = repo_root / f"targets/{device_instance}.yaml"
+            if target_file.exists():
+                return str(target_file)
+            matched_lab = lab_name
 
     targets_dir = repo_root / "targets"
     available = (
         sorted(p.name for p in targets_dir.glob("*.yaml"))
         if targets_dir.is_dir() else []
     )
-    base_in_devices = (
-        matched_base_device in labnet.get("devices", {})
-        if matched_base_device
-        else None
-    )
     raise FileNotFoundError(
         f"No target YAML found for place {place_name} "
         f"(instance: {device_instance}, "
-        f"matched_lab={matched_lab}, base_device={matched_base_device}, "
-        f"base_in_top_level_devices={base_in_devices}). "
+        f"matched_lab={matched_lab}, base_device={matched_base_device}). "
         f"repo_root={repo_root}, labnet={labnet_path}, "
         f"available targets: {available}"
     )
