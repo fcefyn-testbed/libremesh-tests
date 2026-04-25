@@ -45,7 +45,8 @@ VLAN_MESH = 200
 MESH_TFTP_IP_DEFAULT = "192.168.200.1"
 DEFAULT_PLACE_PREFIX = "labgrid-fcefyn-"
 
-SSH_TIMEOUT = 30
+SWITCH_TIMEOUT_BASE = 30
+SWITCH_TIMEOUT_PER_DUT = 10
 
 
 def _place_to_dut_name(place: str) -> str:
@@ -81,7 +82,17 @@ def _resolve_proxy_host() -> str | None:
     return raw.removeprefix("ssh://")
 
 
-def _run_switch_vlan(args: list[str]) -> bool:
+def _switch_timeout(num_duts: int) -> int:
+    """Compute timeout proportional to DUT count.
+
+    TP-Link JetStream switches process CLI commands slowly (~0.5-1s each).
+    With ~5 commands per DUT plus connection setup and config save,
+    a fixed 30s timeout is insufficient for batch operations.
+    """
+    return SWITCH_TIMEOUT_BASE + SWITCH_TIMEOUT_PER_DUT * max(num_duts, 1)
+
+
+def _run_switch_vlan(args: list[str], *, num_duts: int = 1) -> bool:
     """Run ``switch-vlan`` via SSH to LG_PROXY, or locally if no proxy is set.
 
     Rationale: ``LG_PROXY`` indicates the lab is at a remote host, so the VLAN
@@ -102,13 +113,14 @@ def _run_switch_vlan(args: list[str]) -> bool:
         )
         return False
 
-    logger.debug("VLAN command: %s", cmd)
+    timeout = _switch_timeout(num_duts)
+    logger.debug("VLAN command (timeout=%ds): %s", timeout, cmd)
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=SSH_TIMEOUT,
+            cmd, capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        logger.error("switch-vlan timed out after %ds: %s", SSH_TIMEOUT, cmd)
+        logger.error("switch-vlan timed out after %ds: %s", timeout, cmd)
         return False
 
     if result.returncode != 0:
@@ -136,11 +148,11 @@ def _run_switch_vlan(args: list[str]) -> bool:
 
 
 def _switch_to_mesh(dut_names: list[str]) -> bool:
-    return _run_switch_vlan([*dut_names, str(VLAN_MESH)])
+    return _run_switch_vlan([*dut_names, str(VLAN_MESH)], num_duts=len(dut_names))
 
 
 def _restore_vlans(dut_names: list[str]) -> bool:
-    return _run_switch_vlan([*dut_names, "--restore"])
+    return _run_switch_vlan([*dut_names, "--restore"], num_duts=len(dut_names))
 
 
 @pytest.fixture(autouse=True)
