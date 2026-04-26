@@ -20,10 +20,20 @@ targets:
             - dhcp
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:
-          prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@.*?[#$] "
+          # Strict prompt: only match LibreMesh's default hostname
+          # `LiMe-<last 6 hex of primary MAC>` (set by lime-config from
+          # uci-defaults on first boot). We must NOT match early/intermediate
+          # prompts like `root@(none):~#` or `root@OpenWrt:~#` because those
+          # appear before lime-config has finished, and engaging the shell
+          # there causes us to test pre-LibreMesh state. With this regex the
+          # ShellDriver waits up to login_timeout for first-boot config to
+          # complete — if it never does (image lacks lime-system, or DUT
+          # autoboot fell back to flash), we get a clean TIMEOUT instead of a
+          # silently passing test against vanilla OpenWrt.
+          prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
           login_prompt: Please press Enter to activate this console.
           await_login_timeout: 15
-          login_timeout: 120
+          login_timeout: 180
           post_login_settle_time: 5
           username: root
       - UBootTFTPStrategy: {}

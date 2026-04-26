@@ -27,6 +27,7 @@ if str(TESTS_DIR) not in sys.path:
 
 from lime_helpers import (
     align_ssh_networkservice_with_mesh_vlan,
+    assert_libremesh_runtime,
     configure_fixed_ip,
     ensure_batman_mesh,
     is_qemu_target,
@@ -121,10 +122,19 @@ def shell_command(strategy):
         strategy.transition("shell")
         shell = strategy.shell
         suppress_kernel_console(shell)
-        return shell
     except Exception:
         logger.exception("Failed to transition to state shell")
         pytest.exit("Failed to transition to state shell", returncode=3)
+
+    # Hard-fail before any test logic if the booted image is not LibreMesh.
+    # Catches both "CI build silently dropped lime-*" and "DUT autobooted
+    # from on-flash OpenWrt" failure modes — see assert_libremesh_runtime()
+    # docstring. Kept OUTSIDE the broad except above on purpose: the helper
+    # raises pytest.exit (a subclass of Exception in modern pytest), so
+    # wrapping it here would mask the detailed diagnostic with the generic
+    # "Failed to transition to state shell" message.
+    assert_libremesh_runtime(shell)
+    return shell
 
 
 @pytest.fixture

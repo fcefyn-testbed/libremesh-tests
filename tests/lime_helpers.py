@@ -113,6 +113,99 @@ def suppress_kernel_console(shell) -> None:
         logger.debug("dmesg -n 1 failed (non-critical)")
 
 
+def assert_libremesh_runtime(shell) -> None:
+    """Hard-fail if the booted DUT is not a LibreMesh image.
+
+    The full repo is named ``libremesh-tests`` for a reason: every test path
+    assumes the DUT is running LibreMesh, not vanilla OpenWrt. Historically
+    when the CI build silently dropped the ``lime-*`` packages (or the DUT's
+    U-Boot fell back to autobooting from on-flash OpenWrt), the tests still
+    matched the catch-all ``root@.*?[#$]`` prompt against ``root@OpenWrt`` /
+    ``root@(none)`` and went on to fail mysteriously much later (SSH
+    timeouts, ``batctl_not_found`` warnings, br-lan never coming up).
+
+    Detect that here, right after the shell is ready, and abort the run with
+    an unmistakable diagnostic:
+
+    - ``/etc/lime_release`` is shipped by the ``lime-system`` package
+      (templated by [packages/lime-system/Makefile]) so its presence proves
+      ``lime-system`` is actually installed in the booted rootfs.
+    - ``batctl`` proves ``batctl-default`` (and the batman-adv kernel module
+      it pulls in) made it into the image.
+
+    Set ``LIBREMESH_RUNTIME_CHECK=0`` to skip (e.g. when intentionally
+    booting a non-LibreMesh image during local debugging).
+    """
+    if os.environ.get("LIBREMESH_RUNTIME_CHECK", "1").strip().lower() in (
+        "0",
+        "false",
+        "no",
+    ):
+        logger.warning(
+            "LIBREMESH_RUNTIME_CHECK disabled — skipping LibreMesh runtime guard"
+        )
+        return
+
+    try:
+        _, _, rc_release = shell.run("test -f /etc/lime_release")
+    except Exception as exc:
+        logger.error("Failed to query /etc/lime_release: %s", exc)
+        rc_release = 1
+
+    try:
+        _, _, rc_batctl = shell.run("command -v batctl >/dev/null 2>&1")
+    except Exception as exc:
+        logger.error("Failed to query batctl availability: %s", exc)
+        rc_batctl = 1
+
+    if rc_release == 0 and rc_batctl == 0:
+        try:
+            release_lines, _, _ = shell.run("cat /etc/lime_release 2>/dev/null")
+            if release_lines:
+                logger.info(
+                    "LibreMesh runtime guard OK: %s", release_lines[0].strip()
+                )
+        except Exception:
+            logger.info("LibreMesh runtime guard OK")
+        return
+
+    logger.error(
+        "LibreMesh runtime guard FAILED: lime_release_present=%s, batctl_present=%s",
+        rc_release == 0,
+        rc_batctl == 0,
+    )
+
+    diagnostic_cmds = (
+        ("banner", "cat /etc/banner 2>/dev/null | head -10"),
+        ("openwrt_release", "cat /etc/openwrt_release 2>/dev/null"),
+        ("hostname", "uname -n; cat /proc/sys/kernel/hostname 2>/dev/null"),
+        (
+            "lime_packages",
+            "opkg list-installed 2>/dev/null | "
+            "grep -E '^(lime|shared-state|batctl|babeld)' || "
+            "echo '(no lime/shared-state/batctl/babeld packages installed)'",
+        ),
+        ("dmesg_tail", "dmesg 2>/dev/null | tail -30"),
+    )
+    for label, cmd in diagnostic_cmds:
+        try:
+            output, _, _ = shell.run(cmd)
+            logger.error("=== %s ===\n%s", label, "\n".join(output) if output else "")
+        except Exception as exc:
+            logger.error("Failed to capture %s: %s", label, exc)
+
+    import pytest as _pytest
+
+    _pytest.exit(
+        "DUT booted a non-LibreMesh image (missing /etc/lime_release and/or batctl). "
+        "The CI build did not produce a LibreMesh firmware, or U-Boot autobooted from "
+        "flash instead of TFTP. See diagnostic dump above (banner / openwrt_release / "
+        "hostname / installed packages / dmesg). Set LIBREMESH_RUNTIME_CHECK=0 to "
+        "bypass during local debugging.",
+        returncode=4,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixed IP helpers
 # ---------------------------------------------------------------------------

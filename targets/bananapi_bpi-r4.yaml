@@ -18,7 +18,11 @@ targets:
             - dhcp
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:
-          prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@.*?[#$] "
+          # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
+          # hostname so we never engage with pre-`lime-config` prompts like
+          # `root@(none):~#` or `root@OpenWrt:~#`. See openwrt_one.yaml for
+          # rationale.
+          prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
           login_prompt: Please press Enter to activate this console.
           await_login_timeout: 30
           login_timeout: 180
