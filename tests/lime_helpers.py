@@ -195,40 +195,63 @@ def get_ssh_target_ip(target) -> str | None:
         return None
 
 
-def align_ssh_networkservice_with_mesh_vlan(target) -> None:
-    """Point labgrid SSH at the mesh VLAN interface after ``mesh_vlan_*`` switch.
+def _install_mesh_vlan_proxy_patch() -> None:
+    """Force labgrid's SSH ProxyCommand to bind to the mesh VLAN.
 
-    ``conftest_vlan`` moves the DUT to the shared mesh VLAN (200) and sets
-    ``TFTP_SERVER_IP`` so :class:`UBootTFTPStrategy` talks to dnsmasq there.
-    The exporter still describes SSH as ``192.168.1.1%vlan104`` (isolated
-    control plane).  Outbound SSH must use the mesh interface (e.g.
-    ``%vlan200``) or packets never reach the DUT and the driver times out
-    during the banner exchange.
+    ``conftest_vlan.mesh_vlan_*`` moves the DUT to the shared mesh VLAN (200)
+    and sets ``TFTP_SERVER_IP``.  The exporter, however, advertises SSH as
+    ``192.168.1.1%vlan104`` (its isolated control plane).  Mutating
+    ``ssh.networkservice.address`` does not survive activation: the next
+    ``Target.update_resources()`` call (triggered when ``get_driver`` activates
+    the SSHDriver) repolls ``RemoteNetworkService`` from the coordinator and
+    restores ``%vlan104``, so ``labgrid-bound-connect vlan104 ...`` still gets
+    used and SSH times out.
+
+    Patch :class:`ProxyManager.get_command` instead: when ``TFTP_SERVER_IP`` is
+    set (mesh mode), swap the parsed ``ifname`` for ``LG_MESH_VLAN_IFACE``
+    (default ``vlan200``) before the ``labgrid-bound-connect`` argv is built.
+    The control plane address inside ``-l root <ip>%<iface>`` is irrelevant
+    when ProxyCommand handles the transport.
+    """
+    try:
+        from labgrid.util import proxy as _lg_proxy
+    except Exception as exc:
+        logger.debug("Cannot patch labgrid ProxyManager: %s", exc)
+        return
+
+    pm_cls = _lg_proxy.ProxyManager
+    if getattr(pm_cls, "_libremesh_mesh_vlan_patched", False):
+        return
+
+    original_get_command = pm_cls.get_command
+
+    def patched_get_command(cls, res, host, port, ifname=None):
+        if ifname and os.environ.get("TFTP_SERVER_IP", "").strip():
+            new_ifname = os.environ.get("LG_MESH_VLAN_IFACE", "vlan200").strip()
+            if new_ifname and new_ifname != ifname:
+                logger.info(
+                    "Mesh VLAN proxy override: ifname %s -> %s (TFTP_SERVER_IP set)",
+                    ifname,
+                    new_ifname,
+                )
+                ifname = new_ifname
+        return original_get_command.__func__(cls, res, host, port, ifname)
+
+    pm_cls.get_command = classmethod(patched_get_command)
+    pm_cls._libremesh_mesh_vlan_patched = True
+
+
+def align_ssh_networkservice_with_mesh_vlan(target) -> None:
+    """Ensure outbound SSH uses the mesh VLAN interface.
+
+    Installs an idempotent monkey-patch on :class:`ProxyManager.get_command`.
+    A direct mutation of ``ssh.networkservice.address`` does not work because
+    labgrid resynchronises ``RemoteNetworkService`` from the coordinator the
+    moment the SSHDriver is activated.  See :func:`_install_mesh_vlan_proxy_patch`.
     """
     if not os.environ.get("TFTP_SERVER_IP", "").strip():
         return
-    vlan_iface = os.environ.get("LG_MESH_VLAN_IFACE", "vlan200").strip()
-    if not vlan_iface:
-        return
-    try:
-        ssh = target.get_driver("SSHDriver", activate=False)
-        ns = ssh.networkservice
-        addr = ns.address
-    except Exception as exc:
-        logger.debug("SSH mesh-VLAN align skipped: %s", exc)
-        return
-    if "%" not in addr:
-        return
-    host_ip, _old_if = addr.split("%", 1)
-    new_addr = f"{host_ip}%{vlan_iface}"
-    if new_addr == addr:
-        return
-    logger.info(
-        "Aligning SSH NetworkService for mesh VLAN: %s -> %s (TFTP_SERVER_IP set)",
-        addr,
-        new_addr,
-    )
-    ns.address = new_addr
+    _install_mesh_vlan_proxy_patch()
 
 
 def is_qemu_target(target) -> bool:
