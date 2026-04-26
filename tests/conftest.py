@@ -26,6 +26,7 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from lime_helpers import (
+    align_ssh_networkservice_with_mesh_vlan,
     configure_fixed_ip,
     ensure_batman_mesh,
     is_qemu_target,
@@ -118,6 +119,9 @@ def shell_command(strategy):
 def ssh_command(shell_command, target):
     if not is_qemu_target(target):
         ensure_batman_mesh(target)
+        # mesh_vlan_* set TFTP_SERVER_IP and moved the switch port to VLAN 200;
+        # keep SSH bind iface in sync with the exporter's isolated %vlanNNN.
+        align_ssh_networkservice_with_mesh_vlan(target)
 
     fixed_ip = configure_fixed_ip(shell_command, target)
     if fixed_ip:

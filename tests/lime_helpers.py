@@ -195,6 +195,42 @@ def get_ssh_target_ip(target) -> str | None:
         return None
 
 
+def align_ssh_networkservice_with_mesh_vlan(target) -> None:
+    """Point labgrid SSH at the mesh VLAN interface after ``mesh_vlan_*`` switch.
+
+    ``conftest_vlan`` moves the DUT to the shared mesh VLAN (200) and sets
+    ``TFTP_SERVER_IP`` so :class:`UBootTFTPStrategy` talks to dnsmasq there.
+    The exporter still describes SSH as ``192.168.1.1%vlan104`` (isolated
+    control plane).  Outbound SSH must use the mesh interface (e.g.
+    ``%vlan200``) or packets never reach the DUT and the driver times out
+    during the banner exchange.
+    """
+    if not os.environ.get("TFTP_SERVER_IP", "").strip():
+        return
+    vlan_iface = os.environ.get("LG_MESH_VLAN_IFACE", "vlan200").strip()
+    if not vlan_iface:
+        return
+    try:
+        ssh = target.get_driver("SSHDriver", activate=False)
+        ns = ssh.networkservice
+        addr = ns.address
+    except Exception as exc:
+        logger.debug("SSH mesh-VLAN align skipped: %s", exc)
+        return
+    if "%" not in addr:
+        return
+    host_ip, _old_if = addr.split("%", 1)
+    new_addr = f"{host_ip}%{vlan_iface}"
+    if new_addr == addr:
+        return
+    logger.info(
+        "Aligning SSH NetworkService for mesh VLAN: %s -> %s (TFTP_SERVER_IP set)",
+        addr,
+        new_addr,
+    )
+    ns.address = new_addr
+
+
 def is_qemu_target(target) -> bool:
     """Detect if the current target is a QEMU VM (not a physical DUT)."""
     try:
