@@ -16,8 +16,39 @@ targets:
           interrupt: "\x1b"
           autoboot: "Hit any key to stop autoboot"
           prompt: "OpenWrt One>"
+          # Wipe the on-flash overlay (`rootfs_data` UBI volume) before
+          # TFTP-booting our initramfs.
+          #
+          # Why: OpenWrt 24.10 on filogic uses fitblk + UBIFS overlay even
+          # for initramfs boots. If the device's NAND has a `rootfs_data`
+          # volume from a previous flash (the OpenWrt One leaves the lab
+          # provisioned with vanilla OpenWrt 24.10.5 from 2025-12-17),
+          # `mount_root` finds it during preinit and "switches to ubifs
+          # overlay" on top of our in-RAM rootfs, effectively replacing
+          # everything we just TFTP'd with the on-flash userspace. The
+          # symptom is: kernel version matches today's build, but
+          # `/etc/banner`, `/etc/openwrt_release`, `BusyBox` build date and
+          # the `root@OpenWrt:~#` hostname all come from whatever was
+          # previously sysupgraded onto the device — `lime-config` never
+          # runs, `batctl` is missing, hostname stays at OpenWrt's default.
+          #
+          # Removing the volume here forces preinit to keep the initramfs
+          # rootfs (the real LibreMesh image we just built). It is
+          # idempotent on virgin devices: U-Boot's hush parser short-circuits
+          # the `||` if either step fails (volume missing on a previously
+          # cleaned device, partition not yet attached, etc.) so re-runs
+          # don't abort the boot. Each test run starts with a fresh in-RAM
+          # rootfs — exactly what CI wants.
+          #
+          # Strategy contract: `tools/strategies/tftpstrategy.py`
+          # _prepare_uboot_commands() segregates entries starting with `tftp`
+          # / `dhcp` for retry logic; entries that don't (the two `ubi …`
+          # lines below) are passed through as plain init_commands and run
+          # ONCE at the U-Boot prompt before the bootm.
           init_commands:
             - dhcp
+            - "ubi part ubi || true"
+            - "ubi remove rootfs_data || true"
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default hostname
