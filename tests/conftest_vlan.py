@@ -117,7 +117,10 @@ def _run_switch_vlan(args: list[str], *, num_duts: int = 1) -> bool:
     logger.debug("VLAN command (timeout=%ds): %s", timeout, cmd)
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         logger.error("switch-vlan timed out after %ds: %s", timeout, cmd)
