@@ -198,8 +198,9 @@ def get_ssh_target_ip(target) -> str | None:
 def _install_mesh_vlan_proxy_patch() -> None:
     """Force labgrid's SSH ProxyCommand to bind to the mesh VLAN.
 
-    ``conftest_vlan.mesh_vlan_*`` moves the DUT to the shared mesh VLAN (200)
-    and sets ``TFTP_SERVER_IP``.  The exporter, however, advertises SSH as
+    ``mesh_vlan_multi`` (and ``conftest_mesh`` boot paths) move DUTs to the
+    shared mesh VLAN (200) and set ``TFTP_SERVER_IP``.  The exporter, however,
+    advertises SSH as
     ``192.168.1.1%vlan104`` (its isolated control plane).  Mutating
     ``ssh.networkservice.address`` does not survive activation: the next
     ``Target.update_resources()`` call (triggered when ``get_driver`` activates

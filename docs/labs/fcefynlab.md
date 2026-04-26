@@ -43,7 +43,7 @@ The lab supports two network topologies controlled by the PoE switch and labgrid
 
 | Mode    | VLANs       | Use case              |
 |---------|-------------|------------------------|
-| isolated | 100–105 (one per DUT) | OpenWrt tests, each DUT in its own VLAN |
+| isolated | 100–105 (one per DUT) | OpenWrt tests + LibreMesh single-node, each DUT in its own VLAN |
 | mesh    | 200 (shared) | LibreMesh multi-node tests, all DUTs in one VLAN |
 
 ## Misc Hardware / Notes

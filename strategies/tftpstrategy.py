@@ -113,9 +113,9 @@ class UBootTFTPStrategy(Strategy):
     a 60s per-attempt timeout until TFTP_DOWNLOAD_TIMEOUT expires.
 
     The TFTP server IP can be overridden via TFTP_SERVER_IP env var.
-    This is used by mesh tests where conftest_vlan moves DUTs to VLAN
-    200 before boot, making the exporter's isolated-VLAN external_ip
-    unreachable.
+    This is used by multi-node mesh tests where ``mesh_vlan_multi`` moves
+    DUTs to VLAN 200 before boot, making the exporter's isolated-VLAN
+    external_ip unreachable.
     """
 
     bindings = {

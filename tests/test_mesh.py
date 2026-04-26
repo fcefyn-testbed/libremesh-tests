@@ -5,7 +5,7 @@ Phase 1: Basic connectivity (L2/L3 between mesh nodes).
 Phase 2: Mesh protocol validation (batman-adv, babeld).
 
 Requires: LG_MESH_PLACES, LG_IMAGE, LG_PROXY environment variables.
-Switch must be in mesh mode (VLAN 200) before running.
+``mesh_vlan_multi`` (session fixture) switches DUTs to VLAN 200 when ``LG_MESH_PLACES`` is set.
 """
 
 import logging
@@ -14,6 +14,8 @@ import time
 
 import pytest
 from lime_helpers import is_mesh_ipv4, select_mesh_ipv4, select_primary_ipv4
+
+pytestmark = pytest.mark.mesh
 
 logger = logging.getLogger(__name__)
 

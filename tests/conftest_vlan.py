@@ -1,8 +1,10 @@
 """
-Dynamic VLAN switching fixtures for unified pool architecture.
+Dynamic VLAN switching for multi-node LibreMesh mesh tests only.
 
-Switches DUT ports from isolated VLANs (100-108) to mesh VLAN (200) before
-LibreMesh tests, and restores them on teardown.
+Single-node tests keep each DUT on its isolated VLAN (as advertised by the
+labgrid exporter, e.g. ``192.168.1.1%vlan104``). Only when ``LG_MESH_PLACES``
+is set does ``mesh_vlan_multi`` move those DUT ports to mesh VLAN (200) and
+set ``TFTP_SERVER_IP``; isolated VLANs are restored on session teardown.
 
 VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction):
 
@@ -16,8 +18,8 @@ VLAN commands are executed via ``switch-vlan`` (labgrid-switch-abstraction):
 No local ``dut-config.yaml`` or ``labgrid-switch-abstraction`` install is
 required on the developer machine.
 
-For single-node tests: uses LG_PLACE to identify the DUT.
-For mesh tests: uses LG_MESH_PLACES (comma-separated) to switch all nodes.
+For mesh tests: uses ``LG_MESH_PLACES`` (comma-separated) to switch all listed
+nodes to VLAN 200.
 
 Set VLAN_SWITCH_DISABLED=1 to skip VLAN switching (e.g. when switch is
 already configured manually or running in mesh-only mode).
@@ -156,44 +158,6 @@ def _switch_to_mesh(dut_names: list[str]) -> bool:
 
 def _restore_vlans(dut_names: list[str]) -> bool:
     return _run_switch_vlan([*dut_names, "--restore"], num_duts=len(dut_names))
-
-
-@pytest.fixture(autouse=True)
-def mesh_vlan_single(request):
-    """Switch DUT port to VLAN 200 for single-node LibreMesh tests.
-
-    Activates when LG_PLACE is set and LG_MESH_PLACES is not (mesh tests
-    handle their own VLAN switching via mesh_vlan_multi).
-    """
-    if _is_disabled():
-        yield
-        return
-
-    if os.environ.get("LG_MESH_PLACES"):
-        yield
-        return
-
-    place = os.environ.get("LG_PLACE", "")
-    if not place or place == "+":
-        yield
-        return
-
-    dut_name = _place_to_dut_name(place)
-
-    logger.info("Switching DUT '%s' to VLAN %d", dut_name, VLAN_MESH)
-    ok = _switch_to_mesh([dut_name])
-    if not ok:
-        pytest.fail(f"Failed to switch DUT '{dut_name}' to VLAN {VLAN_MESH}")
-
-    mesh_tftp_ip = os.environ.get("LG_MESH_TFTP_IP", MESH_TFTP_IP_DEFAULT)
-    os.environ["TFTP_SERVER_IP"] = mesh_tftp_ip
-    logger.info("Set TFTP_SERVER_IP=%s for VLAN %d", mesh_tftp_ip, VLAN_MESH)
-
-    yield
-
-    os.environ.pop("TFTP_SERVER_IP", None)
-    logger.info("Restoring DUT '%s' to isolated VLAN", dut_name)
-    _restore_vlans([dut_name])
 
 
 @pytest.fixture(scope="session")

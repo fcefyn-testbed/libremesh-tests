@@ -71,6 +71,18 @@ def pytest_configure(config):
         os.environ["LG_ENV"] = resolved_env
 
 
+def pytest_collection_modifyitems(config, items):
+    """Skip multi-node mesh tests unless LG_MESH_PLACES is set."""
+    if os.environ.get("LG_MESH_PLACES", "").strip():
+        return
+    skip_mesh = pytest.mark.skip(
+        reason="Set LG_MESH_PLACES to run multi-node mesh tests",
+    )
+    for item in items:
+        if "mesh" in item.keywords:
+            item.add_marker(skip_mesh)
+
+
 def ubus_call(command, namespace, method, params={}):
     output = command.run_check(f"ubus call {namespace} {method} '{json.dumps(params)}'")
 
@@ -119,8 +131,8 @@ def shell_command(strategy):
 def ssh_command(shell_command, target):
     if not is_qemu_target(target):
         ensure_batman_mesh(target)
-        # mesh_vlan_* set TFTP_SERVER_IP and moved the switch port to VLAN 200;
-        # keep SSH bind iface in sync with the exporter's isolated %vlanNNN.
+        # mesh_vlan_multi / conftest_mesh set TFTP_SERVER_IP and VLAN 200;
+        # keep SSH ProxyCommand bind iface in sync (exporter still shows %vlanNNN).
         align_ssh_networkservice_with_mesh_vlan(target)
 
     fixed_ip = configure_fixed_ip(shell_command, target)
