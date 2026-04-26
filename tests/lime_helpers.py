@@ -533,7 +533,8 @@ def resolve_target_yaml(place_name: str, *, repo_root: Path | None = None) -> st
     targets_dir = repo_root / "targets"
     available = (
         sorted(p.name for p in targets_dir.glob("*.yaml"))
-        if targets_dir.is_dir() else []
+        if targets_dir.is_dir()
+        else []
     )
     raise FileNotFoundError(
         f"No target YAML found for place {place_name} "
