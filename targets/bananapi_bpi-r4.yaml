@@ -41,6 +41,30 @@ targets:
             # regardless of which side U-Boot prefers.
             - 'setenv bootargs "console=ttyS0,115200n1 pci=pcie_bus_perf"'
             - dhcp
+            # Wipe the on-flash UBI overlay before TFTP-booting our
+            # initramfs. Same fix as openwrt_one.yaml /
+            # linksys_e8450.yaml: when the device's NAND has a
+            # `rootfs_data` UBIFS volume left over from a previous
+            # sysupgrade, fstools' mount_root finds it during preinit
+            # and tries to overlay it on top of our in-RAM rootfs.
+            # pivot_root then fails with "Invalid argument" (illegal on
+            # initramfs), ramoverlay also fails, and the cascade leaves
+            # procd in a degraded state where /etc/init.d/done never
+            # runs uci-defaults — so lime-config never sets the
+            # LiMe-XXXXXX hostname and labgrid times out at
+            # `root@(none):~#` after 180 s. We saw exactly this on
+            # bananapi_bpi-r4 in CI run 24975099307 (this YAML lacked
+            # the `ubi remove` while openwrt_one.yaml / linksys_e8450.yaml
+            # already had it, which is why those targets booted to
+            # `root@LiMe-XXXXXX:` and bananapi did not). The `|| true`
+            # makes both calls idempotent on a virgin device whose UBI
+            # has not been attached yet or has no rootfs_data volume.
+            # tftpstrategy._prepare_uboot_commands() forwards these
+            # `setenv` / `ubi …` lines verbatim (only `tftp` and `dhcp`
+            # entries are routed to the retry path), so they run once
+            # at the U-Boot prompt before bootm.
+            - "ubi part ubi || true"
+            - "ubi remove rootfs_data || true"
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
