@@ -58,6 +58,21 @@ targets:
           # so the device's persistent env is never modified by tests.
           init_commands:
             - "setenv bootconf config-1"
+            # Belt-and-braces: even though pi-lime-packages now embeds
+            # `bootargs = "..."` directly in the FIT configuration node
+            # (see tools/ci/build_image.sh, FIT_BOOTARGS), the device's
+            # saved U-Boot env can still contain a `bootargs` value with
+            # `root=/dev/fit0 rootwait ubi.block=0,fit` left over from a
+            # previous OpenWrt sysupgrade. On U-Boot versions where the
+            # env-side `bootargs` wins over the FIT-side one (mediatek/
+            # filogic, observed on openwrt_one in CI run 24972903707),
+            # the kernel discards our successfully-unpacked initramfs and
+            # mounts whatever vanilla OpenWrt squashfs happens to live in
+            # the on-flash UBI `fit` volume — banner shows OpenWrt
+            # 24.10.5 with hostname `(none)` and zero LibreMesh traces.
+            # Forcing the env-side `bootargs` here (RAM-only, no saveenv)
+            # closes that hole regardless of which side U-Boot prefers.
+            - 'setenv bootargs "console=ttyS0,115200n1 pci=pcie_bus_perf"'
             - dhcp
             - "ubi part ubi || true"
             - "ubi remove rootfs_data || true"
