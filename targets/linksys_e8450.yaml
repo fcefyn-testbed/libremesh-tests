@@ -27,9 +27,21 @@ targets:
         prompt: "MT7622>"
         interrupt: "\x03"
         login_timeout: 30
+        # Wipe any stale on-flash UBI overlay before TFTP-booting the
+        # initramfs. Same rationale as openwrt_one.yaml: with the
+        # `linksys_e8450-ubi` firmware build the device's NAND carries a
+        # `rootfs_data` UBIFS volume; mount_root in preinit will find it
+        # and "switch to ubifs overlay" on top of the in-RAM rootfs we
+        # just TFTP-booted, silently replacing our LibreMesh userspace
+        # with whatever was previously sysupgraded onto the device. The
+        # `|| true` makes both calls idempotent on a virgin device.
+        # `tftpstrategy.py` strips TFTP/dhcp lines for retry handling
+        # and forwards the `ubi …` lines verbatim so they run once at
+        # the U-Boot prompt before bootm.
         init_commands:
           - dhcp
-          - tftpboot $loadaddr
+          - "ubi part ubi || true"
+          - "ubi remove rootfs_data || true"
         boot_command: bootm $loadaddr#$bootconf
       UBootTFTPStrategy: {}
       SSHDriver:
