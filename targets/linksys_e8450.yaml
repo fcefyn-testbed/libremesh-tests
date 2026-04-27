@@ -62,7 +62,23 @@ targets:
           # (RAM-only, no saveenv) closes that hole regardless of which
           # side U-Boot prefers. mt7622 ships ttyS0 at 115200n1
           # (mt7622_rfb.dts chosen/bootargs).
-          - 'setenv bootargs "console=ttyS0,115200n1"'
+          #
+          # `swiotlb=512`: matches mt7622-linksys-e8450-ubi.dts upstream
+          # /chosen/bootargs and is REQUIRED for the mt7915e PCIe WiFi
+          # card to allocate its DMA bounce buffers. Without it the
+          # kernel reports `software IO TLB: SWIOTLB bounce buffer
+          # size adjusted to 0MB` (auto-calc decides 0KB on this SKU)
+          # and mt7915e probe fails ENOMEM. We must keep this in sync
+          # with FIT_BOOTARGS in pi-lime-packages targets.yml so both
+          # the env-side and FIT-side cmdlines tell the kernel the
+          # same thing — see CI run 25004392669/job 73236211357 for
+          # the failure mode.
+          # `pci=pcie_bus_perf`: PCIe MPS tuning lifted from the
+          # mediatek/filogic baseline (see openwrt_one.yaml). Harmless
+          # on mt7622 and keeps the env-side / FIT-side bootargs
+          # textually identical so a future U-Boot bug that prefers
+          # one over the other does not silently change behaviour.
+          - 'setenv bootargs "console=ttyS0,115200n1 swiotlb=512 pci=pcie_bus_perf"'
           - dhcp
           - "ubi part ubi || true"
           - "ubi remove rootfs_data || true"
