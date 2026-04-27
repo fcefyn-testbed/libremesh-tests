@@ -14,7 +14,18 @@ targets:
           login_timeout: 30
           interrupt: "\x1b"
           prompt: "MT7988>"
+          # `setenv bootconf config-1` pins the FIT configuration node
+          # name that U-Boot will look up in our initramfs FIT (see
+          # tools/ci/build_image.sh in pi-lime-packages, which packs the
+          # FIT with config-1 as default). The upstream OpenWrt U-Boot
+          # env on bananapi_bpi-r4 sets bootconf to
+          # `config-mt7988a-bananapi-bpi-r4` by default, which would NOT
+          # match our generated FIT and cause `Could not find
+          # configuration node` at bootm. The setenv is RAM-only: no
+          # `saveenv` follows, so the device's persistent env is never
+          # modified by tests.
           init_commands:
+            - "setenv bootconf config-1"
             - dhcp
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:

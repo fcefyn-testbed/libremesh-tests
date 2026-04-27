@@ -38,7 +38,19 @@ targets:
         # `tftpstrategy.py` strips TFTP/dhcp lines for retry handling
         # and forwards the `ubi …` lines verbatim so they run once at
         # the U-Boot prompt before bootm.
+        #
+        # `setenv bootconf config-1` pins the FIT configuration node name
+        # that U-Boot will look up in our initramfs FIT (see
+        # tools/ci/build_image.sh in pi-lime-packages, which packs the
+        # FIT with config-1 as default). Without this override U-Boot
+        # would use whatever bootconf the device has saved in env (which
+        # IS config-1 by default for linksys_e8450-ubi, but can drift if
+        # a previous test/sysupgrade modified it), and a mismatch causes
+        # `Could not find configuration node` / `ERROR: cant get kernel
+        # image!`. The setenv is RAM-only: no `saveenv` follows, so the
+        # device's persistent env is never modified by tests.
         init_commands:
+          - "setenv bootconf config-1"
           - dhcp
           - "ubi part ubi || true"
           - "ubi remove rootfs_data || true"
