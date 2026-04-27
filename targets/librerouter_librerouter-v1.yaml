@@ -13,10 +13,65 @@ targets:
           txdelay: 0.01
       - UBootDriver:
           login_timeout: 30
+          # CONFIG_AUTOBOOT_KEYED is not set in the LibreRouter U-Boot
+          # 1.1.x build (see include/955x.h: only CONFIG_BOOTDELAY=2 and
+          # the simple "Hit any key to stop autoboot" loop in
+          # common/main.c). Any byte sent during the 2 s window aborts
+          # autoboot, so a single newline is enough — _spam_uboot_interrupt
+          # in tftpstrategy.py blasts these for ~12 s by default which
+          # comfortably brackets the bootdelay window.
           interrupt: "\n"
+          autoboot: "Hit any key to stop autoboot"
+          # The QCA9558 Atheros U-Boot prompt is `ath> ` (trailing
+          # space; see include/955x.h CFG_PROMPT). pexpect matches on
+          # substring so the trailing space is optional here.
           prompt: "ath>"
+          # init_commands run at the U-Boot prompt before the
+          # boot_command. Lines starting with `tftp`/`dhcp` are pulled
+          # out by UBootTFTPStrategy and routed through its retry path
+          # (TFTPProviderDriver pre-stages the file on the exporter and
+          # bumps `bootfile` for us, so a bare `tftp <addr>` is enough).
+          # The remaining lines are passed through verbatim.
+          #
+          # Why we `setenv bootargs` here: the build_image.sh
+          # `multi-uimage` repack path (image_format=multi-uimage in
+          # pi-lime-packages targets.yml for librerouter_librerouter-v1)
+          # produces a legacy IH_TYPE_MULTI uImage that has no place to
+          # embed a kernel command line. U-Boot 1.1.x's
+          # lib_mips/mips_linux.c reads its own `bootargs` env var and
+          # passes the string to the MIPS kernel via the PROM argv
+          # (linux_params_init); that string then becomes the kernel
+          # cmdline on top of whatever /chosen/bootargs the appended
+          # DTB carries. Setting it explicitly here, RAM-only (no
+          # `saveenv`), guarantees a known-good console line and keeps
+          # the device's persistent env untouched even if a previous
+          # OpenWrt sysupgrade left a `root=...` value behind.
+          #
+          # NB: no `setenv initrd_high` here. The MIPS-specific
+          # do_bootm_linux in LibreRouter's U-Boot
+          # (lib_mips/mips_linux.c) does NOT relocate the ramdisk —
+          # it just walks the multi-image length table and uses the
+          # raw sub-image-1 address as `initrd_start`. The
+          # initrd_high relocation block in common/cmd_bootm.c is
+          # PowerPC-specific (uses `mr %0,1` asm) and never executes
+          # on MIPS. Adding it would be harmless but misleading; we
+          # leave it out so future readers of this YAML don't infer
+          # the wrong invariant.
           init_commands:
-            - tftp 0x82000000
+            - "setenv bootargs console=ttyS0,115200n8"
+            - "tftp 0x82000000"
+          # `bootm <addr>` on a multi-image uImage:
+          #   * decompresses sub-image 0 (kernel.lzma) to fit_kernel_loadaddr
+          #     (0x80060000, set in pi-lime-packages targets.yml) using the
+          #     outer header's `-C lzma`,
+          #   * computes the start of sub-image 1 (rootfs.cpio) by walking
+          #     the length table and writes `initrd_start` /
+          #     `initrd_size` PROM env vars accordingly,
+          #   * jumps to the kernel entry point with the linux_argv array
+          #     populated from `bootargs`. The MIPS kernel's
+          #     arch/mips/.../prom.c parses the PROM env vars into the
+          #     standard initrd_start/initrd_end Linux symbols and
+          #     populates the rootfs from there.
           boot_command: bootm 0x82000000
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
