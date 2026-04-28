@@ -33,45 +33,68 @@ targets:
           # bumps `bootfile` for us, so a bare `tftp <addr>` is enough).
           # The remaining lines are passed through verbatim.
           #
-          # Why we `setenv bootargs` here: the build_image.sh
-          # `multi-uimage` repack path (image_format=multi-uimage in
-          # pi-lime-packages targets.yml for librerouter_librerouter-v1)
-          # produces a legacy IH_TYPE_MULTI uImage that has no place to
-          # embed a kernel command line. U-Boot 1.1.x's
-          # lib_mips/mips_linux.c reads its own `bootargs` env var and
-          # passes the string to the MIPS kernel via the PROM argv
-          # (linux_params_init); that string then becomes the kernel
-          # cmdline on top of whatever /chosen/bootargs the appended
-          # DTB carries. Setting it explicitly here, RAM-only (no
-          # `saveenv`), guarantees a known-good console line and keeps
-          # the device's persistent env untouched even if a previous
-          # OpenWrt sysupgrade left a `root=...` value behind.
+          # IMAGE FORMAT (changed 2026-04 in pi-lime-packages targets.yml):
+          # The artifact this YAML loads is now an
+          # `*-initramfs-kernel.bin` produced by
+          # tools/ci/build_image_source.sh, which drives a FULL OpenWrt
+          # source-tree build (`make world`) at tag v$openwrt_release
+          # with `CONFIG_TARGET_ROOTFS_INITRAMFS=y` +
+          # `CONFIG_TARGET_INITRAMFS_COMPRESSION_LZMA=y`. The kernel is
+          # recompiled with `CONFIG_INITRAMFS_SOURCE` pointing at the
+          # LibreMesh CPIO, so the rootfs lives INSIDE the kernel`s
+          # own .init.ramfs section. U-Boot just needs to
+          # `bootm <addr>`; the kernel`s populate_rootfs() drops the
+          # embedded CPIO into rootfs with no help from the bootloader.
           #
-          # NB: no `setenv initrd_high` here. The MIPS-specific
-          # do_bootm_linux in LibreRouter's U-Boot
-          # (lib_mips/mips_linux.c) does NOT relocate the ramdisk —
-          # it just walks the multi-image length table and uses the
-          # raw sub-image-1 address as `initrd_start`. The
-          # initrd_high relocation block in common/cmd_bootm.c is
-          # PowerPC-specific (uses `mr %0,1` asm) and never executes
-          # on MIPS. Adding it would be harmless but misleading; we
-          # leave it out so future readers of this YAML don't infer
-          # the wrong invariant.
+          # We previously tried two simpler paths and dropped both:
+          #   * image_format=multi-uimage (a legacy IH_TYPE_MULTI
+          #     uImage carrying [kernel.lzma, rootfs.cpio]) — the
+          #     LibreRouter U-Boot 1.1.x fork
+          #     (https://github.com/LibreRouterOrg/u-boot,
+          #     lib_mips/mips_linux.c) does NOT propagate sub-image-1
+          #     to the MIPS kernel as initrd_start/initrd_size. The
+          #     kernel cmdline ended up `console=ttyS0,115200n8
+          #     rootfstype=squashfs,jffs2`, the initramfs unpacker
+          #     never ran, and the device booted whatever LibreMesh
+          #     squashfs was on flash (CI symptom:
+          #     `root@margarita:/#` instead of `root@LiMe-XXXXXX:/#`,
+          #     see CI run 25021369701).
+          #   * image_format=sdk-initramfs-kernel (full OpenWrt SDK)
+          #     — the SDK only ships the `package` make targets; its
+          #     `target/` and `include/image.mk` stubs raise
+          #     "No rule to make target 'image'" and ImageBuilder
+          #     explicitly skips the initramfs recipe under
+          #     `$(if $(IB),,…)`. Neither tool can rebuild the
+          #     kernel, which is exactly what an embedded CPIO needs.
+          # That left a full openwrt.git source build as the only
+          # viable path, hence the current `source-initramfs-kernel`
+          # image_format.
+          #
+          # Why we still `setenv bootargs` here: even though the
+          # source-built kernel can run with NO bootargs at all (it
+          # ignores root= when an initramfs is present), the
+          # LibreRouter`s persistent U-Boot env may still hold
+          # `bootargs=console=ttyS0,115200n8 root=/dev/mtdblock4 …`
+          # left over from sysupgrade. We override it RAM-only (no
+          # `saveenv`) to keep serial console output going and to
+          # avoid surprises if a future kernel decides to re-honour
+          # root= from cmdline.
           init_commands:
             - "setenv bootargs console=ttyS0,115200n8"
             - "tftp 0x82000000"
-          # `bootm <addr>` on a multi-image uImage:
-          #   * decompresses sub-image 0 (kernel.lzma) to fit_kernel_loadaddr
-          #     (0x80060000, set in pi-lime-packages targets.yml) using the
-          #     outer header's `-C lzma`,
-          #   * computes the start of sub-image 1 (rootfs.cpio) by walking
-          #     the length table and writes `initrd_start` /
-          #     `initrd_size` PROM env vars accordingly,
-          #   * jumps to the kernel entry point with the linux_argv array
-          #     populated from `bootargs`. The MIPS kernel's
-          #     arch/mips/.../prom.c parses the PROM env vars into the
-          #     standard initrd_start/initrd_end Linux symbols and
-          #     populates the rootfs from there.
+          # `bootm <addr>` on the source-built initramfs uImage:
+          #   * U-Boot reads the 64-byte uImage header at <addr>,
+          #   * decompresses the lzma payload (kernel + appended DTB +
+          #     embedded initramfs, all in one blob) to KERNEL_LOADADDR
+          #     (0x80060000, set by the ath79/generic recipe in upstream
+          #     OpenWrt — NOT configurable from our targets.yml since
+          #     the source build embeds the loadaddr in the uImage
+          #     header itself),
+          #   * jumps to the kernel entry point with the linux_argv
+          #     array populated from `bootargs`. The MIPS kernel finds
+          #     its appended DTB at the end of the uncompressed image
+          #     and its embedded CPIO inside .init.ramfs, then runs
+          #     /init from the unpacked rootfs.
           boot_command: bootm 0x82000000
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
