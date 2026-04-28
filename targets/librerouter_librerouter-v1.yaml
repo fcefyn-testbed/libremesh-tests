@@ -33,63 +33,36 @@ targets:
           # bumps `bootfile` for us, so a bare `tftp <addr>` is enough).
           # The remaining lines are passed through verbatim.
           #
-          # IMAGE FORMAT (changed 2026-04 in pi-lime-packages targets.yml):
-          # The artifact this YAML loads is now an
-          # `*-initramfs-kernel.bin` produced by
-          # tools/ci/build_image_source.sh, which drives a FULL OpenWrt
-          # source-tree build (`make world`) at tag v$openwrt_release
-          # with `CONFIG_TARGET_ROOTFS_INITRAMFS=y` +
-          # `CONFIG_TARGET_INITRAMFS_COMPRESSION_LZMA=y`. The kernel is
-          # recompiled with `CONFIG_INITRAMFS_SOURCE` pointing at the
-          # LibreMesh CPIO, so the rootfs lives INSIDE the kernel`s
-          # own .init.ramfs section. U-Boot just needs to
-          # `bootm <addr>`; the kernel`s populate_rootfs() drops the
-          # embedded CPIO into rootfs with no help from the bootloader.
+          # IMAGE FORMAT: this YAML expects LG_IMAGE to point at a
+          # `*-initramfs-kernel.bin` (a uImage on ath79; DTB appended
+          # into kernel-bin upstream, LibreMesh CPIO embedded in the
+          # kernel`s own .init.ramfs section via CONFIG_INITRAMFS_SOURCE).
+          # U-Boot only needs `bootm <addr>` and the kernel`s
+          # populate_rootfs() drops the embedded CPIO into rootfs with
+          # no bootloader cooperation.
           #
-          # We previously tried two simpler paths and dropped both:
-          #   * image_format=multi-uimage (a legacy IH_TYPE_MULTI
-          #     uImage carrying [kernel.lzma, rootfs.cpio]) — the
-          #     LibreRouter U-Boot 1.1.x fork
-          #     (https://github.com/LibreRouterOrg/u-boot,
-          #     lib_mips/mips_linux.c) does NOT propagate sub-image-1
-          #     to the MIPS kernel as initrd_start/initrd_size. The
-          #     kernel cmdline ended up `console=ttyS0,115200n8
-          #     rootfstype=squashfs,jffs2`, the initramfs unpacker
-          #     never ran, and the device booted whatever LibreMesh
-          #     squashfs was on flash (CI symptom:
-          #     `root@margarita:/#` instead of `root@LiMe-XXXXXX:/#`,
-          #     see CI run 25021369701).
-          #   * image_format=sdk-initramfs-kernel (full OpenWrt SDK)
-          #     — the SDK only ships the `package` make targets; its
-          #     `target/` and `include/image.mk` stubs raise
-          #     "No rule to make target 'image'" and ImageBuilder
-          #     explicitly skips the initramfs recipe under
-          #     `$(if $(IB),,…)`. Neither tool can rebuild the
-          #     kernel, which is exactly what an embedded CPIO needs.
-          # That left a full openwrt.git source build as the only
-          # viable path, hence the current `source-initramfs-kernel`
-          # image_format.
+          # The pi-lime-packages CI does NOT build this artifact — see
+          # docs/followups/imagebuilder_initramfs_limitations.md in that
+          # repo for why. For local / manual runs, supply your own
+          # `*-initramfs-kernel.bin` (e.g. from a LibreMesh release or a
+          # local OpenWrt source build) via LG_IMAGE.
           #
-          # Why we still `setenv bootargs` here: even though the
-          # source-built kernel can run with NO bootargs at all (it
-          # ignores root= when an initramfs is present), the
-          # LibreRouter`s persistent U-Boot env may still hold
-          # `bootargs=console=ttyS0,115200n8 root=/dev/mtdblock4 …`
-          # left over from sysupgrade. We override it RAM-only (no
-          # `saveenv`) to keep serial console output going and to
-          # avoid surprises if a future kernel decides to re-honour
-          # root= from cmdline.
+          # Why we still `setenv bootargs` here: the LibreRouter`s
+          # persistent U-Boot env may hold `bootargs=...
+          # root=/dev/mtdblock4 ...` left over from sysupgrade. We
+          # override it RAM-only (no `saveenv`) to keep serial console
+          # output going and avoid surprises if a future kernel decides
+          # to re-honour root= from cmdline. The initramfs kernel
+          # itself ignores root= when populate_rootfs() succeeds.
           init_commands:
             - "setenv bootargs console=ttyS0,115200n8"
             - "tftp 0x82000000"
-          # `bootm <addr>` on the source-built initramfs uImage:
+          # `bootm <addr>` on the initramfs uImage:
           #   * U-Boot reads the 64-byte uImage header at <addr>,
           #   * decompresses the lzma payload (kernel + appended DTB +
           #     embedded initramfs, all in one blob) to KERNEL_LOADADDR
-          #     (0x80060000, set by the ath79/generic recipe in upstream
-          #     OpenWrt — NOT configurable from our targets.yml since
-          #     the source build embeds the loadaddr in the uImage
-          #     header itself),
+          #     (0x80060000, set by the ath79/generic recipe upstream;
+          #     embedded in the uImage header by the build).
           #   * jumps to the kernel entry point with the linux_argv
           #     array populated from `bootargs`. The MIPS kernel finds
           #     its appended DTB at the end of the uncompressed image
