@@ -95,7 +95,26 @@ uv run python scripts/resolve_firmware_from_catalog.py linksys_e8450
 
 ## CI
 
-Workflows use the **self-hosted** runner `testbed-fcefyn` (not the global-coordinator used in openwrt-tests). See `.github/workflows/daily.yml` and `pull_requests.yml`. Jobs check out **aparcar/openwrt-tests** for `labnet.yaml`; the matrix is filtered to **`labgrid-fcefyn`** by default (override with **`LIBREMESH_CI_ALLOW_PROXY`**, comma-separated proxy names, when extending CI to other labs).
+This repository is a **pure test library**. The active LibreMesh CI
+(per-PR build + QEMU + opt-in physical, plus the daily lab
+validation cron) lives in
+[`pi-lime-packages/.github/workflows/build-firmware.yml`](https://github.com/franco-r/pi-lime-packages/blob/master/.github/workflows/build-firmware.yml)
+and **checks out this repo at runtime** to get the pytest suites,
+labgrid env files, virtual-mesh launcher and the helper modules
+under `tests/lime_helpers/`.
+
+Only one workflow runs against this repository on push/PR:
+
+- `.github/workflows/formal.yml` — `ruff` + `isort` + cross-version
+  `uv sync`. Pure Python lint, no lab access.
+
+The legacy `daily.yml` and `pull_requests.yml` workflows that used
+to ride the lab from this repo were retired in May 2026 when the
+CI was unified in `pi-lime-packages`. The shared
+`configs/firmware-catalog.yaml` and `scripts/resolve_firmware_from_catalog.py`
+remain available for local manual runs and ad-hoc `gh workflow
+run` overrides, but they are no longer driven by a scheduled
+workflow here.
 
 ## Contributing a lab
 
