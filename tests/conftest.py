@@ -73,11 +73,31 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip multi-node mesh tests unless LG_MESH_PLACES is set."""
+    """Skip multi-node mesh tests unless a mesh harness is requested.
+
+    Two opt-ins are supported:
+
+    * ``LG_MESH_PLACES`` (CSV of labgrid place names) drives the physical
+      mesh path: ``conftest_mesh.py`` resolves each place into a target
+      and the tests run against real hardware.
+    * ``LG_VIRTUAL_MESH=1`` drives the QEMU+vwifi virtual mesh path:
+      ``fork-libremesh-virtual-mesh`` spawns N x86-64 QEMU instances and
+      ties them through ``vwifi-server`` so 802.11s-over-mac80211_hwsim
+      forms an actual mesh on the host. ``VIRTUAL_MESH_NODES`` and
+      ``VIRTUAL_MESH_IMAGE`` are read by that harness, not by this hook.
+
+    Either env var being set is enough to keep the ``mesh``-marked tests
+    in the collection. The CI workflow's ``test-mesh-qemu`` job exports
+    only ``LG_VIRTUAL_MESH=1`` (not ``LG_MESH_PLACES``) — without this
+    early-return the QEMU mesh tests would always be skipped despite a
+    correctly-provisioned vwifi/QEMU harness.
+    """
     if os.environ.get("LG_MESH_PLACES", "").strip():
         return
+    if os.environ.get("LG_VIRTUAL_MESH", "").strip() == "1":
+        return
     skip_mesh = pytest.mark.skip(
-        reason="Set LG_MESH_PLACES to run multi-node mesh tests",
+        reason="Set LG_MESH_PLACES or LG_VIRTUAL_MESH=1 to run multi-node mesh tests",
     )
     for item in items:
         if "mesh" in item.keywords:
