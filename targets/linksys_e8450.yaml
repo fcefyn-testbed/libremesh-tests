@@ -79,7 +79,56 @@ targets:
           # textually identical so a future U-Boot bug that prefers
           # one over the other does not silently change behaviour.
           - 'setenv bootargs "console=ttyS0,115200n1 swiotlb=512 pci=pcie_bus_perf"'
-          - dhcp
+          # Static TFTP instead of `dhcp` for two related reasons.
+          #
+          # 1) `tftpstrategy._prepare_uboot_commands` already injects
+          #    `setenv serverip <exporter_ip>` and `setenv ipaddr
+          #    <exporter_ip+1>` BEFORE this list runs (see
+          #    strategies/tftpstrategy.py). The `dhcp` command then
+          #    re-derives the same IPs by broadcasting BOOTP, which is
+          #    pure overhead on a private CI subnet where the IPs are
+          #    fixed-by-construction. On a healthy unit this saves the
+          #    ~3-4 s the BOOTP round-trip costs per boot; on an
+          #    unhealthy unit it is the difference between booting and
+          #    a 30 s timeout (see point 2).
+          #
+          # 2) On Belkin RT3200 units that previously KODed under a
+          #    24.10 kernel (see this repo's
+          #    docs/followups/belkin_rt3200_factory_corruption_post_kod.md
+          #    for the factory partition diagnosis, and
+          #    pi-lime-packages/docs/followups/belkin_rt3200_layout_1_0_dtb_patch.md
+          #    for the layout 1.0 / 24.10 KOD root cause), the SPI-NAND
+          #    `factory` MTD partition
+          #    (0x1c0000-0x2c0000) was overwritten with UBI EC headers
+          #    BEFORE the DTB-partitioning patch landed. The
+          #    mtk_uartboot recovery procedure that brings these units
+          #    out of KOD only re-flashes `bl2 + fip` from the
+          #    23.05.5 release; it does NOT touch `factory`. So the
+          #    nvmem-cells declared at offsets 0x7fff4 and 0x7fffa
+          #    still resolve to UBI noise, and U-Boot's
+          #    `ethernet@1b100000` ends up with a zeroed/garbled MAC.
+          #    The lab's dnsmasq has per-MAC reservations
+          #    (`dhcp-host=<MAC>,<IP>`), so a zero/garbled MAC source
+          #    gets no reply and `dhcp` loops `BOOTP broadcast
+          #    1...17 -> Retry time exceeded` for ~30 s. By that point
+          #    the MT7622 hardware watchdog (which U-Boot enables but
+          #    cannot pet during a BOOTP retry storm) has fired, the
+          #    device resets, and the second autoboot completes
+          #    uninterrupted (the strategy's interrupt-spam is a
+          #    one-shot per power-cycle), booting whatever firmware
+          #    sits in flash instead of our staged FIT. This is what
+          #    happened on belkin_rt3200_3 in CI run 25061360737.
+          #
+          # `tftpboot $loadaddr $bootfile` does NOT need DHCP and does
+          # NOT need a working `ethaddr`/MAC reservation in dnsmasq —
+          # U-Boot sends the TFTP frames with whatever MAC the SoC
+          # has (random/zero is fine for outbound), the lab's TFTP
+          # server replies based on src IP from the IPv4 header, and
+          # `serverip`/`ipaddr` are already set. `$loadaddr` defaults
+          # to 0x48000000 on this U-Boot (printed by the device's
+          # default env), and `$bootfile` is set by the strategy.
+          # Both env vars are present at this point in the boot flow.
+          - "tftpboot $loadaddr $bootfile"
           - "ubi part ubi || true"
           - "ubi remove rootfs_data || true"
         boot_command: bootm $loadaddr#$bootconf
