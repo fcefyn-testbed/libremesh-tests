@@ -181,7 +181,7 @@ def assert_libremesh_runtime(shell) -> None:
         ("hostname", "uname -n; cat /proc/sys/kernel/hostname 2>/dev/null"),
         (
             "lime_packages",
-            "opkg list-installed 2>/dev/null | "
+            "(apk list -I 2>/dev/null || opkg list-installed 2>/dev/null) | "
             "grep -E '^(lime|shared-state|batctl|babeld)' || "
             "echo '(no lime/shared-state/batctl/babeld packages installed)'",
         ),
