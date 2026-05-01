@@ -178,8 +178,24 @@ def _find_qemu() -> str:
 
 
 def _vm_has_kvm() -> bool:
-    """Check if /dev/kvm is available for acceleration."""
-    return Path("/dev/kvm").exists()
+    """Check if /dev/kvm is usable for KVM acceleration.
+
+    Existence alone is not enough: on GitHub-hosted ubuntu runners
+    (and most stock distros) `/dev/kvm` is owned root:kvm with mode
+    0660, so a non-kvm-group user sees the device but gets EACCES
+    when QEMU opens it ("Could not access KVM kernel module").
+    Without this `os.access` check the launcher would happily pass
+    `-enable-kvm` to QEMU, which then bails out before the guest
+    bootloader runs and the SSH-wait loop hits the timeout with no
+    actionable diagnostic. Probing R/W access at this layer lets us
+    fall back to TCG cleanly when the device is present but locked,
+    preserving the launcher's contract that all 3 VMs make it to
+    SSH within `boot_timeout` regardless of acceleration.
+    """
+    kvm = Path("/dev/kvm")
+    if not kvm.exists():
+        return False
+    return os.access(kvm, os.R_OK | os.W_OK)
 
 
 def _run_sudo(cmd: list[str]) -> subprocess.CompletedProcess:
