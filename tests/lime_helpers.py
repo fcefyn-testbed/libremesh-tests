@@ -162,9 +162,7 @@ def assert_libremesh_runtime(shell) -> None:
         try:
             release_lines, _, _ = shell.run("cat /etc/lime_release 2>/dev/null")
             if release_lines:
-                logger.info(
-                    "LibreMesh runtime guard OK: %s", release_lines[0].strip()
-                )
+                logger.info("LibreMesh runtime guard OK: %s", release_lines[0].strip())
         except Exception:
             logger.info("LibreMesh runtime guard OK")
         return

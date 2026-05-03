@@ -62,6 +62,8 @@ BOOT_PROGRESS_LOG_INTERVAL = 30
 BOOT_STATUS_POLL_INTERVAL = 2
 NETWORK_SETTLE_POLL_INTERVAL = 5
 SSH_COMMAND_TIMEOUT = 120
+VWIFI_SETUP_TIMEOUT = 240
+VWIFI_SETUP_RETRIES = 2
 BOOT_LOG_TAIL_CHARS = 3000
 
 SSH_TRANSIENT_EXIT_CODE = 255
@@ -137,7 +139,7 @@ class SSHProxy:
         base.append(command)
         return base
 
-    def run_check(self, command: str) -> list[str]:
+    def run_check(self, command: str, timeout: int = SSH_COMMAND_TIMEOUT) -> list[str]:
         """Run a command and return stdout lines. Raises on non-zero exit.
 
         Retries up to SSH_TRANSIENT_RETRIES times on SSH transport errors
@@ -149,7 +151,7 @@ class SSHProxy:
                 self._build_ssh_cmd(command),
                 capture_output=True,
                 text=True,
-                timeout=SSH_COMMAND_TIMEOUT,
+                timeout=timeout,
             )
             if result.returncode == 0:
                 if attempt > 1:
@@ -183,7 +185,9 @@ class SSHProxy:
             stderr=last_result.stderr,
         )
 
-    def run(self, command: str) -> tuple[list[str], list[str], int]:
+    def run(
+        self, command: str, timeout: int = SSH_COMMAND_TIMEOUT
+    ) -> tuple[list[str], list[str], int]:
         """Run a command and return (stdout_lines, stderr_lines, exit_code).
 
         Retries up to SSH_TRANSIENT_RETRIES times on SSH transport errors
@@ -196,7 +200,7 @@ class SSHProxy:
                     self._build_ssh_cmd(command),
                     capture_output=True,
                     text=True,
-                    timeout=SSH_COMMAND_TIMEOUT,
+                    timeout=timeout,
                 )
                 if result.returncode == 0 or not _is_transient_ssh_failure(
                     result.returncode
@@ -438,7 +442,12 @@ def _shutdown_subprocesses(
             _shutdown_subprocess(proc, stop_files.get(place, ""), place)
 
 
-def _configure_vwifi_node(ssh: SSHProxy, vwifi_server_ip: str, node_index: int):
+def _configure_vwifi_node(
+    ssh: SSHProxy,
+    vwifi_server_ip: str,
+    node_index: int,
+    timeout: int = VWIFI_SETUP_TIMEOUT,
+):
     """Configure vwifi-client and restart wireless on a virtual node.
 
     Networking: LibreMesh absorbs eth0/eth1 into br-lan, breaking SLIRP. We use
@@ -480,7 +489,7 @@ def _configure_vwifi_node(ssh: SSHProxy, vwifi_server_ip: str, node_index: int):
         f"sleep 1; "
         f"wifi up"
     )
-    stdout, stderr, rc = ssh.run(setup_script)
+    stdout, stderr, rc = ssh.run(setup_script, timeout=timeout)
     return rc == 0
 
 
@@ -522,15 +531,31 @@ def _mesh_nodes_virtual():
             len(mesh_nodes_list),
             vwifi_server_ip,
         )
+        failed_nodes = []
         for i, node in enumerate(mesh_nodes_list, start=1):
-            ok = _configure_vwifi_node(node.ssh, vwifi_server_ip, i)
-            if ok:
-                logger.info("Node %s: vwifi-client configured", node.place)
-            else:
+            ok = False
+            for retry in range(1, VWIFI_SETUP_RETRIES + 1):
+                ok = _configure_vwifi_node(node.ssh, vwifi_server_ip, i)
+                if ok:
+                    logger.info("Node %s: vwifi-client configured", node.place)
+                    break
                 logger.warning(
-                    "Node %s: vwifi-client setup failed (vwifi may not be in image)",
+                    "Node %s: vwifi-client setup failed (attempt %d/%d, timeout=%ds)",
                     node.place,
+                    retry,
+                    VWIFI_SETUP_RETRIES,
+                    VWIFI_SETUP_TIMEOUT,
                 )
+            if not ok:
+                failed_nodes.append(node.place)
+        if failed_nodes:
+            cleanup()
+            pytest.fail(
+                f"vwifi-client setup failed on {failed_nodes} after "
+                f"{VWIFI_SETUP_RETRIES} attempts each "
+                f"(timeout={VWIFI_SETUP_TIMEOUT}s). "
+                f"Mesh cannot form without all nodes connected."
+            )
 
         convergence_wait = int(os.environ.get("VIRTUAL_MESH_CONVERGENCE_WAIT", "60"))
         logger.info(
