@@ -120,3 +120,6 @@ def test_kernel_errors(ssh_command):
     assert not errors_found, (
         f"Critical errors found in kernel log: {errors_found[:5]}"
     )  # Show first 5
+
+
+# demo CI validation
