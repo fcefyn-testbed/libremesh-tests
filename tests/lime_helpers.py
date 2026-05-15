@@ -256,15 +256,12 @@ def override_primary_mac(shell, place_name: str) -> str | None:
 
     The function sets a deterministic unique MAC on eth0 (brief down/up
     cycle), re-runs ``lime-config`` to regenerate the full identity stack,
-    and restarts only WiFi (not the full network) to apply the new wireless
-    mesh MACs. br-lan stays up so the SSH fixed IP that
-    ``configure_fixed_ip`` sets afterwards remains reachable.
-
-    The brief eth0 down/up is tolerable even on DSA conduit devices
-    (OpenWrt One, Banana Pi R4, Belkin RT3200) because the DSA subsystem
-    recovers automatically when the conduit comes back up. The full
-    ``/etc/init.d/network restart`` is intentionally NOT called to avoid
-    tearing down br-lan.
+    then restarts WiFi and the network to apply the new config. On DSA
+    devices (like the Belkin RT3200) the ``eth0`` down/up disrupts the
+    switch fabric, so the full network restart is required to rebuild
+    ``br-lan`` with proper DSA port membership. The function waits for
+    ``br-lan`` to come UP before returning so that ``configure_fixed_ip``
+    applies the IP on the bridge, not on a disconnected ``eth0``.
 
     Must be called after the shell is ready but before ``ensure_batman_mesh``
     or ``configure_fixed_ip``.
@@ -325,14 +322,19 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     except Exception as exc:
         logger.warning("lime-config raised: %s", exc)
 
-    logger.info("Restarting WiFi to apply new mesh identity...")
+    logger.info("Restarting WiFi and network to apply new identity...")
     try:
         shell.run("wifi down; sleep 1; wifi up")
     except Exception as exc:
         logger.warning("wifi restart raised: %s", exc)
 
+    try:
+        shell.run("/etc/init.d/network restart")
+    except Exception as exc:
+        logger.warning("network restart raised: %s", exc)
+
     logger.info(
-        "Waiting %ds for WiFi to settle after identity override",
+        "Waiting %ds for services to settle after identity override",
         WIFI_RESTART_SETTLE_SECS,
     )
     time.sleep(WIFI_RESTART_SETTLE_SECS)
