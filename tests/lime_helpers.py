@@ -254,35 +254,23 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     reads ``eth0``, so identical eth0 MACs produce complete identity
     collisions and batman-adv cannot form neighbors.
 
-    On DSA conduit devices (OpenWrt One, Banana Pi R4) eth0 is the DSA
-    master: taking it down disrupts the entire switch fabric and breaks
-    SSH. These devices already have unique factory MACs so the override
-    is not needed and is skipped.
+    The function sets a deterministic unique MAC on eth0 (brief down/up
+    cycle), re-runs ``lime-config`` to regenerate the full identity stack,
+    and restarts only WiFi (not the full network) to apply the new wireless
+    mesh MACs. br-lan stays up so the SSH fixed IP that
+    ``configure_fixed_ip`` sets afterwards remains reachable.
 
-    On non-DSA devices (Belkin RT3200) eth0 is a regular Ethernet NIC
-    whose MAC can be changed safely. The function sets a deterministic
-    unique MAC on eth0, re-runs ``lime-config`` to regenerate the full
-    identity stack, and restarts only WiFi (not the full network) to
-    apply the new wireless mesh MACs. br-lan stays up so the SSH fixed
-    IP that ``configure_fixed_ip`` sets afterwards remains reachable.
+    The brief eth0 down/up is tolerable even on DSA conduit devices
+    (OpenWrt One, Banana Pi R4, Belkin RT3200) because the DSA subsystem
+    recovers automatically when the conduit comes back up. The full
+    ``/etc/init.d/network restart`` is intentionally NOT called to avoid
+    tearing down br-lan.
 
     Must be called after the shell is ready but before ``ensure_batman_mesh``
     or ``configure_fixed_ip``.
 
-    Returns the unique MAC that was applied, or None on skipped/failure.
+    Returns the unique MAC that was applied, or None on failure.
     """
-    try:
-        _, _, rc = shell.run("test -d /sys/class/net/eth0/dsa 2>/dev/null")
-        if rc == 0:
-            logger.info(
-                "eth0 is a DSA conduit on %s, skipping identity override "
-                "(DSA devices have unique factory MACs)",
-                place_name,
-            )
-            return None
-    except Exception:
-        pass
-
     unique_mac = generate_unique_primary_mac(place_name)
 
     try:
