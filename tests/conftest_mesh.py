@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 
-BOOT_TIMEOUT_BASE = 420
+BOOT_TIMEOUT_BASE = 540
 BOOT_TIMEOUT_PER_NODE = 30
 NETWORK_SETTLE_TIMEOUT = 180
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30

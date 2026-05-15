@@ -349,8 +349,9 @@ def _boot_node_once(place: str, target, strategy) -> dict:
         suppress_kernel_console(shell)
 
         skip_mac = os.environ.get("LG_MESH_SKIP_MAC_OVERRIDE", "").strip().lower()
+        mesh_ip_from_override = None
         if skip_mac not in ("1", "true", "yes"):
-            mac = override_primary_mac(shell, place)
+            mac, mesh_ip_from_override = override_primary_mac(shell, place)
             if mac:
                 logger.info("Primary MAC overridden to %s for %s", mac, place)
             else:
@@ -372,14 +373,18 @@ def _boot_node_once(place: str, target, strategy) -> dict:
             ssh_ip = query_node_ip(target, prefer_mesh=True)
             logger.info("Node %s using fallback SSH IP %s", place, ssh_ip)
 
-        mesh_ip = query_node_ip(target, prefer_mesh=True)
-        if mesh_ip:
-            logger.info("Node %s mesh IP %s", place, mesh_ip)
+        if mesh_ip_from_override:
+            mesh_ip = mesh_ip_from_override
+            logger.info("Node %s mesh IP %s (from override)", place, mesh_ip)
         else:
-            mesh_ip = ssh_ip
-            logger.info(
-                "Node %s mesh IP unavailable, falling back to %s", place, mesh_ip
-            )
+            mesh_ip = query_node_ip(target, timeout=10, prefer_mesh=True)
+            if mesh_ip:
+                logger.info("Node %s mesh IP %s (best-effort query)", place, mesh_ip)
+            else:
+                mesh_ip = ssh_ip
+                logger.info(
+                    "Node %s mesh IP unavailable, falling back to %s", place, mesh_ip
+                )
     except Exception as exc:
         _raise_stage_failure("post_shell", exc, retriable=True)
 

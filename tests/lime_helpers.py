@@ -241,9 +241,10 @@ def generate_unique_primary_mac(place_name: str) -> str:
 generate_fixed_ip = generate_mesh_ssh_ip
 
 
-IDENTITY_SETTLE_SECS = 45
-BR_LAN_MESH_IP_WAIT_SECS = 120
-BR_LAN_MESH_IP_POLL_INTERVAL = 5
+WLAN_MESH_UP_WAIT_SECS = 60
+BATMAN_ACTIVE_WAIT_SECS = 120
+BR_LAN_UP_WAIT_SECS = 30
+BR_LAN_MESH_IP_WAIT_SECS = 60
 
 
 def _read_br_lan_mesh_ip(shell) -> str | None:
@@ -265,8 +266,83 @@ def _read_br_lan_mesh_ip(shell) -> str | None:
     return None
 
 
-def override_primary_mac(shell, place_name: str) -> str | None:
-    """Inject a place-unique identity into LibreMesh before mesh tests.
+def _wait_wlan_mesh_up(shell, timeout: int = WLAN_MESH_UP_WAIT_SECS) -> bool:
+    """Wait for any wlan*-mesh* interface to reach operstate 'up'."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            _, _, rc = shell.run(
+                "grep -rl up /sys/class/net/wlan*mesh*/operstate 2>/dev/null"
+            )
+            if rc == 0:
+                logger.info("wlan-mesh interface is UP")
+                return True
+        except Exception:
+            pass
+        time.sleep(3)
+    logger.warning("No wlan-mesh interface came UP within %ds", timeout)
+    return False
+
+
+def _wait_batman_active(shell, timeout: int = BATMAN_ACTIVE_WAIT_SECS) -> bool:
+    """Wait for batman-adv to have at least one active hard-interface."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            out, _, rc = shell.run("batctl if 2>/dev/null")
+            if rc == 0 and out:
+                joined = "\n".join(out)
+                if "active" in joined.lower():
+                    logger.info("Batman-adv has active interfaces")
+                    return True
+        except Exception:
+            pass
+        time.sleep(5)
+    logger.warning("Batman-adv has no active interfaces after %ds", timeout)
+    return False
+
+
+def _wait_br_lan_up(shell, timeout: int = BR_LAN_UP_WAIT_SECS) -> bool:
+    """Wait for br-lan to reach link state UP."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            _, _, rc = shell.run(
+                "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
+            )
+            if rc == 0:
+                logger.info("br-lan is UP")
+                return True
+        except Exception:
+            pass
+        time.sleep(3)
+    logger.warning("br-lan did not come UP within %ds", timeout)
+    return False
+
+
+def _dump_convergence_diagnostics(shell, place_name: str) -> None:
+    """Log diagnostic info when the mesh convergence chain fails."""
+    diag_cmds = (
+        ("ip_link", "ip -br link 2>/dev/null"),
+        ("batctl_if", "batctl if 2>/dev/null"),
+        ("br_lan_addrs", "ip -4 -o addr show br-lan 2>/dev/null"),
+        ("logread_lime", "logread -e lime 2>/dev/null | tail -30"),
+        ("logread_netifd", "logread -e netifd 2>/dev/null | tail -20"),
+    )
+    logger.error("=== Convergence diagnostics for %s ===", place_name)
+    for label, cmd in diag_cmds:
+        try:
+            out, _, _ = shell.run(cmd)
+            logger.error("  [%s] %s", label, "\n  ".join(out) if out else "(empty)")
+        except Exception as exc:
+            logger.error("  [%s] failed: %s", label, exc)
+    logger.error("=== End convergence diagnostics ===")
+
+
+def override_primary_mac(
+    shell, place_name: str
+) -> tuple[str | None, str | None]:
+    """Inject a place-unique identity and wait for mesh convergence.
 
     In initramfs mode, same-model devices share identical eth0 MACs (DTS
     defaults when the factory partition is not mounted). LibreMesh derives
@@ -274,19 +350,12 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     reads ``eth0``, so identical eth0 MACs produce complete identity
     collisions and batman-adv cannot form neighbors.
 
-    The function sets a deterministic unique MAC on eth0 (brief down/up
-    cycle, the kernel driver preserves it through netifd restarts since
-    eth0's MAC lives in the kernel netdev, not in UCI), re-runs
-    ``lime-config`` to regenerate the full identity stack, and restarts
-    WiFi and the network. Then it sleeps passively (no concurrent shell
-    commands, to avoid interfering with lime-config/netifd over the
-    serial console) before polling for a real LibreMesh mesh IP on
-    br-lan, the definitive signal that initialisation completed.
+    After setting the MAC, the function observes the convergence chain
+    step by step (wlan-mesh UP -> batman active -> br-lan UP -> mesh IP on
+    br-lan) instead of sleeping blindly.
 
-    Must be called after the shell is ready but before ``ensure_batman_mesh``
-    or ``configure_fixed_ip``.
-
-    Returns the unique MAC that was applied, or None on failure.
+    Returns ``(unique_mac, mesh_ip)`` where *mesh_ip* is the real LibreMesh
+    address on br-lan (or ``None`` if the chain did not converge).
     """
     unique_mac = generate_unique_primary_mac(place_name)
 
@@ -319,10 +388,10 @@ def override_primary_mac(shell, place_name: str) -> str | None:
                 rc,
                 stderr,
             )
-            return None
+            return None, None
     except Exception as exc:
         logger.error("Exception setting eth0 MAC: %s", exc)
-        return None
+        return None, None
 
     try:
         verify_out, _, _ = shell.run("cat /sys/class/net/eth0/address")
@@ -331,7 +400,7 @@ def override_primary_mac(shell, place_name: str) -> str | None:
             logger.error(
                 "MAC verification failed: expected %s, got %s", unique_mac, actual
             )
-            return None
+            return None, None
         logger.info("eth0 MAC verified: %s", actual)
     except Exception as exc:
         logger.warning("Could not verify eth0 MAC: %s", exc)
@@ -353,11 +422,18 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     except Exception as exc:
         logger.warning("network restart raised: %s", exc)
 
-    logger.info(
-        "Waiting %ds passively for lime-config/netifd to settle",
-        IDENTITY_SETTLE_SECS,
-    )
-    time.sleep(IDENTITY_SETTLE_SECS)
+    # --- Event-driven convergence chain ---
+    if not _wait_wlan_mesh_up(shell):
+        _dump_convergence_diagnostics(shell, place_name)
+        return unique_mac, None
+
+    if not _wait_batman_active(shell):
+        _dump_convergence_diagnostics(shell, place_name)
+        return unique_mac, None
+
+    if not _wait_br_lan_up(shell):
+        _dump_convergence_diagnostics(shell, place_name)
+        return unique_mac, None
 
     deadline = time.time() + BR_LAN_MESH_IP_WAIT_SECS
     mesh_ip = None
@@ -365,7 +441,7 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         mesh_ip = _read_br_lan_mesh_ip(shell)
         if mesh_ip:
             break
-        time.sleep(BR_LAN_MESH_IP_POLL_INTERVAL)
+        time.sleep(5)
 
     if mesh_ip:
         logger.info(
@@ -373,34 +449,12 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         )
     else:
         logger.warning(
-            "br-lan did not get a LibreMesh mesh IP within %ds; retrying lime-config",
+            "br-lan did not get a LibreMesh mesh IP within %ds after convergence",
             BR_LAN_MESH_IP_WAIT_SECS,
         )
-        try:
-            shell.run("lime-config")
-        except Exception as exc:
-            logger.warning("lime-config retry raised: %s", exc)
-        try:
-            shell.run("wifi down; sleep 1; wifi up")
-        except Exception as exc:
-            logger.warning("wifi restart retry raised: %s", exc)
-        try:
-            shell.run("/etc/init.d/network restart")
-        except Exception as exc:
-            logger.warning("network restart retry raised: %s", exc)
-        time.sleep(IDENTITY_SETTLE_SECS)
-        mesh_ip = _read_br_lan_mesh_ip(shell)
-        if mesh_ip:
-            logger.info(
-                "br-lan got LibreMesh mesh IP %s after retry", mesh_ip
-            )
-        else:
-            logger.error(
-                "br-lan still has no LibreMesh mesh IP after retry; "
-                "configure_fixed_ip may apply IP on eth0 (unreachable on DSA devices)"
-            )
+        _dump_convergence_diagnostics(shell, place_name)
 
-    return unique_mac
+    return unique_mac, mesh_ip
 
 
 def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
