@@ -33,6 +33,7 @@ from lime_helpers import (
     configure_fixed_ip,
     ensure_batman_mesh,
     generate_mesh_ssh_ip,
+    override_primary_mac,
     query_node_ip,
     suppress_kernel_console,
 )
@@ -346,6 +347,15 @@ def _boot_node_once(place: str, target, strategy) -> dict:
 
     try:
         suppress_kernel_console(shell)
+
+        skip_mac = os.environ.get("LG_MESH_SKIP_MAC_OVERRIDE", "").strip().lower()
+        if skip_mac not in ("1", "true", "yes"):
+            mac = override_primary_mac(shell, place)
+            if mac:
+                logger.info("Primary MAC overridden to %s for %s", mac, place)
+            else:
+                logger.warning("Primary MAC override failed for %s", place)
+
         ensure_batman_mesh(target, place_name=place)
         mesh_ssh_ip = generate_mesh_ssh_ip(place)
         fixed_ip = configure_fixed_ip(

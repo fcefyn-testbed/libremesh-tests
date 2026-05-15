@@ -220,8 +220,119 @@ def generate_mesh_ssh_ip(place_name: str) -> str:
     return f"{MESH_SSH_IP_PREFIX}.{hash_value}"
 
 
+def generate_unique_primary_mac(place_name: str) -> str:
+    """Generate a deterministic locally-administered unicast MAC from a place name.
+
+    Same-model devices in initramfs mode share identical eth0 MACs (DTS
+    defaults when the factory partition is not mounted). LibreMesh derives
+    all per-node identity (mesh MAC, IP) from ``primary_mac`` (eth0), so
+    identical eth0 MACs cause complete identity collisions.
+
+    This function produces a unique, repeatable MAC per place that can be
+    applied to eth0 before ``lime-config`` runs, ensuring each device gets
+    distinct identity even when the hardware provides no unique MAC.
+    """
+    h = hashlib.md5(place_name.encode()).hexdigest()
+    first_byte = (int(h[0:2], 16) | 0x02) & 0xFE
+    return f"{first_byte:02x}:{h[2:4]}:{h[4:6]}:{h[6:8]}:{h[8:10]}:{h[10:12]}"
+
+
 # Backward-compatible alias for older imports.
 generate_fixed_ip = generate_mesh_ssh_ip
+
+
+LIME_CONFIG_SETTLE_SECS = 20
+
+
+def override_primary_mac(shell, place_name: str) -> str | None:
+    """Override eth0 MAC with a place-unique address and re-run lime-config.
+
+    In initramfs mode, same-model devices share identical eth0 MACs (from
+    DTS defaults when the factory partition is not yet mounted). LibreMesh
+    derives all per-node identity from ``primary_mac()`` → ``eth0`` address,
+    so two identical-model devices end up with the same mesh MAC, same mesh
+    IP, and batman-adv cannot form neighbors.
+
+    This function sets a deterministic unique MAC on eth0, then re-runs
+    ``lime-config`` + network/wifi restart so the full LibreMesh identity
+    stack (mesh MAC, IP, hostname) reflects the new primary MAC.
+
+    Must be called after the shell is ready but before ``ensure_batman_mesh``
+    or ``configure_fixed_ip``.
+
+    Returns the unique MAC that was applied, or None on failure.
+    """
+    unique_mac = generate_unique_primary_mac(place_name)
+
+    try:
+        current_mac_out, _, _ = shell.run(
+            "cat /sys/class/net/eth0/address 2>/dev/null"
+        )
+        current_mac = current_mac_out[0].strip() if current_mac_out else "unknown"
+    except Exception:
+        current_mac = "unknown"
+
+    logger.info(
+        "Overriding primary MAC for %s: %s -> %s",
+        place_name,
+        current_mac,
+        unique_mac,
+    )
+
+    override_cmds = (
+        f"ip link set eth0 down && "
+        f"ip link set eth0 address {unique_mac} && "
+        f"ip link set eth0 up"
+    )
+    try:
+        _, stderr, rc = shell.run(override_cmds)
+        if rc != 0:
+            logger.error(
+                "Failed to set eth0 MAC to %s (rc=%d): %s",
+                unique_mac,
+                rc,
+                stderr,
+            )
+            return None
+    except Exception as exc:
+        logger.error("Exception setting eth0 MAC: %s", exc)
+        return None
+
+    try:
+        verify_out, _, _ = shell.run("cat /sys/class/net/eth0/address")
+        actual = verify_out[0].strip() if verify_out else ""
+        if actual.lower() != unique_mac.lower():
+            logger.error(
+                "MAC verification failed: expected %s, got %s", unique_mac, actual
+            )
+            return None
+        logger.info("eth0 MAC verified: %s", actual)
+    except Exception as exc:
+        logger.warning("Could not verify eth0 MAC: %s", exc)
+
+    logger.info("Re-running lime-config with new primary MAC...")
+    try:
+        shell.run("lime-config")
+    except Exception as exc:
+        logger.warning("lime-config raised: %s", exc)
+
+    try:
+        shell.run("wifi down; sleep 1; wifi up")
+    except Exception as exc:
+        logger.warning("wifi restart raised: %s", exc)
+
+    try:
+        shell.run("/etc/init.d/network restart")
+    except Exception as exc:
+        logger.warning("network restart raised: %s", exc)
+
+    logger.info(
+        "Waiting %ds for network to settle after identity override",
+        LIME_CONFIG_SETTLE_SECS,
+    )
+    time.sleep(LIME_CONFIG_SETTLE_SECS)
+
+    return unique_mac
 
 
 def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
