@@ -241,27 +241,48 @@ def generate_unique_primary_mac(place_name: str) -> str:
 generate_fixed_ip = generate_mesh_ssh_ip
 
 
-LIME_CONFIG_SETTLE_SECS = 20
+WIFI_RESTART_SETTLE_SECS = 10
+BR_LAN_WAIT_AFTER_OVERRIDE_SECS = 45
 
 
 def override_primary_mac(shell, place_name: str) -> str | None:
-    """Override eth0 MAC with a place-unique address and re-run lime-config.
+    """Inject a place-unique identity into LibreMesh before mesh tests.
 
-    In initramfs mode, same-model devices share identical eth0 MACs (from
-    DTS defaults when the factory partition is not yet mounted). LibreMesh
-    derives all per-node identity from ``primary_mac()`` → ``eth0`` address,
-    so two identical-model devices end up with the same mesh MAC, same mesh
-    IP, and batman-adv cannot form neighbors.
+    In initramfs mode, same-model devices share identical eth0 MACs (DTS
+    defaults when the factory partition is not mounted). LibreMesh derives
+    all per-node identity (mesh MAC, mesh IP) from ``primary_mac()`` which
+    reads ``eth0``, so identical eth0 MACs produce complete identity
+    collisions and batman-adv cannot form neighbors.
 
-    This function sets a deterministic unique MAC on eth0, then re-runs
-    ``lime-config`` + network/wifi restart so the full LibreMesh identity
-    stack (mesh MAC, IP, hostname) reflects the new primary MAC.
+    On DSA conduit devices (OpenWrt One, Banana Pi R4) eth0 is the DSA
+    master: taking it down disrupts the entire switch fabric and breaks
+    SSH. These devices already have unique factory MACs so the override
+    is not needed and is skipped.
+
+    On non-DSA devices (Belkin RT3200) eth0 is a regular Ethernet NIC
+    whose MAC can be changed safely. The function sets a deterministic
+    unique MAC on eth0, re-runs ``lime-config`` to regenerate the full
+    identity stack, and restarts only WiFi (not the full network) to
+    apply the new wireless mesh MACs. br-lan stays up so the SSH fixed
+    IP that ``configure_fixed_ip`` sets afterwards remains reachable.
 
     Must be called after the shell is ready but before ``ensure_batman_mesh``
     or ``configure_fixed_ip``.
 
-    Returns the unique MAC that was applied, or None on failure.
+    Returns the unique MAC that was applied, or None on skipped/failure.
     """
+    try:
+        _, _, rc = shell.run("test -d /sys/class/net/eth0/dsa 2>/dev/null")
+        if rc == 0:
+            logger.info(
+                "eth0 is a DSA conduit on %s, skipping identity override "
+                "(DSA devices have unique factory MACs)",
+                place_name,
+            )
+            return None
+    except Exception:
+        pass
+
     unique_mac = generate_unique_primary_mac(place_name)
 
     try:
@@ -273,7 +294,7 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         current_mac = "unknown"
 
     logger.info(
-        "Overriding primary MAC for %s: %s -> %s",
+        "Overriding primary MAC for %s: eth0 %s -> %s",
         place_name,
         current_mac,
         unique_mac,
@@ -316,21 +337,32 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     except Exception as exc:
         logger.warning("lime-config raised: %s", exc)
 
+    logger.info("Restarting WiFi to apply new mesh identity...")
     try:
         shell.run("wifi down; sleep 1; wifi up")
     except Exception as exc:
         logger.warning("wifi restart raised: %s", exc)
 
-    try:
-        shell.run("/etc/init.d/network restart")
-    except Exception as exc:
-        logger.warning("network restart raised: %s", exc)
-
     logger.info(
-        "Waiting %ds for network to settle after identity override",
-        LIME_CONFIG_SETTLE_SECS,
+        "Waiting %ds for WiFi to settle after identity override",
+        WIFI_RESTART_SETTLE_SECS,
     )
-    time.sleep(LIME_CONFIG_SETTLE_SECS)
+    time.sleep(WIFI_RESTART_SETTLE_SECS)
+
+    deadline = time.time() + BR_LAN_WAIT_AFTER_OVERRIDE_SECS
+    while time.time() < deadline:
+        _, _, rc = shell.run(
+            "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
+        )
+        if rc == 0:
+            logger.info("br-lan is UP after identity override")
+            break
+        time.sleep(3)
+    else:
+        logger.warning(
+            "br-lan not UP after %ds; configure_fixed_ip will fall back to eth0",
+            BR_LAN_WAIT_AFTER_OVERRIDE_SECS,
+        )
 
     return unique_mac
 
