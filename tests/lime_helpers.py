@@ -242,8 +242,27 @@ generate_fixed_ip = generate_mesh_ssh_ip
 
 
 IDENTITY_SETTLE_SECS = 45
-BR_LAN_MESH_IP_WAIT_SECS = 90
+BR_LAN_MESH_IP_WAIT_SECS = 120
 BR_LAN_MESH_IP_POLL_INTERVAL = 5
+
+
+def _read_br_lan_mesh_ip(shell) -> str | None:
+    """Return a real LibreMesh mesh IPv4 on br-lan, or None.
+
+    A real mesh IP is in 10.13.0.0/16 but outside the 10.13.200.0/24 SSH
+    control range used by the test framework.
+    """
+    try:
+        out, _, _ = shell.run(
+            "ip -4 -o addr show br-lan 2>/dev/null | awk '{print $4}'"
+        )
+    except Exception:
+        return None
+    for line in out:
+        ip = line.split("/")[0].strip()
+        if ip.startswith("10.13.") and not ip.startswith(f"{MESH_SSH_IP_PREFIX}."):
+            return ip
+    return None
 
 
 def override_primary_mac(shell, place_name: str) -> str | None:
@@ -255,12 +274,14 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     reads ``eth0``, so identical eth0 MACs produce complete identity
     collisions and batman-adv cannot form neighbors.
 
-    The function sets a deterministic unique MAC on eth0 via UCI (so the
-    network restart preserves it), re-runs ``lime-config`` to regenerate
-    the full identity stack, and restarts WiFi and the network. Then it
-    waits (without polling, to avoid interfering with lime-config/netifd
-    over the serial console) for the network to fully settle, and finally
-    verifies br-lan ends up with a real LibreMesh mesh IP.
+    The function sets a deterministic unique MAC on eth0 (brief down/up
+    cycle, the kernel driver preserves it through netifd restarts since
+    eth0's MAC lives in the kernel netdev, not in UCI), re-runs
+    ``lime-config`` to regenerate the full identity stack, and restarts
+    WiFi and the network. Then it sleeps passively (no concurrent shell
+    commands, to avoid interfering with lime-config/netifd over the
+    serial console) before polling for a real LibreMesh mesh IP on
+    br-lan, the definitive signal that initialisation completed.
 
     Must be called after the shell is ready but before ``ensure_batman_mesh``
     or ``configure_fixed_ip``.
@@ -283,22 +304,6 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         current_mac,
         unique_mac,
     )
-
-    uci_cmds = (
-        f"uci -q delete network.eth0_macoverride; "
-        f"uci set network.eth0_macoverride=device && "
-        f"uci set network.eth0_macoverride.name='eth0' && "
-        f"uci set network.eth0_macoverride.macaddr='{unique_mac}' && "
-        f"uci commit network"
-    )
-    try:
-        _, stderr, rc = shell.run(uci_cmds)
-        if rc != 0:
-            logger.warning(
-                "UCI MAC override returned rc=%d: %s", rc, stderr
-            )
-    except Exception as exc:
-        logger.warning("UCI MAC override raised: %s", exc)
 
     override_cmds = (
         f"ip link set eth0 down && "
@@ -349,7 +354,7 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         logger.warning("network restart raised: %s", exc)
 
     logger.info(
-        "Waiting %ds for lime-config/netifd to settle (no concurrent shell)",
+        "Waiting %ds passively for lime-config/netifd to settle",
         IDENTITY_SETTLE_SECS,
     )
     time.sleep(IDENTITY_SETTLE_SECS)
@@ -357,20 +362,7 @@ def override_primary_mac(shell, place_name: str) -> str | None:
     deadline = time.time() + BR_LAN_MESH_IP_WAIT_SECS
     mesh_ip = None
     while time.time() < deadline:
-        try:
-            out, _, _ = shell.run(
-                "ip -4 -o addr show br-lan 2>/dev/null | awk '{print $4}'"
-            )
-        except Exception:
-            out = []
-        for line in out:
-            ip = line.split("/")[0].strip()
-            if (
-                ip.startswith("10.13.")
-                and not ip.startswith(f"{MESH_SSH_IP_PREFIX}.")
-            ):
-                mesh_ip = ip
-                break
+        mesh_ip = _read_br_lan_mesh_ip(shell)
         if mesh_ip:
             break
         time.sleep(BR_LAN_MESH_IP_POLL_INTERVAL)
@@ -381,9 +373,32 @@ def override_primary_mac(shell, place_name: str) -> str | None:
         )
     else:
         logger.warning(
-            "br-lan did not get a LibreMesh mesh IP within %ds after override",
+            "br-lan did not get a LibreMesh mesh IP within %ds; retrying lime-config",
             BR_LAN_MESH_IP_WAIT_SECS,
         )
+        try:
+            shell.run("lime-config")
+        except Exception as exc:
+            logger.warning("lime-config retry raised: %s", exc)
+        try:
+            shell.run("wifi down; sleep 1; wifi up")
+        except Exception as exc:
+            logger.warning("wifi restart retry raised: %s", exc)
+        try:
+            shell.run("/etc/init.d/network restart")
+        except Exception as exc:
+            logger.warning("network restart retry raised: %s", exc)
+        time.sleep(IDENTITY_SETTLE_SECS)
+        mesh_ip = _read_br_lan_mesh_ip(shell)
+        if mesh_ip:
+            logger.info(
+                "br-lan got LibreMesh mesh IP %s after retry", mesh_ip
+            )
+        else:
+            logger.error(
+                "br-lan still has no LibreMesh mesh IP after retry; "
+                "configure_fixed_ip may apply IP on eth0 (unreachable on DSA devices)"
+            )
 
     return unique_mac
 
