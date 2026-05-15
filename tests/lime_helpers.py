@@ -302,21 +302,41 @@ def _wait_batman_active(shell, timeout: int = BATMAN_ACTIVE_WAIT_SECS) -> bool:
     return False
 
 
+def _br_lan_ready(shell) -> bool:
+    """True when br-lan exists and IFF_UP is set.
+
+    Some kernels report bridges as ``state UNKNOWN`` while still usable;
+    matching ``<...,UP,...>`` from ``ip link`` is the reliable signal.
+    """
+    _, _, rc = shell.run(
+        "ip link show br-lan 2>/dev/null | grep -q '<[^>]*UP[^>]*>'"
+    )
+    return rc == 0
+
+
+def _iface_is_dsa_conduit(shell, iface: str) -> bool:
+    """True when *iface* is a DSA master (switch conduit), not a host port.
+
+    Assigning a routable IPv4 on eth0 in this configuration puts the address on
+    an L2-only mapping; SSH from the mesh VLAN never reaches it.  Wait for
+    ``br-lan`` instead.
+    """
+    _, _, rc = shell.run(f"test -d /sys/class/net/{iface}/dsa")
+    return rc == 0
+
+
 def _wait_br_lan_up(shell, timeout: int = BR_LAN_UP_WAIT_SECS) -> bool:
-    """Wait for br-lan to reach link state UP."""
+    """Wait for br-lan to become usable (administratively up)."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            _, _, rc = shell.run(
-                "ip -o link show br-lan 2>/dev/null | grep -q 'state UP'"
-            )
-            if rc == 0:
+            if _br_lan_ready(shell):
                 logger.info("br-lan is UP")
                 return True
         except Exception:
             pass
         time.sleep(3)
-    logger.warning("br-lan did not come UP within %ds", timeout)
+    logger.warning("br-lan did not become ready within %ds", timeout)
     return False
 
 
@@ -593,15 +613,23 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
 
     Waits up to *max_wait* seconds for br-lan (created by LibreMesh after
     wifi/batman init, can take 50+ seconds on slow devices like LibreRouter).
-    Falls back to eth0 or the default-route interface if they are UP.
+
+    Falls back to eth0 or the default-route interface only when they are not DSA
+    conduits.  On Belkin RT3200 / Linksys E8450, eth0 is always ``UP`` as the
+    DSA master; picking it before br-lan breaks SSH from the mesh VLAN.
     """
     deadline = time.time() + max_wait
     while time.time() < deadline:
-        _, _, rc = shell.run("ip -o link show br-lan 2>/dev/null | grep -q 'state UP'")
-        if rc == 0:
+        if _br_lan_ready(shell):
             return "br-lan"
 
         for iface in ("eth0",):
+            if _iface_is_dsa_conduit(shell, iface):
+                logger.debug(
+                    "Skipping %s for fixed IP: DSA conduit (wait for br-lan)",
+                    iface,
+                )
+                continue
             _, _, rc = shell.run(
                 f"ip -o link show {iface} 2>/dev/null | grep -q 'state UP'"
             )
@@ -613,9 +641,12 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
         )
         if rc == 0 and stdout and stdout[0].strip():
             iface = stdout[0].strip()
-            _, _, rc2 = shell.run(f"ip -o link show {iface} 2>/dev/null | grep -q .")
-            if rc2 == 0:
-                return iface
+            if _iface_is_dsa_conduit(shell, iface):
+                pass
+            else:
+                _, _, rc2 = shell.run(f"ip -o link show {iface} 2>/dev/null | grep -q .")
+                if rc2 == 0:
+                    return iface
 
         remaining = int(deadline - time.time())
         if remaining > 0:
@@ -641,7 +672,7 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     watchdog_script = (
         f"END=$(($(date +%s)+300)); "
         f'while [ "$(date +%s)" -lt "$END" ]; do '
-        f'  if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
+        f'  if ip link show br-lan 2>/dev/null | grep -q "<[^>]*UP[^>]*>"; then '
         f"    WANT=br-lan; "
         f"  else "
         f"    WANT={original_iface}; "
@@ -705,10 +736,13 @@ def configure_fixed_ip(
             )
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
+    mesh_mode = bool(os.environ.get("TFTP_SERVER_IP", "").strip())
+    lan_wait = 180 if mesh_mode else 60
+
     max_attempts = 3
     retry_delay = 15
     for attempt in range(1, max_attempts + 1):
-        iface = find_lan_interface(shell)
+        iface = find_lan_interface(shell, max_wait=lan_wait)
         if not iface:
             logger.error("No suitable network interface found for fixed IP")
             return None
