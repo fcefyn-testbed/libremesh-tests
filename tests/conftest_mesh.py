@@ -53,9 +53,9 @@ logger = logging.getLogger(__name__)
 
 BOOT_SCRIPT = Path(__file__).parent / "mesh_boot_node.py"
 
-BOOT_TIMEOUT_BASE = 540
+BOOT_TIMEOUT_BASE = 420
 BOOT_TIMEOUT_PER_NODE = 30
-NETWORK_SETTLE_TIMEOUT = 180
+NETWORK_SETTLE_TIMEOUT = 60
 SUBPROCESS_SHUTDOWN_TIMEOUT = 30
 SUBPROCESS_KILL_TIMEOUT = 10
 BOOT_PROGRESS_LOG_INTERVAL = 30
@@ -64,7 +64,7 @@ NETWORK_SETTLE_POLL_INTERVAL = 5
 SSH_COMMAND_TIMEOUT = 120
 VWIFI_SETUP_TIMEOUT = 240
 VWIFI_SETUP_RETRIES = 2
-BOOT_LOG_TAIL_CHARS = 12000
+BOOT_LOG_TAIL_CHARS = 3000
 
 SSH_TRANSIENT_EXIT_CODE = 255
 SSH_TRANSIENT_RETRIES = 3
@@ -694,7 +694,6 @@ def mesh_nodes(request, mesh_vlan_multi):
                     mesh_ip = status.get("mesh_ip") or status.get("ip", "")
                     if not ssh_ip:
                         logger.error("Node %s booted but did not report ssh_ip", place)
-                        _dump_boot_log(place, log_files[place])
                         failed.append(place)
                         continue
                     if ssh_ip in seen_ssh_ips:
