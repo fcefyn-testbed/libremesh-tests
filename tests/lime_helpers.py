@@ -244,27 +244,7 @@ generate_fixed_ip = generate_mesh_ssh_ip
 WLAN_MESH_UP_WAIT_SECS = 60
 BATMAN_ACTIVE_WAIT_SECS = 120
 BR_LAN_UP_WAIT_SECS = 90
-BR_LAN_MESH_IP_WAIT_SECS = 60
 RESTART_STAGGER_MAX_SECS = 12
-
-
-def _read_br_lan_mesh_ip(shell) -> str | None:
-    """Return a real LibreMesh mesh IPv4 on br-lan, or None.
-
-    A real mesh IP is in 10.13.0.0/16 but outside the 10.13.200.0/24 SSH
-    control range used by the test framework.
-    """
-    try:
-        out, _, _ = shell.run(
-            "ip -4 -o addr show br-lan 2>/dev/null | awk '{print $4}'"
-        )
-    except Exception:
-        return None
-    for line in out:
-        ip = line.split("/")[0].strip()
-        if ip.startswith("10.13.") and not ip.startswith(f"{MESH_SSH_IP_PREFIX}."):
-            return ip
-    return None
 
 
 def _wait_wlan_mesh_up(shell, timeout: int = WLAN_MESH_UP_WAIT_SECS) -> bool:
@@ -391,50 +371,7 @@ def _restart_stagger_seconds(place_name: str | None) -> int:
     return digest[0] % (RESTART_STAGGER_MAX_SECS + 1)
 
 
-def _dump_convergence_diagnostics(shell, place_name: str) -> None:
-    """Log diagnostic info when the mesh convergence chain fails.
-
-    Lines are tagged with ``CONVDIAG`` so they survive the ``tail -1`` log
-    polling in :mod:`conftest_mesh` (the parent only prints the *last* line
-    per node every 30 s).  Also dumped to ``/tmp/lime-debug-<place>.log`` on
-    the DUT for downstream artifact collection.
-    """
-    diag_cmds = (
-        ("ip_link", "ip -br link 2>/dev/null"),
-        ("br_lan_link", "ip link show br-lan 2>/dev/null"),
-        ("batctl_if", "batctl if 2>/dev/null"),
-        ("br_lan_addrs", "ip -4 -o addr show br-lan 2>/dev/null"),
-        ("eth0_addrs", "ip -4 -o addr show eth0 2>/dev/null"),
-        ("uci_network", "uci show network 2>/dev/null | head -60"),
-        ("logread_lime", "logread -e lime 2>/dev/null | tail -30"),
-        ("logread_netifd", "logread -e netifd 2>/dev/null | tail -25"),
-    )
-    safe_place = re.sub(r"[^A-Za-z0-9_.-]", "_", place_name or "unknown")
-    diag_path = f"/tmp/lime-debug-{safe_place}.log"
-    shell.run(f": > {diag_path}")
-    logger.error("CONVDIAG[%s] === Convergence diagnostics begin ===", place_name)
-    for label, cmd in diag_cmds:
-        try:
-            out, _, _ = shell.run(cmd)
-            content = "\n".join(out) if out else "(empty)"
-        except Exception as exc:
-            content = f"(failed: {exc})"
-        for line in content.splitlines() or ["(empty)"]:
-            logger.error("CONVDIAG[%s][%s] %s", place_name, label, line)
-        shell.run(
-            f"printf '=== %s ===\\n%s\\n' {label!r} {content!r} >> {diag_path} "
-            f"2>/dev/null || true"
-        )
-    logger.error(
-        "CONVDIAG[%s] === Convergence diagnostics end (file=%s) ===",
-        place_name,
-        diag_path,
-    )
-
-
-def override_primary_mac(
-    shell, place_name: str
-) -> tuple[str | None, str | None]:
+def override_primary_mac(shell, place_name: str) -> str | None:
     """Inject a place-unique identity and wait for mesh convergence.
 
     In initramfs mode, same-model devices share identical eth0 MACs (DTS
@@ -444,11 +381,11 @@ def override_primary_mac(
     collisions and batman-adv cannot form neighbors.
 
     After setting the MAC, the function observes the convergence chain
-    step by step (wlan-mesh UP -> batman active -> br-lan UP -> mesh IP on
-    br-lan) instead of sleeping blindly.
+    step by step (wlan-mesh UP -> batman active -> br-lan UP) and returns
+    the unique MAC.  The fixed SSH IP watchdog keeps ``10.13.200.x`` on
+    ``br-lan``, so a LibreMesh-derived IP on ``br-lan`` is not required.
 
-    Returns ``(unique_mac, mesh_ip)`` where *mesh_ip* is the real LibreMesh
-    address on br-lan (or ``None`` if the chain did not converge).
+    Returns the unique MAC that was applied, or ``None`` on failure.
     """
     unique_mac = generate_unique_primary_mac(place_name)
 
@@ -481,10 +418,10 @@ def override_primary_mac(
                 rc,
                 stderr,
             )
-            return None, None
+            return None
     except Exception as exc:
         logger.error("Exception setting eth0 MAC: %s", exc)
-        return None, None
+        return None
 
     try:
         verify_out, _, _ = shell.run("cat /sys/class/net/eth0/address")
@@ -493,7 +430,7 @@ def override_primary_mac(
             logger.error(
                 "MAC verification failed: expected %s, got %s", unique_mac, actual
             )
-            return None, None
+            return None
         logger.info("eth0 MAC verified: %s", actual)
     except Exception as exc:
         logger.warning("Could not verify eth0 MAC: %s", exc)
@@ -525,41 +462,12 @@ def override_primary_mac(
 
     _force_br_lan_up(shell)
 
-    # --- Event-driven convergence chain ---
-    if not _wait_wlan_mesh_up(shell):
-        _dump_convergence_diagnostics(shell, place_name)
-        return unique_mac, None
-
-    if not _wait_batman_active(shell):
-        _dump_convergence_diagnostics(shell, place_name)
-        return unique_mac, None
-
-    if not _wait_br_lan_up(shell):
-        _dump_convergence_diagnostics(shell, place_name)
-        return unique_mac, None
-
+    _wait_wlan_mesh_up(shell)
+    _wait_batman_active(shell)
+    _wait_br_lan_up(shell)
     _force_br_lan_up(shell)
 
-    deadline = time.time() + BR_LAN_MESH_IP_WAIT_SECS
-    mesh_ip = None
-    while time.time() < deadline:
-        mesh_ip = _read_br_lan_mesh_ip(shell)
-        if mesh_ip:
-            break
-        time.sleep(5)
-
-    if mesh_ip:
-        logger.info(
-            "br-lan got LibreMesh mesh IP %s after identity override", mesh_ip
-        )
-    else:
-        logger.warning(
-            "br-lan did not get a LibreMesh mesh IP within %ds after convergence",
-            BR_LAN_MESH_IP_WAIT_SECS,
-        )
-        _dump_convergence_diagnostics(shell, place_name)
-
-    return unique_mac, mesh_ip
+    return unique_mac
 
 
 def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
