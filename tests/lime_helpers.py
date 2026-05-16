@@ -224,6 +224,78 @@ def generate_mesh_ssh_ip(place_name: str) -> str:
 generate_fixed_ip = generate_mesh_ssh_ip
 
 
+def generate_unique_primary_mac(place_name: str) -> str:
+    """Derive a locally-administered unicast MAC from the place name.
+
+    Used by :func:`override_primary_mac` so that two identical-model devices
+    (e.g. two Belkin RT3200s sharing the same DTS-default eth0 MAC in
+    initramfs) get unique LibreMesh identities.
+    """
+    digest = hashlib.sha1(place_name.encode("utf-8")).hexdigest()
+    octets = [int(digest[i : i + 2], 16) for i in range(0, 12, 2)]
+    octets[0] = (octets[0] | 0x02) & 0xFE
+    return ":".join(f"{b:02x}" for b in octets)
+
+
+MAC_OVERRIDE_CONVERGENCE_SECS = 45
+
+
+def override_primary_mac(shell, place_name: str) -> str | None:
+    """Inject a per-place unique eth0 MAC so LibreMesh derives a unique identity.
+
+    Returns the unique MAC on success, ``None`` on failure.  After setting the
+    MAC, reruns ``lime-config`` and restarts wifi + network, then sleeps
+    ``MAC_OVERRIDE_CONVERGENCE_SECS`` for batman-adv / br-lan to settle.
+    """
+    unique_mac = generate_unique_primary_mac(place_name)
+
+    try:
+        out, _, _ = shell.run("cat /sys/class/net/eth0/address 2>/dev/null")
+        current = out[0].strip() if out else "unknown"
+    except Exception:
+        current = "unknown"
+
+    logger.info("Overriding eth0 MAC for %s: %s -> %s", place_name, current, unique_mac)
+
+    _, _, rc = shell.run(
+        f"ip link set eth0 down && "
+        f"ip link set eth0 address {unique_mac} && "
+        f"ip link set eth0 up"
+    )
+    if rc != 0:
+        logger.error("Failed to set eth0 MAC to %s (rc=%d)", unique_mac, rc)
+        return None
+
+    try:
+        verify, _, _ = shell.run("cat /sys/class/net/eth0/address")
+        actual = verify[0].strip() if verify else ""
+        if actual.lower() != unique_mac.lower():
+            logger.error("MAC verify failed: expected %s, got %s", unique_mac, actual)
+            return None
+    except Exception:
+        pass
+
+    try:
+        shell.run("lime-config")
+    except Exception as exc:
+        logger.warning("lime-config raised: %s", exc)
+
+    try:
+        shell.run("wifi down; sleep 1; wifi up")
+    except Exception as exc:
+        logger.warning("wifi restart raised: %s", exc)
+
+    try:
+        shell.run("/etc/init.d/network restart")
+    except Exception as exc:
+        logger.warning("network restart raised: %s", exc)
+
+    logger.info("Waiting %ds for mesh convergence after MAC override", MAC_OVERRIDE_CONVERGENCE_SECS)
+    time.sleep(MAC_OVERRIDE_CONVERGENCE_SECS)
+
+    return unique_mac
+
+
 def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
     """Extract unique IPv4 addresses from command output, preserving order."""
     text = "\n".join(output) if isinstance(output, list) else output
