@@ -100,60 +100,6 @@ def _ping_with_retry(src, dst, dst_ip: str, attempts: int = 3, delay: int = 5) -
     )
 
 
-def _batctl_n_neighbor_rows(stdout: list[str]) -> list[str]:
-    """Return data rows from ``batctl n`` (exclude banner and column header)."""
-    rows: list[str] = []
-    past_header = False
-    for ln in stdout:
-        s = ln.strip()
-        if not s or s.startswith("["):
-            continue
-        low = s.lower()
-        if "neighbor" in low and "last-seen" in low:
-            past_header = True
-            continue
-        if past_header:
-            rows.append(ln)
-    return rows
-
-
-def _wait_for_batman_neighbor_rows(
-    mesh_nodes,
-    *,
-    timeout: int = 120,
-    interval: int = 5,
-) -> None:
-    """Poll until each batman-active node shows at least one neighbor row.
-
-    On mixed wired/wireless pairs (e.g. Banana Pi ``lan1_29`` + Belkin
-    ``wlan0-mesh_29``) L3 ping can succeed before ``batctl n`` lists
-    neighbors; waiting avoids a flaky failure right after mesh boot.
-    """
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        missing: list[str] = []
-        for node in mesh_nodes:
-            stdout, _, exit_code = node.ssh.run("batctl n")
-            joined = "\n".join(stdout)
-            if "disabled" in joined.lower() or exit_code != 0:
-                continue
-            if not _batctl_n_neighbor_rows(stdout):
-                missing.append(str(node.place))
-        if not missing:
-            return
-        logger.info(
-            "Waiting for batman neighbors (%ds left): still empty on %s",
-            max(0, int(deadline - time.time())),
-            missing,
-        )
-        time.sleep(interval)
-
-    pytest.fail(
-        f"batman-adv had no neighbor rows on {missing} after {timeout}s "
-        f"(try increasing timeout or check bat0 / VLAN 29 hardifs)"
-    )
-
-
 def _ensure_arp_entry(src, dst, dst_ip: str) -> None:
     """Prime neighbor state before asserting on the ARP table."""
     output = src.ssh.run_check("ip neigh show dev br-lan")
@@ -235,8 +181,6 @@ class TestMeshProtocol:
         if not _has_command(mesh_nodes[0], "batctl"):
             pytest.skip("batctl not installed")
 
-        _wait_for_batman_neighbor_rows(mesh_nodes, timeout=120, interval=5)
-
         active_nodes = 0
         no_neighbors = []
         for node in mesh_nodes:
@@ -252,7 +196,9 @@ class TestMeshProtocol:
                 )
                 continue
             active_nodes += 1
-            neighbor_lines = _batctl_n_neighbor_rows(stdout)
+            neighbor_lines = [
+                ln for ln in stdout if ln.strip() and "IF" not in ln
+            ]
             if not neighbor_lines:
                 no_neighbors.append(str(node.place))
 
