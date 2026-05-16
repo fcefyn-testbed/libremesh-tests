@@ -709,26 +709,30 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     which is L2-only and unreachable from outside).  The watchdog migrates the
     IP if needed.
     """
-    watchdog_script = (
-        f"END=$(($(date +%s)+300)); "
-        f'while [ "$(date +%s)" -lt "$END" ]; do '
-        f"  if [ -d /sys/class/net/br-lan ]; then "
-        f"    ip link set br-lan up 2>/dev/null; "
-        f"    WANT=br-lan; "
-        f"    for P in $(ls /sys/class/net/ 2>/dev/null | grep -E '^(lan|wan)[0-9]+$'); do "
-        f'      [ "$(cat /sys/class/net/$P/carrier 2>/dev/null)" = "1" ] && '
-        f"      ip link show $P 2>/dev/null | grep -q 'master br-lan' || "
-        f"      ip link set $P master br-lan 2>/dev/null; "
-        f"    done; "
-        f"  else "
-        f"    WANT={original_iface}; "
-        f"  fi; "
-        f'  ip addr show "$WANT" 2>/dev/null | grep -q "{fixed_ip}" || '
-        f'    {{ ip addr add {fixed_ip}/16 dev "$WANT" 2>/dev/null; }}; '
-        f"  sleep 3; "
-        f"done"
+    shell.run(
+        f"cat > /tmp/ip_wd.sh << 'WDEOF'\n"
+        f"#!/bin/sh\n"
+        f"END=$(($(date +%s)+300))\n"
+        f'while [ "$(date +%s)" -lt "$END" ]; do\n'
+        f"  if [ -d /sys/class/net/br-lan ]; then\n"
+        f"    ip link set br-lan up 2>/dev/null\n"
+        f"    WANT=br-lan\n"
+        f"    for P in $(ls /sys/class/net/ 2>/dev/null | grep -E '^(lan|wan)[0-9]+$'); do\n"
+        f'      [ "$(cat /sys/class/net/$P/carrier 2>/dev/null)" = "1" ] && \\\n'
+        f"        ip link show $P 2>/dev/null | grep -q 'master br-lan' || \\\n"
+        f"        ip link set $P master br-lan 2>/dev/null\n"
+        f"    done\n"
+        f"  else\n"
+        f"    WANT={original_iface}\n"
+        f"  fi\n"
+        f'  ip addr show "$WANT" 2>/dev/null | grep -q "{fixed_ip}" || \\\n'
+        f'    ip addr add {fixed_ip}/16 dev "$WANT" 2>/dev/null\n'
+        f"  sleep 3\n"
+        f"done\n"
+        f"WDEOF\n"
+        f"chmod +x /tmp/ip_wd.sh"
     )
-    shell.run(f"({watchdog_script}) &")
+    shell.run("(/tmp/ip_wd.sh) &")
     logger.info(
         "Started IP watchdog (300s): will keep %s on br-lan (fallback %s)",
         fixed_ip,
