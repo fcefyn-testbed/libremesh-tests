@@ -243,8 +243,9 @@ generate_fixed_ip = generate_mesh_ssh_ip
 
 WLAN_MESH_UP_WAIT_SECS = 60
 BATMAN_ACTIVE_WAIT_SECS = 120
-BR_LAN_UP_WAIT_SECS = 30
+BR_LAN_UP_WAIT_SECS = 90
 BR_LAN_MESH_IP_WAIT_SECS = 60
+RESTART_STAGGER_MAX_SECS = 12
 
 
 def _read_br_lan_mesh_ip(shell) -> str | None:
@@ -314,6 +315,29 @@ def _br_lan_ready(shell) -> bool:
     return rc == 0
 
 
+def _br_lan_exists(shell) -> bool:
+    """True when br-lan is registered as a kernel interface.
+
+    A bridge can be present (``/sys/class/net/br-lan``) while still IFF_DOWN
+    because netifd is mid-bringup or because lime-config tore it down to
+    re-create with the new identity.  When the bridge merely exists we can
+    still assign it an IP and rely on :func:`_start_ip_watchdog` to keep that
+    IP on br-lan whenever it transitions UP again.
+    """
+    _, _, rc = shell.run("test -d /sys/class/net/br-lan")
+    return rc == 0
+
+
+def _force_br_lan_up(shell) -> None:
+    """Best-effort administrative up of br-lan.
+
+    Idempotent and silent when br-lan does not exist yet.  netifd may race
+    with lime-config and leave br-lan IFF_DOWN even when bridge ports are
+    plumbed; this nudge keeps the bridge usable for fixed-IP assignment.
+    """
+    shell.run("ip link set br-lan up 2>/dev/null || true")
+
+
 def _iface_is_dsa_conduit(shell, iface: str) -> bool:
     """True when *iface* is a DSA master (switch conduit), not a host port.
 
@@ -326,37 +350,86 @@ def _iface_is_dsa_conduit(shell, iface: str) -> bool:
 
 
 def _wait_br_lan_up(shell, timeout: int = BR_LAN_UP_WAIT_SECS) -> bool:
-    """Wait for br-lan to become usable (administratively up)."""
+    """Wait for br-lan to become usable.
+
+    On every poll the bridge is nudged administratively up; when the kernel
+    interface exists the wait succeeds even if IFF_UP is not yet set, because
+    :func:`_start_ip_watchdog` keeps the fixed IP migrated.  We only fail when
+    the bridge is *completely* absent for the whole window (lime-config never
+    created it).
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
+            _force_br_lan_up(shell)
             if _br_lan_ready(shell):
                 logger.info("br-lan is UP")
+                return True
+            if _br_lan_exists(shell):
+                logger.info("br-lan exists (state still IFF_DOWN); accepting")
                 return True
         except Exception:
             pass
         time.sleep(3)
-    logger.warning("br-lan did not become ready within %ds", timeout)
+    logger.warning("br-lan did not appear within %ds", timeout)
     return False
 
 
+def _restart_stagger_seconds(place_name: str | None) -> int:
+    """Deterministic per-place delay used to desync simultaneous restarts.
+
+    Two same-model Belkin RT3200 booting in parallel were observed to fight
+    on the wireless mesh radio when ``wifi reload`` ran within ~1 s of each
+    other: one node would converge but the other would never bring br-lan
+    back UP.  A per-place hash spreads the restarts across the
+    ``RESTART_STAGGER_MAX_SECS`` window so both DUTs do not poke the radio at
+    the same instant.
+    """
+    if not place_name:
+        return 0
+    digest = hashlib.sha1(place_name.encode("utf-8")).digest()
+    return digest[0] % (RESTART_STAGGER_MAX_SECS + 1)
+
+
 def _dump_convergence_diagnostics(shell, place_name: str) -> None:
-    """Log diagnostic info when the mesh convergence chain fails."""
+    """Log diagnostic info when the mesh convergence chain fails.
+
+    Lines are tagged with ``CONVDIAG`` so they survive the ``tail -1`` log
+    polling in :mod:`conftest_mesh` (the parent only prints the *last* line
+    per node every 30 s).  Also dumped to ``/tmp/lime-debug-<place>.log`` on
+    the DUT for downstream artifact collection.
+    """
     diag_cmds = (
         ("ip_link", "ip -br link 2>/dev/null"),
+        ("br_lan_link", "ip link show br-lan 2>/dev/null"),
         ("batctl_if", "batctl if 2>/dev/null"),
         ("br_lan_addrs", "ip -4 -o addr show br-lan 2>/dev/null"),
+        ("eth0_addrs", "ip -4 -o addr show eth0 2>/dev/null"),
+        ("uci_network", "uci show network 2>/dev/null | head -60"),
         ("logread_lime", "logread -e lime 2>/dev/null | tail -30"),
-        ("logread_netifd", "logread -e netifd 2>/dev/null | tail -20"),
+        ("logread_netifd", "logread -e netifd 2>/dev/null | tail -25"),
     )
-    logger.error("=== Convergence diagnostics for %s ===", place_name)
+    safe_place = re.sub(r"[^A-Za-z0-9_.-]", "_", place_name or "unknown")
+    diag_path = f"/tmp/lime-debug-{safe_place}.log"
+    shell.run(f": > {diag_path}")
+    logger.error("CONVDIAG[%s] === Convergence diagnostics begin ===", place_name)
     for label, cmd in diag_cmds:
         try:
             out, _, _ = shell.run(cmd)
-            logger.error("  [%s] %s", label, "\n  ".join(out) if out else "(empty)")
+            content = "\n".join(out) if out else "(empty)"
         except Exception as exc:
-            logger.error("  [%s] failed: %s", label, exc)
-    logger.error("=== End convergence diagnostics ===")
+            content = f"(failed: {exc})"
+        for line in content.splitlines() or ["(empty)"]:
+            logger.error("CONVDIAG[%s][%s] %s", place_name, label, line)
+        shell.run(
+            f"printf '=== %s ===\\n%s\\n' {label!r} {content!r} >> {diag_path} "
+            f"2>/dev/null || true"
+        )
+    logger.error(
+        "CONVDIAG[%s] === Convergence diagnostics end (file=%s) ===",
+        place_name,
+        diag_path,
+    )
 
 
 def override_primary_mac(
@@ -431,6 +504,14 @@ def override_primary_mac(
     except Exception as exc:
         logger.warning("lime-config raised: %s", exc)
 
+    stagger = _restart_stagger_seconds(place_name)
+    if stagger > 0:
+        logger.info(
+            "Staggering restart by %ds to desync radio bringup with peer DUTs",
+            stagger,
+        )
+        time.sleep(stagger)
+
     logger.info("Restarting WiFi and network to apply new identity...")
     try:
         shell.run("wifi down; sleep 1; wifi up")
@@ -441,6 +522,8 @@ def override_primary_mac(
         shell.run("/etc/init.d/network restart")
     except Exception as exc:
         logger.warning("network restart raised: %s", exc)
+
+    _force_br_lan_up(shell)
 
     # --- Event-driven convergence chain ---
     if not _wait_wlan_mesh_up(shell):
@@ -454,6 +537,8 @@ def override_primary_mac(
     if not _wait_br_lan_up(shell):
         _dump_convergence_diagnostics(shell, place_name)
         return unique_mac, None
+
+    _force_br_lan_up(shell)
 
     deadline = time.time() + BR_LAN_MESH_IP_WAIT_SECS
     mesh_ip = None
@@ -609,18 +694,24 @@ def is_qemu_target(target) -> bool:
 
 
 def find_lan_interface(shell, max_wait: int = 60) -> str | None:
-    """Wait for an UP LAN interface suitable for IP assignment.
+    """Wait for a LAN interface suitable for the fixed control IP.
 
-    Waits up to *max_wait* seconds for br-lan (created by LibreMesh after
-    wifi/batman init, can take 50+ seconds on slow devices like LibreRouter).
+    Preference order:
 
-    Falls back to eth0 or the default-route interface only when they are not DSA
-    conduits.  On Belkin RT3200 / Linksys E8450, eth0 is always ``UP`` as the
-    DSA master; picking it before br-lan breaks SSH from the mesh VLAN.
+    1. ``br-lan`` — the LibreMesh L3 bridge.  It is accepted as soon as the
+       kernel interface exists (``/sys/class/net/br-lan``) even when IFF_DOWN,
+       because :func:`_start_ip_watchdog` keeps the IP migrated to br-lan and
+       re-applies it whenever the bridge transitions UP.
+    2. ``eth0`` — only when it is *not* a DSA conduit.  On Belkin RT3200 /
+       Linksys E8450 / OpenWrt One, ``eth0`` is the DSA master and assigning
+       an IPv4 there strands it on an L2-only mapping that the mesh VLAN
+       never reaches.
+    3. Default-route interface, with the same DSA guard.
     """
     deadline = time.time() + max_wait
     while time.time() < deadline:
-        if _br_lan_ready(shell):
+        if _br_lan_exists(shell):
+            _force_br_lan_up(shell)
             return "br-lan"
 
         for iface in ("eth0",):
@@ -672,7 +763,8 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     watchdog_script = (
         f"END=$(($(date +%s)+300)); "
         f'while [ "$(date +%s)" -lt "$END" ]; do '
-        f'  if ip link show br-lan 2>/dev/null | grep -q "<[^>]*UP[^>]*>"; then '
+        f"  if [ -d /sys/class/net/br-lan ]; then "
+        f"    ip link set br-lan up 2>/dev/null; "
         f"    WANT=br-lan; "
         f"  else "
         f"    WANT={original_iface}; "
