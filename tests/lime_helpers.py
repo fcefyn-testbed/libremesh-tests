@@ -656,6 +656,47 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
     return None
 
 
+def _ensure_lan_ports_in_bridge(shell) -> None:
+    """Attach active DSA user ports to br-lan when LibreMesh forgot them.
+
+    On DSA-driven targets (Belkin RT3200, OpenWrt One), LibreMesh's
+    lime-proto-anygw creates br-lan with only wireless interfaces.  The
+    physical LAN ports (lan1-lan4, wan) are left unmastered.  Without at
+    least the cable-connected port in br-lan, SSH via labgrid-bound-connect
+    on the mesh VLAN cannot reach the fixed IP on br-lan because ARP
+    requests from the switch never enter the bridge.
+
+    This function detects lan*/wan ports with carrier that are not yet
+    bridge members and attaches them to br-lan.
+    """
+    try:
+        out, _, rc = shell.run(
+            "ls /sys/class/net/ | grep -E '^(lan|wan)[0-9]*$'"
+        )
+        if rc != 0 or not out:
+            return
+        dsa_ports = [p.strip() for p in out if p.strip()]
+    except Exception:
+        return
+
+    for port in dsa_ports:
+        try:
+            _, _, carrier_rc = shell.run(
+                f'[ "$(cat /sys/class/net/{port}/carrier 2>/dev/null)" = "1" ]'
+            )
+            if carrier_rc != 0:
+                continue
+            _, _, master_rc = shell.run(
+                f"ip link show {port} | grep -q 'master br-lan'"
+            )
+            if master_rc == 0:
+                continue
+            shell.run(f"ip link set {port} master br-lan 2>/dev/null || true")
+            logger.info("Attached DSA port %s to br-lan (was unmastered)", port)
+        except Exception:
+            pass
+
+
 def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     """Keep the fixed IP reachable while OpenWrt/LibreMesh reconfigures the network.
 
@@ -674,6 +715,11 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
         f"  if [ -d /sys/class/net/br-lan ]; then "
         f"    ip link set br-lan up 2>/dev/null; "
         f"    WANT=br-lan; "
+        f"    for P in $(ls /sys/class/net/ 2>/dev/null | grep -E '^(lan|wan)[0-9]+$'); do "
+        f'      [ "$(cat /sys/class/net/$P/carrier 2>/dev/null)" = "1" ] && '
+        f"      ip link show $P 2>/dev/null | grep -q 'master br-lan' || "
+        f"      ip link set $P master br-lan 2>/dev/null; "
+        f"    done; "
         f"  else "
         f"    WANT={original_iface}; "
         f"  fi; "
@@ -746,6 +792,8 @@ def configure_fixed_ip(
         if not iface:
             logger.error("No suitable network interface found for fixed IP")
             return None
+        if iface == "br-lan":
+            _ensure_lan_ports_in_bridge(shell)
         logger.info(
             "Using interface %s for fixed IP (attempt %d/%d)",
             iface,
