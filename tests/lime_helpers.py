@@ -220,254 +220,8 @@ def generate_mesh_ssh_ip(place_name: str) -> str:
     return f"{MESH_SSH_IP_PREFIX}.{hash_value}"
 
 
-def generate_unique_primary_mac(place_name: str) -> str:
-    """Generate a deterministic locally-administered unicast MAC from a place name.
-
-    Same-model devices in initramfs mode share identical eth0 MACs (DTS
-    defaults when the factory partition is not mounted). LibreMesh derives
-    all per-node identity (mesh MAC, IP) from ``primary_mac`` (eth0), so
-    identical eth0 MACs cause complete identity collisions.
-
-    This function produces a unique, repeatable MAC per place that can be
-    applied to eth0 before ``lime-config`` runs, ensuring each device gets
-    distinct identity even when the hardware provides no unique MAC.
-    """
-    h = hashlib.md5(place_name.encode()).hexdigest()
-    first_byte = (int(h[0:2], 16) | 0x02) & 0xFE
-    return f"{first_byte:02x}:{h[2:4]}:{h[4:6]}:{h[6:8]}:{h[8:10]}:{h[10:12]}"
-
-
 # Backward-compatible alias for older imports.
 generate_fixed_ip = generate_mesh_ssh_ip
-
-
-WLAN_MESH_UP_WAIT_SECS = 60
-BATMAN_ACTIVE_WAIT_SECS = 120
-BR_LAN_UP_WAIT_SECS = 90
-RESTART_STAGGER_MAX_SECS = 12
-
-
-def _wait_wlan_mesh_up(shell, timeout: int = WLAN_MESH_UP_WAIT_SECS) -> bool:
-    """Wait for any wlan*-mesh* interface to reach operstate 'up'."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            _, _, rc = shell.run(
-                "grep -rl up /sys/class/net/wlan*mesh*/operstate 2>/dev/null"
-            )
-            if rc == 0:
-                logger.info("wlan-mesh interface is UP")
-                return True
-        except Exception:
-            pass
-        time.sleep(3)
-    logger.warning("No wlan-mesh interface came UP within %ds", timeout)
-    return False
-
-
-def _wait_batman_active(shell, timeout: int = BATMAN_ACTIVE_WAIT_SECS) -> bool:
-    """Wait for batman-adv to have at least one active hard-interface."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            out, _, rc = shell.run("batctl if 2>/dev/null")
-            if rc == 0 and out:
-                joined = "\n".join(out)
-                if "active" in joined.lower():
-                    logger.info("Batman-adv has active interfaces")
-                    return True
-        except Exception:
-            pass
-        time.sleep(5)
-    logger.warning("Batman-adv has no active interfaces after %ds", timeout)
-    return False
-
-
-def _br_lan_ready(shell) -> bool:
-    """True when br-lan exists and IFF_UP is set.
-
-    Some kernels report bridges as ``state UNKNOWN`` while still usable;
-    matching ``<...,UP,...>`` from ``ip link`` is the reliable signal.
-    """
-    _, _, rc = shell.run(
-        "ip link show br-lan 2>/dev/null | grep -q '<[^>]*UP[^>]*>'"
-    )
-    return rc == 0
-
-
-def _br_lan_exists(shell) -> bool:
-    """True when br-lan is registered as a kernel interface.
-
-    A bridge can be present (``/sys/class/net/br-lan``) while still IFF_DOWN
-    because netifd is mid-bringup or because lime-config tore it down to
-    re-create with the new identity.  When the bridge merely exists we can
-    still assign it an IP and rely on :func:`_start_ip_watchdog` to keep that
-    IP on br-lan whenever it transitions UP again.
-    """
-    _, _, rc = shell.run("test -d /sys/class/net/br-lan")
-    return rc == 0
-
-
-def _force_br_lan_up(shell) -> None:
-    """Best-effort administrative up of br-lan.
-
-    Idempotent and silent when br-lan does not exist yet.  netifd may race
-    with lime-config and leave br-lan IFF_DOWN even when bridge ports are
-    plumbed; this nudge keeps the bridge usable for fixed-IP assignment.
-    """
-    shell.run("ip link set br-lan up 2>/dev/null || true")
-
-
-def _iface_is_dsa_conduit(shell, iface: str) -> bool:
-    """True when *iface* is a DSA master (switch conduit), not a host port.
-
-    Assigning a routable IPv4 on eth0 in this configuration puts the address on
-    an L2-only mapping; SSH from the mesh VLAN never reaches it.  Wait for
-    ``br-lan`` instead.
-    """
-    _, _, rc = shell.run(f"test -d /sys/class/net/{iface}/dsa")
-    return rc == 0
-
-
-def _wait_br_lan_up(shell, timeout: int = BR_LAN_UP_WAIT_SECS) -> bool:
-    """Wait for br-lan to become usable.
-
-    On every poll the bridge is nudged administratively up; when the kernel
-    interface exists the wait succeeds even if IFF_UP is not yet set, because
-    :func:`_start_ip_watchdog` keeps the fixed IP migrated.  We only fail when
-    the bridge is *completely* absent for the whole window (lime-config never
-    created it).
-    """
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            _force_br_lan_up(shell)
-            if _br_lan_ready(shell):
-                logger.info("br-lan is UP")
-                return True
-            if _br_lan_exists(shell):
-                logger.info("br-lan exists (state still IFF_DOWN); accepting")
-                return True
-        except Exception:
-            pass
-        time.sleep(3)
-    logger.warning("br-lan did not appear within %ds", timeout)
-    return False
-
-
-def _restart_stagger_seconds(place_name: str | None) -> int:
-    """Deterministic per-place delay used to desync simultaneous restarts.
-
-    Two same-model Belkin RT3200 booting in parallel were observed to fight
-    on the wireless mesh radio when ``wifi reload`` ran within ~1 s of each
-    other: one node would converge but the other would never bring br-lan
-    back UP.  A per-place hash spreads the restarts across the
-    ``RESTART_STAGGER_MAX_SECS`` window so both DUTs do not poke the radio at
-    the same instant.
-    """
-    if not place_name:
-        return 0
-    digest = hashlib.sha1(place_name.encode("utf-8")).digest()
-    return digest[0] % (RESTART_STAGGER_MAX_SECS + 1)
-
-
-def override_primary_mac(shell, place_name: str) -> str | None:
-    """Inject a place-unique identity and wait for mesh convergence.
-
-    In initramfs mode, same-model devices share identical eth0 MACs (DTS
-    defaults when the factory partition is not mounted). LibreMesh derives
-    all per-node identity (mesh MAC, mesh IP) from ``primary_mac()`` which
-    reads ``eth0``, so identical eth0 MACs produce complete identity
-    collisions and batman-adv cannot form neighbors.
-
-    After setting the MAC, the function observes the convergence chain
-    step by step (wlan-mesh UP -> batman active -> br-lan UP) and returns
-    the unique MAC.  The fixed SSH IP watchdog keeps ``10.13.200.x`` on
-    ``br-lan``, so a LibreMesh-derived IP on ``br-lan`` is not required.
-
-    Returns the unique MAC that was applied, or ``None`` on failure.
-    """
-    unique_mac = generate_unique_primary_mac(place_name)
-
-    try:
-        current_mac_out, _, _ = shell.run(
-            "cat /sys/class/net/eth0/address 2>/dev/null"
-        )
-        current_mac = current_mac_out[0].strip() if current_mac_out else "unknown"
-    except Exception:
-        current_mac = "unknown"
-
-    logger.info(
-        "Overriding primary MAC for %s: eth0 %s -> %s",
-        place_name,
-        current_mac,
-        unique_mac,
-    )
-
-    override_cmds = (
-        f"ip link set eth0 down && "
-        f"ip link set eth0 address {unique_mac} && "
-        f"ip link set eth0 up"
-    )
-    try:
-        _, stderr, rc = shell.run(override_cmds)
-        if rc != 0:
-            logger.error(
-                "Failed to set eth0 MAC to %s (rc=%d): %s",
-                unique_mac,
-                rc,
-                stderr,
-            )
-            return None
-    except Exception as exc:
-        logger.error("Exception setting eth0 MAC: %s", exc)
-        return None
-
-    try:
-        verify_out, _, _ = shell.run("cat /sys/class/net/eth0/address")
-        actual = verify_out[0].strip() if verify_out else ""
-        if actual.lower() != unique_mac.lower():
-            logger.error(
-                "MAC verification failed: expected %s, got %s", unique_mac, actual
-            )
-            return None
-        logger.info("eth0 MAC verified: %s", actual)
-    except Exception as exc:
-        logger.warning("Could not verify eth0 MAC: %s", exc)
-
-    logger.info("Re-running lime-config with new primary MAC...")
-    try:
-        shell.run("lime-config")
-    except Exception as exc:
-        logger.warning("lime-config raised: %s", exc)
-
-    stagger = _restart_stagger_seconds(place_name)
-    if stagger > 0:
-        logger.info(
-            "Staggering restart by %ds to desync radio bringup with peer DUTs",
-            stagger,
-        )
-        time.sleep(stagger)
-
-    logger.info("Restarting WiFi and network to apply new identity...")
-    try:
-        shell.run("wifi down; sleep 1; wifi up")
-    except Exception as exc:
-        logger.warning("wifi restart raised: %s", exc)
-
-    try:
-        shell.run("/etc/init.d/network restart")
-    except Exception as exc:
-        logger.warning("network restart raised: %s", exc)
-
-    _force_br_lan_up(shell)
-
-    _wait_wlan_mesh_up(shell)
-    _wait_batman_active(shell)
-    _wait_br_lan_up(shell)
-    _force_br_lan_up(shell)
-
-    return unique_mac
 
 
 def extract_ipv4_addresses(output: list[str] | str) -> list[str]:
@@ -602,33 +356,19 @@ def is_qemu_target(target) -> bool:
 
 
 def find_lan_interface(shell, max_wait: int = 60) -> str | None:
-    """Wait for a LAN interface suitable for the fixed control IP.
+    """Wait for an UP LAN interface suitable for IP assignment.
 
-    Preference order:
-
-    1. ``br-lan`` — the LibreMesh L3 bridge.  It is accepted as soon as the
-       kernel interface exists (``/sys/class/net/br-lan``) even when IFF_DOWN,
-       because :func:`_start_ip_watchdog` keeps the IP migrated to br-lan and
-       re-applies it whenever the bridge transitions UP.
-    2. ``eth0`` — only when it is *not* a DSA conduit.  On Belkin RT3200 /
-       Linksys E8450 / OpenWrt One, ``eth0`` is the DSA master and assigning
-       an IPv4 there strands it on an L2-only mapping that the mesh VLAN
-       never reaches.
-    3. Default-route interface, with the same DSA guard.
+    Waits up to *max_wait* seconds for br-lan (created by LibreMesh after
+    wifi/batman init, can take 50+ seconds on slow devices like LibreRouter).
+    Falls back to eth0 or the default-route interface if they are UP.
     """
     deadline = time.time() + max_wait
     while time.time() < deadline:
-        if _br_lan_exists(shell):
-            _force_br_lan_up(shell)
+        _, _, rc = shell.run("ip -o link show br-lan 2>/dev/null | grep -q 'state UP'")
+        if rc == 0:
             return "br-lan"
 
         for iface in ("eth0",):
-            if _iface_is_dsa_conduit(shell, iface):
-                logger.debug(
-                    "Skipping %s for fixed IP: DSA conduit (wait for br-lan)",
-                    iface,
-                )
-                continue
             _, _, rc = shell.run(
                 f"ip -o link show {iface} 2>/dev/null | grep -q 'state UP'"
             )
@@ -640,12 +380,9 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
         )
         if rc == 0 and stdout and stdout[0].strip():
             iface = stdout[0].strip()
-            if _iface_is_dsa_conduit(shell, iface):
-                pass
-            else:
-                _, _, rc2 = shell.run(f"ip -o link show {iface} 2>/dev/null | grep -q .")
-                if rc2 == 0:
-                    return iface
+            _, _, rc2 = shell.run(f"ip -o link show {iface} 2>/dev/null | grep -q .")
+            if rc2 == 0:
+                return iface
 
         remaining = int(deadline - time.time())
         if remaining > 0:
@@ -654,47 +391,6 @@ def find_lan_interface(shell, max_wait: int = 60) -> str | None:
             )
             time.sleep(5)
     return None
-
-
-def _ensure_lan_ports_in_bridge(shell) -> None:
-    """Attach active DSA user ports to br-lan when LibreMesh forgot them.
-
-    On DSA-driven targets (Belkin RT3200, OpenWrt One), LibreMesh's
-    lime-proto-anygw creates br-lan with only wireless interfaces.  The
-    physical LAN ports (lan1-lan4, wan) are left unmastered.  Without at
-    least the cable-connected port in br-lan, SSH via labgrid-bound-connect
-    on the mesh VLAN cannot reach the fixed IP on br-lan because ARP
-    requests from the switch never enter the bridge.
-
-    This function detects lan*/wan ports with carrier that are not yet
-    bridge members and attaches them to br-lan.
-    """
-    try:
-        out, _, rc = shell.run(
-            "ls /sys/class/net/ | grep -E '^(lan|wan)[0-9]*$'"
-        )
-        if rc != 0 or not out:
-            return
-        dsa_ports = [p.strip() for p in out if p.strip()]
-    except Exception:
-        return
-
-    for port in dsa_ports:
-        try:
-            _, _, carrier_rc = shell.run(
-                f'[ "$(cat /sys/class/net/{port}/carrier 2>/dev/null)" = "1" ]'
-            )
-            if carrier_rc != 0:
-                continue
-            _, _, master_rc = shell.run(
-                f"ip link show {port} | grep -q 'master br-lan'"
-            )
-            if master_rc == 0:
-                continue
-            shell.run(f"ip link set {port} master br-lan 2>/dev/null || true")
-            logger.info("Attached DSA port %s to br-lan (was unmastered)", port)
-        except Exception:
-            pass
 
 
 def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
@@ -709,30 +405,20 @@ def _start_ip_watchdog(shell, fixed_ip: str, original_iface: str):
     which is L2-only and unreachable from outside).  The watchdog migrates the
     IP if needed.
     """
-    shell.run(
-        f"cat > /tmp/ip_wd.sh << 'WDEOF'\n"
-        f"#!/bin/sh\n"
-        f"END=$(($(date +%s)+300))\n"
-        f'while [ "$(date +%s)" -lt "$END" ]; do\n'
-        f"  if [ -d /sys/class/net/br-lan ]; then\n"
-        f"    ip link set br-lan up 2>/dev/null\n"
-        f"    WANT=br-lan\n"
-        f"    for P in $(ls /sys/class/net/ 2>/dev/null | grep -E '^(lan|wan)[0-9]+$'); do\n"
-        f'      [ "$(cat /sys/class/net/$P/carrier 2>/dev/null)" = "1" ] && \\\n'
-        f"        ip link show $P 2>/dev/null | grep -q 'master br-lan' || \\\n"
-        f"        ip link set $P master br-lan 2>/dev/null\n"
-        f"    done\n"
-        f"  else\n"
-        f"    WANT={original_iface}\n"
-        f"  fi\n"
-        f'  ip addr show "$WANT" 2>/dev/null | grep -q "{fixed_ip}" || \\\n'
-        f'    ip addr add {fixed_ip}/16 dev "$WANT" 2>/dev/null\n'
-        f"  sleep 3\n"
-        f"done\n"
-        f"WDEOF\n"
-        f"chmod +x /tmp/ip_wd.sh"
+    watchdog_script = (
+        f"END=$(($(date +%s)+300)); "
+        f'while [ "$(date +%s)" -lt "$END" ]; do '
+        f'  if ip link show br-lan 2>/dev/null | grep -q "state UP"; then '
+        f"    WANT=br-lan; "
+        f"  else "
+        f"    WANT={original_iface}; "
+        f"  fi; "
+        f'  ip addr show "$WANT" 2>/dev/null | grep -q "{fixed_ip}" || '
+        f'    {{ ip addr add {fixed_ip}/16 dev "$WANT" 2>/dev/null; }}; '
+        f"  sleep 3; "
+        f"done"
     )
-    shell.run("(/tmp/ip_wd.sh) &")
+    shell.run(f"({watchdog_script}) &")
     logger.info(
         "Started IP watchdog (300s): will keep %s on br-lan (fallback %s)",
         fixed_ip,
@@ -786,18 +472,13 @@ def configure_fixed_ip(
             )
     logger.info("SSH target IP resolved to %s", fixed_ip)
 
-    mesh_mode = bool(os.environ.get("TFTP_SERVER_IP", "").strip())
-    lan_wait = 180 if mesh_mode else 60
-
     max_attempts = 3
     retry_delay = 15
     for attempt in range(1, max_attempts + 1):
-        iface = find_lan_interface(shell, max_wait=lan_wait)
+        iface = find_lan_interface(shell)
         if not iface:
             logger.error("No suitable network interface found for fixed IP")
             return None
-        if iface == "br-lan":
-            _ensure_lan_ports_in_bridge(shell)
         logger.info(
             "Using interface %s for fixed IP (attempt %d/%d)",
             iface,
