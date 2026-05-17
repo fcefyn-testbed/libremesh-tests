@@ -25,7 +25,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-from lime_helpers import (
+from lime_helpers import (  # noqa: E402
     align_ssh_networkservice_with_mesh_vlan,
     assert_libremesh_runtime,
     configure_fixed_ip,
