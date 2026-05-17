@@ -53,10 +53,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def resolve_labnet_path(repo_root: Path | None = None) -> Path:
     """Return the path to ``labnet.yaml`` (devices, labs).
 
-    Resolution: ``LABNET_PATH``, ``OPENWRT_TESTS_DIR/labnet.yaml``, or
-    ``<repo_parent>/openwrt-tests/labnet.yaml`` if present.
+    Resolution order:
+    1. ``LABNET_PATH`` env var (explicit file path).
+    2. ``OPENWRT_TESTS_DIR/labnet.yaml`` env var (root of an aparcar/openwrt-tests checkout).
+    3. Sibling clone ``<repo_parent>/openwrt-tests/labnet.yaml``.
 
     *repo_root* is the libremesh-tests root (contains ``targets/``).
+    The global ``labnet.yaml`` is maintained in
+    https://github.com/aparcar/openwrt-tests and is not duplicated here.
     """
     root = repo_root if repo_root is not None else REPO_ROOT
 
@@ -66,7 +70,7 @@ def resolve_labnet_path(repo_root: Path | None = None) -> Path:
         if not path.is_file():
             raise FileNotFoundError(
                 f"LABNET_PATH is set but file not found: {path} "
-                "(check LABNET_PATH or unset it to use OPENWRT_TESTS_DIR / sibling clone)"
+                "(check LABNET_PATH or unset it)"
             )
         return path
 
@@ -76,7 +80,7 @@ def resolve_labnet_path(repo_root: Path | None = None) -> Path:
         if not path.is_file():
             raise FileNotFoundError(
                 f"OPENWRT_TESTS_DIR is set but labnet.yaml not found at {path}. "
-                "Point OPENWRT_TESTS_DIR at the root of an openwrt-tests clone, "
+                "Point OPENWRT_TESTS_DIR at the root of an aparcar/openwrt-tests clone, "
                 "or set LABNET_PATH to the file directly."
             )
         return path
@@ -86,11 +90,10 @@ def resolve_labnet_path(repo_root: Path | None = None) -> Path:
         return sibling.resolve()
 
     raise FileNotFoundError(
-        "labnet.yaml not found. Either:\n"
-        "  - Clone aparcar/openwrt-tests next to this repo (e.g. "
-        f"{root.parent / 'openwrt-tests'}), or\n"
-        "  - Set OPENWRT_TESTS_DIR to the root of an openwrt-tests checkout, or\n"
-        "  - Set LABNET_PATH to the labnet.yaml file path."
+        "labnet.yaml not found. Set LABNET_PATH to the file, or:\n"
+        "  - Clone https://github.com/aparcar/openwrt-tests next to this repo\n"
+        f"    (expected: {root.parent / 'openwrt-tests' / 'labnet.yaml'}), or\n"
+        "  - Set OPENWRT_TESTS_DIR to the root of that checkout."
     )
 
 
