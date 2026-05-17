@@ -9,7 +9,7 @@ The shared device/lab inventory (`labnet.yaml`) is maintained upstream in
 ## Requirements
 
 - Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)
-- On the lab host: labgrid client, coordinator, exporter
+- On the lab host: labgrid client, local coordinator (loopback :20408), exporter
 - For QEMU: `qemu-system-x86_64` and related packages (see virtual mesh docs)
 
 ## Setup
@@ -139,8 +139,14 @@ was no longer necessary.
 
 - **`labnet.yaml`** - shared device/lab inventory (resolved from a sibling
   `../openwrt-tests/` clone or via `LABNET_PATH`).
-- **Labgrid coordinator and exporter** - the upstream coordinator, WireGuard
-  tunnels and Ansible playbooks are maintained in `openwrt-tests`.
+- **Labgrid coordinator and exporter** - each lab runs its own
+  `labgrid-coordinator` locally (loopback :20408), deployed by the upstream
+  Ansible playbook `playbook_labgrid.yml` in `openwrt-tests`. Paul's VM
+  (`global-coordinator` hostname) is an **SSH gateway** only - it does not run
+  `labgrid-coordinator`. Both openwrt-tests CI (GitHub-hosted runners tunneling
+  via the gateway) and lime-packages CI (self-hosted runner on the lab host)
+  reach the **same local coordinator**, ensuring shared concurrency control.
+  WireGuard provides SSH transport between the gateway VM and the labs.
 - **Base test fixtures** (`ssh_command`, `shell_command`, target resolution) -
   imported at runtime via labgrid and the upstream helpers.
 
