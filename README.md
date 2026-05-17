@@ -128,6 +128,32 @@ CI was unified in `fcefyn-testbed/lime-packages`. The shared
 `configs/firmware-catalog.yaml` and `scripts/resolve_firmware_from_catalog.py`
 remain available for local manual runs.
 
+## Relationship with openwrt-tests
+
+`libremesh-tests` started as a GitHub fork of
+[aparcar/openwrt-tests](https://github.com/aparcar/openwrt-tests). The fork
+was dropped once the suite had its own CI cycle and tracking upstream changes
+was no longer necessary.
+
+### Reused from openwrt-tests
+
+- **`labnet.yaml`** - shared device/lab inventory (resolved from a sibling
+  `../openwrt-tests/` clone or via `LABNET_PATH`).
+- **Labgrid coordinator and exporter** - the upstream coordinator, WireGuard
+  tunnels and Ansible playbooks are maintained in `openwrt-tests`.
+- **Base test fixtures** (`ssh_command`, `shell_command`, target resolution) -
+  imported at runtime via labgrid and the upstream helpers.
+
+### Rewritten / added for LibreMesh
+
+| Component | Description |
+|-----------|-------------|
+| `strategies/tftpstrategy.py` | Adapted from upstream `UBootTFTPStrategy`: adds U-Boot interrupt spam tolerant to high-latency proxied consoles, `TFTP_SERVER_IP` override for mesh VLANs, and retry-with-cooldown logic. |
+| `strategies/qemunetworkstrategy_libremesh.py` | QEMU network strategy for LibreMesh with `vwifi` virtual WiFi. |
+| `tests/conftest_mesh.py`, `tests/conftest_vlan.py` | Multi-node orchestration and dynamic VLAN switching fixtures (no equivalent in openwrt-tests). |
+| `tests/test_libremesh.py` | Single-node LibreMesh validation (packages, addressing, hostname, bat0, services). |
+| `tests/test_mesh.py` | Multi-node mesh suite (ping, batman-adv, babeld, convergence). |
+
 ## Contributing a lab
 
 See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md).
