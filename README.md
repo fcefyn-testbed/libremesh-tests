@@ -1,13 +1,15 @@
 # libremesh-tests
 
-Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (QEMU + vwifi). It is intentionally **not** a full fork of [openwrt-tests](https://github.com/aparcar/openwrt-tests): this repo keeps mesh-related tests, FCEFyN target YAML, and custom strategies. The shared device/lab inventory is **`labnet.yaml` in [openwrt-tests](https://github.com/aparcar/openwrt-tests)** (not duplicated here).
+Pytest suite for **LibreMesh** on real hardware (labgrid) and **virtual mesh** (QEMU + vwifi).
 
-**Vanilla OpenWrt healthchecks** (apk/opkg, stock assumptions) run in **openwrt-tests** against the same global coordinator. **LibreMesh single-node, multi-node mesh, and LiMe QEMU** run here.
+Covers LibreMesh single-node validation, multi-node mesh connectivity, and virtual QEMU mesh.
+The shared device/lab inventory (`labnet.yaml`) is maintained upstream in
+[aparcar/openwrt-tests](https://github.com/aparcar/openwrt-tests) and is not duplicated here.
 
 ## Requirements
 
 - Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)
-- On the lab host: labgrid client, coordinator, exporter (deployed from **openwrt-tests** Ansible; see below)
+- On the lab host: labgrid client, coordinator, exporter
 - For QEMU: `qemu-system-x86_64` and related packages (see virtual mesh docs)
 
 ## Setup
@@ -17,13 +19,26 @@ cd /path/to/libremesh-tests
 uv sync
 ```
 
-**`labnet.yaml` location:** pytest resolves the inventory file in this order: `LABNET_PATH` (explicit file), `OPENWRT_TESTS_DIR/labnet.yaml`, or a **sibling clone** `../openwrt-tests/labnet.yaml` (recommended layout: check out **aparcar/openwrt-tests** next to this repository). For ad-hoc or CI use without that layout, set `LABNET_PATH` or `OPENWRT_TESTS_DIR`.
+**`labnet.yaml` location:** pytest resolves the inventory file in this order:
+`LABNET_PATH` (explicit file path), `OPENWRT_TESTS_DIR/labnet.yaml`, or a **sibling clone**
+`../openwrt-tests/labnet.yaml` (recommended local layout: check out
+[aparcar/openwrt-tests](https://github.com/aparcar/openwrt-tests) next to this repository).
+For CI or ad-hoc use without that layout, set `LABNET_PATH` directly.
 
-**Dynamic VLAN switching:** Multi-node mesh tests only (`LG_MESH_PLACES` set) run `switch-vlan` to move DUTs to mesh VLAN (200) on the **lab host** via SSH (the same host as `LG_PROXY`). Single-node tests keep each DUT on its isolated exporter VLAN. No local `dut-config.yaml` or `labgrid-switch-abstraction` install is needed on the developer machine—only on the lab host. If VLANs are already correct, `VLAN_SWITCH_DISABLED=1` skips switch commands.
+**Dynamic VLAN switching:** Multi-node mesh tests only (`LG_MESH_PLACES` set) run `switch-vlan`
+to move DUTs to mesh VLAN (200) on the **lab host** via SSH (the same host as `LG_PROXY`).
+Single-node tests keep each DUT on its isolated exporter VLAN. No local
+`dut-config.yaml` or `labgrid-switch-abstraction` install is needed on the developer
+machine - only on the lab host. If VLANs are already correct, `VLAN_SWITCH_DISABLED=1`
+skips switch commands.
 
-Place-to-DUT name mapping defaults to the FCEFyN convention (strips `labgrid-fcefyn-`). For other labs, override with `PLACE_PREFIX` (e.g. `export PLACE_PREFIX="labgrid-mylab-"`, or `PLACE_PREFIX=""` to fall back to stripping up to the second hyphen).
+Place-to-DUT name mapping defaults to the FCEFyN convention (strips `labgrid-fcefyn-`). For
+other labs, override with `PLACE_PREFIX` (e.g. `export PLACE_PREFIX="labgrid-mylab-"`, or
+`PLACE_PREFIX=""` to fall back to stripping up to the second hyphen).
 
-Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in **openwrt-tests** and **fcefyn_testbed_utils**; this repo does not ship `ansible/`.
+Lab infrastructure (coordinator, exporter, TFTP, Ansible) is documented in
+**fcefyn_testbed_utils** and upstream **aparcar/openwrt-tests** (`ansible/`);
+this repo does not ship `ansible/`.
 
 ## Targets shipped here
 
@@ -36,8 +51,6 @@ Only DUTs used for LibreMesh / FCEFyN workflows:
 | `targets/linksys_e8450.yaml` | Belkin RT3200 / Linksys E8450 |
 | `targets/librerouter_librerouter-v1.yaml` | LibreRouter v1 |
 | `targets/qemu_x86-64_libremesh.yaml` | QEMU x86-64 LibreMesh |
-
-For other boards or vanilla OpenWrt QEMU, use **openwrt-tests** `targets/` and run upstream tests there.
 
 ## Running tests
 
@@ -53,7 +66,8 @@ uv run pytest tests/test_libremesh.py --log-cli-level=CONSOLE -v
 uv run labgrid-client unlock
 ```
 
-`LG_IMAGE` must be a real file on the machine running labgrid-client (see remote access docs in fcefyn_testbed_utils).
+`LG_IMAGE` must be a real file on the machine running labgrid-client (see remote access docs
+in fcefyn_testbed_utils).
 
 ### Single-node on QEMU (LibreMesh image)
 
@@ -98,31 +112,27 @@ uv run python scripts/resolve_firmware_from_catalog.py linksys_e8450
 This repository is a **pure test library**. The active LibreMesh CI
 (per-PR build + QEMU + opt-in physical, plus the daily lab
 validation cron) lives in
-[`pi-lime-packages/.github/workflows/build-firmware.yml`](https://github.com/franco-r/pi-lime-packages/blob/master/.github/workflows/build-firmware.yml)
+[`fcefyn-testbed/lime-packages/.github/workflows/build-firmware.yml`](https://github.com/fcefyn-testbed/lime-packages/blob/master/.github/workflows/build-firmware.yml)
 and **checks out this repo at runtime** to get the pytest suites,
 labgrid env files, virtual-mesh launcher and the helper modules
-under `tests/lime_helpers/`.
+under `tests/`.
 
 Only one workflow runs against this repository on push/PR:
 
-- `.github/workflows/formal.yml` — `ruff` + `isort` + cross-version
+- `.github/workflows/formal.yml` - `ruff` + `isort` + cross-version
   `uv sync`. Pure Python lint, no lab access.
 
 The legacy `daily.yml` and `pull_requests.yml` workflows that used
 to ride the lab from this repo were retired in May 2026 when the
-CI was unified in `pi-lime-packages`. The shared
+CI was unified in `fcefyn-testbed/lime-packages`. The shared
 `configs/firmware-catalog.yaml` and `scripts/resolve_firmware_from_catalog.py`
-remain available for local manual runs and ad-hoc `gh workflow
-run` overrides, but they are no longer driven by a scheduled
-workflow here.
+remain available for local manual runs.
 
 ## Contributing a lab
 
-See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md). Labgrid/Ansible exporter setup lives in **openwrt-tests**; local runs need the shared **`openwrt-tests/labnet.yaml`** (via sibling clone or `OPENWRT_TESTS_DIR` / `LABNET_PATH`).
+See [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md).
 
 ## Docs
 
-- [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) - lab onboarding (points to openwrt-tests for infra)
+- [docs/CONTRIBUTING_LAB.md](docs/CONTRIBUTING_LAB.md) - lab onboarding
 - [docs/labs/fcefynlab.md](docs/labs/fcefynlab.md) - FCEFyN hardware reference
-
-Upstream reference for shared target files and `device_instances`: [openwrt-tests docs/sharing-target-files](https://github.com/aparcar/openwrt-tests/blob/main/docs/sharing-target-files.md).
