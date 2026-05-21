@@ -175,37 +175,32 @@ def ssh_command(shell_command, target):
     return ssh
 
 
-def pytest_sessionfinish(session, exitstatus):
-    """Collect lime-report.sh from the DUT after the session ends.
+@pytest.fixture(scope="session", autouse=True)
+def collect_lime_report(target):
+    """Collect lime-report.sh after all session tests finish.
 
-    Uses the same SSHDriver that the tests used, avoiding the PTY-allocation
-    problem that breaks ``labgrid-client ssh`` when stdout is redirected.
-    Output is written to ``LIME_REPORT_OUTPUT`` if the env var is set.
+    Runs as a session-scoped autouse fixture so it tears down BEFORE
+    labgrid's ``env.cleanup()`` — the SSHDriver is still active here.
+    Writes the output to the path in ``LIME_REPORT_OUTPUT`` if set.
     """
+    yield
+
     report_path = os.environ.get("LIME_REPORT_OUTPUT")
     if not report_path:
         return
 
     try:
-        from labgrid.pytestplugin.hooks import LABGRID_ENV_KEY
-
-        env = session.config.stash.get(LABGRID_ENV_KEY, None)
-        if env is None:
-            return
-
-        target = env.get_target()
         ssh = target.get_driver("SSHDriver")
-        stdout, _, rc = ssh.run("lime-report.sh", timeout=60)
-        output = "\n".join(stdout)
-        if not output.strip():
+        stdout, stderr, rc = ssh.run("lime-report.sh", timeout=60)
+        output = "\n".join(stdout).strip()
+        if not output:
             output = "_lime-report ran but produced no output._"
         Path(report_path).write_text(output)
-        logger.info("lime-report collected (%d bytes) → %s", len(output), report_path)
+        print(f"\nlime-report collected: {len(output)} bytes → {report_path}", flush=True)
     except Exception as exc:
-        logger.warning("Could not collect lime-report: %s", exc)
+        msg = f"_Could not collect lime-report: {exc}_"
+        print(f"\n[WARN] {msg}", file=__import__("sys").stderr, flush=True)
         try:
-            Path(report_path).write_text(
-                f"_Could not collect lime-report: {exc}_"
-            )
+            Path(report_path).write_text(msg)
         except Exception:
             pass
