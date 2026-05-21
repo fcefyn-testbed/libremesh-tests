@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+logger = logging.getLogger(__name__)
+
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
@@ -171,3 +173,39 @@ def ssh_command(shell_command, target):
 
     ssh = target.get_driver("SSHDriver")
     return ssh
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Collect lime-report.sh from the DUT after the session ends.
+
+    Uses the same SSHDriver that the tests used, avoiding the PTY-allocation
+    problem that breaks ``labgrid-client ssh`` when stdout is redirected.
+    Output is written to ``LIME_REPORT_OUTPUT`` if the env var is set.
+    """
+    report_path = os.environ.get("LIME_REPORT_OUTPUT")
+    if not report_path:
+        return
+
+    try:
+        from labgrid.pytestplugin.hooks import LABGRID_ENV_KEY
+
+        env = session.config.stash.get(LABGRID_ENV_KEY, None)
+        if env is None:
+            return
+
+        target = env.get_target()
+        ssh = target.get_driver("SSHDriver")
+        stdout, _, rc = ssh.run("lime-report.sh", timeout=60)
+        output = "\n".join(stdout)
+        if not output.strip():
+            output = "_lime-report ran but produced no output._"
+        Path(report_path).write_text(output)
+        logger.info("lime-report collected (%d bytes) → %s", len(output), report_path)
+    except Exception as exc:
+        logger.warning("Could not collect lime-report: %s", exc)
+        try:
+            Path(report_path).write_text(
+                f"_Could not collect lime-report: {exc}_"
+            )
+        except Exception:
+            pass
