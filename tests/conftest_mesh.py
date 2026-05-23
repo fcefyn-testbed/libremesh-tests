@@ -7,7 +7,7 @@ Supports two modes:
    Boots N DUTs in parallel via labgrid (one subprocess per node).
 
 2. Virtual: LG_VIRTUAL_MESH=1, VIRTUAL_MESH_IMAGE, VIRTUAL_MESH_NODES.
-   Launches N QEMU VMs with vwifi; no labgrid.
+   Launches N QEMU VMs with vwifi, no labgrid.
 
 Requires LG_MESH_PLACES (comma-separated place names) and either:
   - LG_IMAGE: single image path used for all nodes (backward compatible).

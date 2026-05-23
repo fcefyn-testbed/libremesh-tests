@@ -196,7 +196,9 @@ def collect_lime_report(target):
         if not output:
             output = "_lime-report ran but produced no output._"
         Path(report_path).write_text(output)
-        print(f"\nlime-report collected: {len(output)} bytes → {report_path}", flush=True)
+        print(
+            f"\nlime-report collected: {len(output)} bytes → {report_path}", flush=True
+        )
     except Exception as exc:
         msg = f"_Could not collect lime-report: {exc}_"
         print(f"\n[WARN] {msg}", file=__import__("sys").stderr, flush=True)
