@@ -35,21 +35,26 @@ targets:
           # U-Boot TFTP-loads each to a distinct RAM address:
           #
           #   0x82000000  kernel.bin    (uImage lzma kernel + appended DTB)
-          #   0x84000000  rootfs.uimage (uImage ramdisk wrapping newc CPIO)
+          #   0x84000FC0  rootfs.uimage (uImage ramdisk wrapping newc CPIO)
           #
-          # `bootm 0x82000000 0x84000000` tells U-Boot about both images
-          # natively. U-Boot's do_bootm_linux() passes initrd_start/end
-          # to the MIPS kernel via linux_env_set(), bypassing any
-          # CONFIG_CMDLINE_OVERRIDE that would ignore rd_start/rd_size
-          # bootargs.
+          # The ramdisk loads to 0x84000FC0 so the CPIO data past the
+          # 64-byte uImage header starts at 0x84001000, which is
+          # page-aligned (PAGE_SIZE=4K). The kernel rejects non-aligned
+          # initrd with "initrd start must be page aligned".
+          #
+          # `bootm 0x82000000 0x84000FC0` tells U-Boot about both
+          # images natively. do_bootm_linux() passes initrd_start/end
+          # to the MIPS kernel via linux_env_set(), bypassing the
+          # CONFIG_CMDLINE_OVERRIDE that ignores rd_start/rd_size
+          # bootargs on this target.
           #
           # For manual / local runs, set both env vars:
           #   export LG_IMAGE=/path/to/kernel.bin
           #   export LG_IMAGE_INITRD=/path/to/rootfs.uimage
           init_commands:
             - "tftp 0x82000000"
-            - "tftp 0x84000000 ${bootfile_initrd}"
-          boot_command: "bootm 0x82000000 0x84000000"
+            - "tftp 0x84000FC0 ${bootfile_initrd}"
+          boot_command: "bootm 0x82000000 0x84000FC0"
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
           # hostname so we never engage with pre-`lime-config` prompts like
