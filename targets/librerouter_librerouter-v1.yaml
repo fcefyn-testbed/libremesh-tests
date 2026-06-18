@@ -17,7 +17,7 @@ targets:
           # 1.1.x build (see include/955x.h: only CONFIG_BOOTDELAY=2 and
           # the simple "Hit any key to stop autoboot" loop in
           # common/main.c). Any byte sent during the 2 s window aborts
-          # autoboot, so a single newline is enough — _spam_uboot_interrupt
+          # autoboot, so a single newline is enough -- _spam_uboot_interrupt
           # in tftpstrategy.py blasts these for ~12 s by default which
           # comfortably brackets the bootdelay window.
           interrupt: "\n"
@@ -26,54 +26,38 @@ targets:
           # space; see include/955x.h CFG_PROMPT). pexpect matches on
           # substring so the trailing space is optional here.
           prompt: "ath>"
-          # init_commands run at the U-Boot prompt before the
-          # boot_command. Lines starting with `tftp`/`dhcp` are pulled
-          # out by UBootTFTPStrategy and routed through its retry path
-          # (TFTPProviderDriver pre-stages the file on the exporter and
-          # bumps `bootfile` for us, so a bare `tftp <addr>` is enough).
-          # The remaining lines are passed through verbatim.
+          # DUAL-TFTP BOOT (rd_start/rd_size):
           #
-          # IMAGE FORMAT: this YAML expects LG_IMAGE to point at a
-          # `*-initramfs-kernel.bin` (a uImage on ath79; DTB appended
-          # into kernel-bin upstream, LibreMesh CPIO embedded in the
-          # kernel`s own .init.ramfs section via CONFIG_INITRAMFS_SOURCE).
-          # U-Boot only needs `bootm <addr>` and the kernel`s
-          # populate_rootfs() drops the embedded CPIO into rootfs with
-          # no bootloader cooperation.
+          # The ath79 ImageBuilder cannot produce an initramfs kernel
+          # (CONFIG_INITRAMFS_SOURCE requires kernel recompilation).
+          # Instead we ship the pre-built kernel.bin and a LibreMesh
+          # rootfs CPIO as two separate files. U-Boot TFTP-loads each
+          # to a distinct RAM address:
           #
-          # The pi-lime-packages CI does NOT build this artifact — see
-          # docs/followups/imagebuilder_initramfs_limitations.md in that
-          # repo for why. For local / manual runs, supply your own
-          # `*-initramfs-kernel.bin` (e.g. from a LibreMesh release or a
-          # local OpenWrt source build) via LG_IMAGE.
+          #   0x82000000  kernel.bin (uImage with lzma kernel + appended DTB)
+          #   0x84000000  rootfs.cpio (newc CPIO with LibreMesh rootfs)
           #
-          # Why we still `setenv bootargs` here: the LibreRouter`s
-          # persistent U-Boot env may hold `bootargs=...
-          # root=/dev/mtdblock4 ...` left over from sysupgrade. We
-          # override it RAM-only (no `saveenv`) to keep serial console
-          # output going and avoid surprises if a future kernel decides
-          # to re-honour root= from cmdline. The initramfs kernel
-          # itself ignores root= when populate_rootfs() succeeds.
+          # The boot_command sets bootargs with rd_start/rd_size so the
+          # MIPS kernel (arch/mips/kernel/setup.c early_param handlers)
+          # picks up the external CPIO and unpacks it via populate_rootfs().
+          #
+          # $bootfile is set by UBootTFTPStrategy from the `root` image.
+          # $bootfile_initrd is set from the `initrd` image.
+          # $filesize is a U-Boot variable updated after each tftp with
+          # the transferred size in hex -- used for rd_size.
+          #
+          # For manual / local runs, set both env vars:
+          #   export LG_IMAGE=/path/to/kernel.bin
+          #   export LG_IMAGE_INITRD=/path/to/rootfs.cpio
           init_commands:
-            - "setenv bootargs console=ttyS0,115200n8"
             - "tftp 0x82000000"
-          # `bootm <addr>` on the initramfs uImage:
-          #   * U-Boot reads the 64-byte uImage header at <addr>,
-          #   * decompresses the lzma payload (kernel + appended DTB +
-          #     embedded initramfs, all in one blob) to KERNEL_LOADADDR
-          #     (0x80060000, set by the ath79/generic recipe upstream;
-          #     embedded in the uImage header by the build).
-          #   * jumps to the kernel entry point with the linux_argv
-          #     array populated from `bootargs`. The MIPS kernel finds
-          #     its appended DTB at the end of the uncompressed image
-          #     and its embedded CPIO inside .init.ramfs, then runs
-          #     /init from the unpacked rootfs.
-          boot_command: bootm 0x82000000
+            - "tftp 0x84000000 ${bootfile_initrd}"
+          boot_command: "setenv bootargs console=ttyS0,115200n8 rd_start=0x84000000 rd_size=0x${filesize}; bootm 0x82000000"
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
           # hostname so we never engage with pre-`lime-config` prompts like
           # `root@(none):~#` or `root@OpenWrt:~#`. See openwrt_one.yaml for
-          # rationale. login_timeout bumped to 180s — first-boot
+          # rationale. login_timeout bumped to 180s -- first-boot
           # uci-defaults can take >60s on this device's 8 MiB SPI NOR.
           prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
           login_prompt: Please press Enter to activate this console.
@@ -88,6 +72,7 @@ targets:
 
 images:
   root: !template $LG_IMAGE
+  initrd: !template $LG_IMAGE_INITRD
 
 imports:
   - ../strategies/tftpstrategy.py
