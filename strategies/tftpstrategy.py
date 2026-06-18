@@ -180,9 +180,13 @@ class UBootTFTPStrategy(Strategy):
         logger.info("Using exporter external_ip: %s", exporter_ip)
         return exporter_ip
 
-    def _prepare_uboot_commands(self, staged_file, tftp_server_ip):
+    def _prepare_uboot_commands(self, staged_file, tftp_server_ip, staged_initrd=None):
         """Prepare a fresh set of U-Boot init commands for this boot attempt."""
-        init_commands = (f"setenv bootfile {staged_file}",) + self._base_init_commands
+        bootfile_cmds = (f"setenv bootfile {staged_file}",)
+        if staged_initrd:
+            bootfile_cmds += (f"setenv bootfile_initrd {staged_initrd}",)
+
+        init_commands = bootfile_cmds + self._base_init_commands
 
         if tftp_server_ip:
             tftp_dut_ip = ipaddress.ip_address(tftp_server_ip) + 1
@@ -286,6 +290,15 @@ class UBootTFTPStrategy(Strategy):
         """Power-cycle the node and activate the U-Boot console."""
         self.target.activate(self.tftp)
         staged_file = self.tftp.stage(self.target.env.config.get_image_path("root"))
+
+        staged_initrd = None
+        try:
+            initrd_path = self.target.env.config.get_image_path("initrd")
+            staged_initrd = self.tftp.stage(initrd_path)
+            logger.info("Staged initrd image: %s", staged_initrd)
+        except KeyError:
+            pass
+
         tftp_server_ip = self._resolve_tftp_server_ip()
 
         self.target.deactivate(self.console)
@@ -306,7 +319,7 @@ class UBootTFTPStrategy(Strategy):
         self._spam_uboot_interrupt()
         self._drain_serial_buffer()
 
-        self._prepare_uboot_commands(staged_file, tftp_server_ip)
+        self._prepare_uboot_commands(staged_file, tftp_server_ip, staged_initrd)
         self.target.activate(self.uboot)
         self.status = Status.uboot
 
