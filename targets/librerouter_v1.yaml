@@ -26,33 +26,30 @@ targets:
           # space; see include/955x.h CFG_PROMPT). pexpect matches on
           # substring so the trailing space is optional here.
           prompt: "ath>"
-          # DUAL-TFTP BOOT (rd_start/rd_size):
+          # DUAL-TFTP BOOT (kernel + ramdisk uImage):
           #
           # The ath79 ImageBuilder cannot produce an initramfs kernel
           # (CONFIG_INITRAMFS_SOURCE requires kernel recompilation).
           # Instead we ship the pre-built kernel.bin and a LibreMesh
-          # rootfs CPIO as two separate files. U-Boot TFTP-loads each
-          # to a distinct RAM address:
+          # rootfs wrapped as a uImage ramdisk (mkimage -T ramdisk).
+          # U-Boot TFTP-loads each to a distinct RAM address:
           #
-          #   0x82000000  kernel.bin (uImage with lzma kernel + appended DTB)
-          #   0x84000000  rootfs.cpio (newc CPIO with LibreMesh rootfs)
+          #   0x82000000  kernel.bin    (uImage lzma kernel + appended DTB)
+          #   0x84000000  rootfs.uimage (uImage ramdisk wrapping newc CPIO)
           #
-          # The boot_command sets bootargs with rd_start/rd_size so the
-          # MIPS kernel (arch/mips/kernel/setup.c early_param handlers)
-          # picks up the external CPIO and unpacks it via populate_rootfs().
-          #
-          # $bootfile is set by UBootTFTPStrategy from the `root` image.
-          # $bootfile_initrd is set from the `initrd` image.
-          # $filesize is a U-Boot variable updated after each tftp with
-          # the transferred size in hex -- used for rd_size.
+          # `bootm 0x82000000 0x84000000` tells U-Boot about both images
+          # natively. U-Boot's do_bootm_linux() passes initrd_start/end
+          # to the MIPS kernel via linux_env_set(), bypassing any
+          # CONFIG_CMDLINE_OVERRIDE that would ignore rd_start/rd_size
+          # bootargs.
           #
           # For manual / local runs, set both env vars:
           #   export LG_IMAGE=/path/to/kernel.bin
-          #   export LG_IMAGE_INITRD=/path/to/rootfs.cpio
+          #   export LG_IMAGE_INITRD=/path/to/rootfs.uimage
           init_commands:
             - "tftp 0x82000000"
             - "tftp 0x84000000 ${bootfile_initrd}"
-          boot_command: "setenv bootargs console=ttyS0,115200n8 rd_start=0x84000000 rd_size=0x${filesize}; bootm 0x82000000"
+          boot_command: "bootm 0x82000000 0x84000000"
       - ShellDriver:
           # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
           # hostname so we never engage with pre-`lime-config` prompts like
