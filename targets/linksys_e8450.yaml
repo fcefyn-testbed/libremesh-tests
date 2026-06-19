@@ -1,3 +1,4 @@
+# Linksys E8450 / Belkin RT3200 (mt7622) - See docs/target-quirks.md for details
 targets:
   main:
     features:
@@ -12,11 +13,6 @@ targets:
       SerialDriver:
         txdelay: 0.01
       ShellDriver:
-        # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
-        # hostname, so we never engage with pre-`lime-config` prompts like
-        # `root@(none):~#` or `root@OpenWrt:~#`. See openwrt_one.yaml for
-        # rationale. login_timeout bumped to 180s to give first-boot
-        # uci-defaults enough room on slow targets.
         prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
         login_prompt: Please press Enter to activate this console.
         await_login_timeout: 15
@@ -27,107 +23,11 @@ targets:
         prompt: "MT7622>"
         interrupt: "\x03"
         login_timeout: 30
-        # Wipe any stale on-flash UBI overlay before TFTP-booting the
-        # initramfs. Same rationale as openwrt_one.yaml: with the
-        # `linksys_e8450-ubi` firmware build the device's NAND carries a
-        # `rootfs_data` UBIFS volume; mount_root in preinit will find it
-        # and "switch to ubifs overlay" on top of the in-RAM rootfs we
-        # just TFTP-booted, silently replacing our LibreMesh userspace
-        # with whatever was previously sysupgraded onto the device. The
-        # `|| true` makes both calls idempotent on a virgin device.
-        # `tftpstrategy.py` strips TFTP/dhcp lines for retry handling
-        # and forwards the `ubi …` lines verbatim so they run once at
-        # the U-Boot prompt before bootm.
-        #
-        # `setenv bootconf config-1` pins the FIT configuration node name
-        # that U-Boot will look up in our initramfs FIT (see
-        # tools/ci/build_image.sh in pi-lime-packages, which packs the
-        # FIT with config-1 as default). Without this override U-Boot
-        # would use whatever bootconf the device has saved in env (which
-        # IS config-1 by default for linksys_e8450-ubi, but can drift if
-        # a previous test/sysupgrade modified it), and a mismatch causes
-        # `Could not find configuration node` / `ERROR: cant get kernel
-        # image!`. The setenv is RAM-only: no `saveenv` follows, so the
-        # device's persistent env is never modified by tests.
         init_commands:
           - "setenv bootconf config-1"
-          # Belt-and-braces: even though pi-lime-packages now embeds
-          # `bootargs = "..."` directly in the FIT configuration node
-          # (see tools/ci/build_image.sh, FIT_BOOTARGS), the device's
-          # saved U-Boot env can still contain a `bootargs` value with
-          # `root=/dev/fit0 rootwait ubi.block=0,fit` left over from a
-          # previous OpenWrt sysupgrade, which makes the kernel discard
-          # our successfully-unpacked initramfs and mount vanilla
-          # OpenWrt from flash. Forcing the env-side `bootargs` here
-          # (RAM-only, no saveenv) closes that hole regardless of which
-          # side U-Boot prefers. mt7622 ships ttyS0 at 115200n1
-          # (mt7622_rfb.dts chosen/bootargs).
-          #
-          # `swiotlb=512`: matches mt7622-linksys-e8450-ubi.dts upstream
-          # /chosen/bootargs and is REQUIRED for the mt7915e PCIe WiFi
-          # card to allocate its DMA bounce buffers. Without it the
-          # kernel reports `software IO TLB: SWIOTLB bounce buffer
-          # size adjusted to 0MB` (auto-calc decides 0KB on this SKU)
-          # and mt7915e probe fails ENOMEM. We must keep this in sync
-          # with FIT_BOOTARGS in pi-lime-packages targets.yml so both
-          # the env-side and FIT-side cmdlines tell the kernel the
-          # same thing — see CI run 25004392669/job 73236211357 for
-          # the failure mode.
-          # `pci=pcie_bus_perf`: PCIe MPS tuning lifted from the
-          # mediatek/filogic baseline (see openwrt_one.yaml). Harmless
-          # on mt7622 and keeps the env-side / FIT-side bootargs
-          # textually identical so a future U-Boot bug that prefers
-          # one over the other does not silently change behaviour.
+          # swiotlb=512 required for mt7915e WiFi DMA
           - 'setenv bootargs "console=ttyS0,115200n1 swiotlb=512 pci=pcie_bus_perf"'
-          # Static TFTP instead of `dhcp` for two related reasons.
-          #
-          # 1) `tftpstrategy._prepare_uboot_commands` already injects
-          #    `setenv serverip <exporter_ip>` and `setenv ipaddr
-          #    <exporter_ip+1>` BEFORE this list runs (see
-          #    strategies/tftpstrategy.py). The `dhcp` command then
-          #    re-derives the same IPs by broadcasting BOOTP, which is
-          #    pure overhead on a private CI subnet where the IPs are
-          #    fixed-by-construction. On a healthy unit this saves the
-          #    ~3-4 s the BOOTP round-trip costs per boot; on an
-          #    unhealthy unit it is the difference between booting and
-          #    a 30 s timeout (see point 2).
-          #
-          # 2) On Belkin RT3200 units that previously KODed under a
-          #    24.10 kernel (see this repo's
-          #    docs/followups/belkin_rt3200_factory_corruption_post_kod.md
-          #    for the factory partition diagnosis, and
-          #    pi-lime-packages/docs/followups/belkin_rt3200_layout_1_0_dtb_patch.md
-          #    for the layout 1.0 / 24.10 KOD root cause), the SPI-NAND
-          #    `factory` MTD partition
-          #    (0x1c0000-0x2c0000) was overwritten with UBI EC headers
-          #    BEFORE the DTB-partitioning patch landed. The
-          #    mtk_uartboot recovery procedure that brings these units
-          #    out of KOD only re-flashes `bl2 + fip` from the
-          #    23.05.5 release; it does NOT touch `factory`. So the
-          #    nvmem-cells declared at offsets 0x7fff4 and 0x7fffa
-          #    still resolve to UBI noise, and U-Boot's
-          #    `ethernet@1b100000` ends up with a zeroed/garbled MAC.
-          #    The lab's dnsmasq has per-MAC reservations
-          #    (`dhcp-host=<MAC>,<IP>`), so a zero/garbled MAC source
-          #    gets no reply and `dhcp` loops `BOOTP broadcast
-          #    1...17 -> Retry time exceeded` for ~30 s. By that point
-          #    the MT7622 hardware watchdog (which U-Boot enables but
-          #    cannot pet during a BOOTP retry storm) has fired, the
-          #    device resets, and the second autoboot completes
-          #    uninterrupted (the strategy's interrupt-spam is a
-          #    one-shot per power-cycle), booting whatever firmware
-          #    sits in flash instead of our staged FIT. This is what
-          #    happened on belkin_rt3200_3 in CI run 25061360737.
-          #
-          # `tftpboot $loadaddr $bootfile` does NOT need DHCP and does
-          # NOT need a working `ethaddr`/MAC reservation in dnsmasq —
-          # U-Boot sends the TFTP frames with whatever MAC the SoC
-          # has (random/zero is fine for outbound), the lab's TFTP
-          # server replies based on src IP from the IPv4 header, and
-          # `serverip`/`ipaddr` are already set. `$loadaddr` defaults
-          # to 0x48000000 on this U-Boot (printed by the device's
-          # default env), and `$bootfile` is set by the strategy.
-          # Both env vars are present at this point in the boot flow.
+          # Static TFTP avoids DHCP issues on units with corrupted factory partition
           - "tftpboot $loadaddr $bootfile"
           - "ubi part ubi || true"
           - "ubi remove rootfs_data || true"

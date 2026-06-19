@@ -1,3 +1,4 @@
+# BananaPi BPi-R4 (mt7988) - See docs/target-quirks.md for details
 targets:
   main:
     features:
@@ -14,63 +15,15 @@ targets:
           login_timeout: 30
           interrupt: "\x1b"
           prompt: "MT7988>"
-          # `setenv bootconf config-1` pins the FIT configuration node
-          # name that U-Boot will look up in our initramfs FIT (see
-          # tools/ci/build_image.sh in pi-lime-packages, which packs the
-          # FIT with config-1 as default). The upstream OpenWrt U-Boot
-          # env on bananapi_bpi-r4 sets bootconf to
-          # `config-mt7988a-bananapi-bpi-r4` by default, which would NOT
-          # match our generated FIT and cause `Could not find
-          # configuration node` at bootm. The setenv is RAM-only: no
-          # `saveenv` follows, so the device's persistent env is never
-          # modified by tests.
           init_commands:
+            # bootconf override required - upstream default doesn't match our FIT
             - "setenv bootconf config-1"
-            # Belt-and-braces: even though pi-lime-packages now embeds
-            # `bootargs = "..."` directly in the FIT configuration node
-            # (see tools/ci/build_image.sh, FIT_BOOTARGS), the device's
-            # saved U-Boot env can still contain a `bootargs` value with
-            # `root=/dev/fit0 rootwait ubi.block=0,fit` left over from a
-            # previous OpenWrt sysupgrade. On U-Boot versions where the
-            # env-side `bootargs` wins over the FIT-side one, the kernel
-            # discards our successfully-unpacked initramfs and either
-            # mounts vanilla OpenWrt from flash or hangs in
-            # `Waiting for root device /dev/fit0...` (CI run
-            # 24973793128 on bananapi_bpi-r4). Forcing the env-side
-            # `bootargs` here (RAM-only, no saveenv) closes that hole
-            # regardless of which side U-Boot prefers.
             - 'setenv bootargs "console=ttyS0,115200n1 pci=pcie_bus_perf"'
             - dhcp
-            # Wipe the on-flash UBI overlay before TFTP-booting our
-            # initramfs. Same fix as openwrt_one.yaml /
-            # linksys_e8450.yaml: when the device's NAND has a
-            # `rootfs_data` UBIFS volume left over from a previous
-            # sysupgrade, fstools' mount_root finds it during preinit
-            # and tries to overlay it on top of our in-RAM rootfs.
-            # pivot_root then fails with "Invalid argument" (illegal on
-            # initramfs), ramoverlay also fails, and the cascade leaves
-            # procd in a degraded state where /etc/init.d/done never
-            # runs uci-defaults — so lime-config never sets the
-            # LiMe-XXXXXX hostname and labgrid times out at
-            # `root@(none):~#` after 180 s. We saw exactly this on
-            # bananapi_bpi-r4 in CI run 24975099307 (this YAML lacked
-            # the `ubi remove` while openwrt_one.yaml / linksys_e8450.yaml
-            # already had it, which is why those targets booted to
-            # `root@LiMe-XXXXXX:` and bananapi did not). The `|| true`
-            # makes both calls idempotent on a virgin device whose UBI
-            # has not been attached yet or has no rootfs_data volume.
-            # tftpstrategy._prepare_uboot_commands() forwards these
-            # `setenv` / `ubi …` lines verbatim (only `tftp` and `dhcp`
-            # entries are routed to the retry path), so they run once
-            # at the U-Boot prompt before bootm.
             - "ubi part ubi || true"
             - "ubi remove rootfs_data || true"
           boot_command: bootm $loadaddr#$bootconf
       - ShellDriver:
-          # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
-          # hostname so we never engage with pre-`lime-config` prompts like
-          # `root@(none):~#` or `root@OpenWrt:~#`. See openwrt_one.yaml for
-          # rationale.
           prompt: "(?:\x1b\\][^\x07]*\x07)?(?:\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
           login_prompt: Please press Enter to activate this console.
           await_login_timeout: 30

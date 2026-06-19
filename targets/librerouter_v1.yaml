@@ -1,3 +1,4 @@
+# LibreRouter v1 (ath79) - See docs/target-quirks.md for details
 targets:
   main:
     features:
@@ -13,54 +14,16 @@ targets:
           txdelay: 0.01
       - UBootDriver:
           login_timeout: 30
-          # CONFIG_AUTOBOOT_KEYED is not set in the LibreRouter U-Boot
-          # 1.1.x build (see include/955x.h: only CONFIG_BOOTDELAY=2 and
-          # the simple "Hit any key to stop autoboot" loop in
-          # common/main.c). Any byte sent during the 2 s window aborts
-          # autoboot, so a single newline is enough -- _spam_uboot_interrupt
-          # in tftpstrategy.py blasts these for ~12 s by default which
-          # comfortably brackets the bootdelay window.
           interrupt: "\n"
           autoboot: "Hit any key to stop autoboot"
-          # The QCA9558 Atheros U-Boot prompt is `ath> ` (trailing
-          # space; see include/955x.h CFG_PROMPT). pexpect matches on
-          # substring so the trailing space is optional here.
           prompt: "ath>"
-          # DUAL-TFTP BOOT (kernel + ramdisk uImage):
-          #
-          # The ath79 ImageBuilder cannot produce an initramfs kernel
-          # (CONFIG_INITRAMFS_SOURCE requires kernel recompilation).
-          # Instead we ship the pre-built kernel.bin and a LibreMesh
-          # rootfs wrapped as a uImage ramdisk (mkimage -T ramdisk).
-          # U-Boot TFTP-loads each to a distinct RAM address:
-          #
-          #   0x82000000  kernel.bin    (uImage lzma kernel + appended DTB)
-          #   0x84000FC0  rootfs.uimage (uImage ramdisk wrapping newc CPIO)
-          #
-          # The ramdisk loads to 0x84000FC0 so the CPIO data past the
-          # 64-byte uImage header starts at 0x84001000, which is
-          # page-aligned (PAGE_SIZE=4K). The kernel rejects non-aligned
-          # initrd with "initrd start must be page aligned".
-          #
-          # `bootm 0x82000000 0x84000FC0` tells U-Boot about both
-          # images natively. do_bootm_linux() passes initrd_start/end
-          # to the MIPS kernel via linux_env_set(), bypassing kernel
-          # command-line setup (CONFIG_MIPS_CMDLINE_FROM_DTB reads
-          # chosen/bootargs from the embedded DTB and ignores U-Boot
-          # bootargs such as rd_start/rd_size).
-          #
-          # For manual / local runs, set both env vars:
-          #   export LG_IMAGE=/path/to/kernel.bin
-          #   export LG_IMAGE_INITRD=/path/to/rootfs.uimage
+          # Dual-TFTP: kernel + ramdisk uImage (ath79 has no initramfs support)
+          # 0x84000FC0 aligns CPIO data to page boundary at 0x84001000
           init_commands:
             - "tftp 0x82000000"
             - "tftp 0x84000FC0 ${bootfile_initrd}"
           boot_command: "bootm 0x82000000 0x84000FC0"
       - ShellDriver:
-          # Strict prompt: only match LibreMesh's default `LiMe-<6 hex>`
-          # hostname. If this times out, lime-config didn't run - fix the
-          # initramfs (missing /proc mountpoint, mount_root failure, etc.)
-          # rather than relaxing this regex.
           prompt: "(?:\\x1b\\][^\\x07]*\\x07)?(?:\\x1b\\[[\\d;]*m)*root@LiMe-[0-9A-Fa-f]{6}:[^ ]*[#$] "
           login_prompt: Please press Enter to activate this console.
           await_login_timeout: 15
