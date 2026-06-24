@@ -177,7 +177,7 @@ def ssh_command(shell_command, target):
 
 @pytest.fixture(scope="session", autouse=True)
 def collect_lime_report(target):
-    """Collect lime-report.sh after all session tests finish.
+    """Collect lime-report after all session tests finish.
 
     Runs as a session-scoped autouse fixture so it tears down BEFORE
     labgrid's ``env.cleanup()`` — the SSHDriver is still active here.
@@ -191,7 +191,7 @@ def collect_lime_report(target):
 
     try:
         ssh = target.get_driver("SSHDriver")
-        stdout, stderr, rc = ssh.run("lime-report.sh", timeout=60)
+        stdout, stderr, rc = ssh.run("lime-report", timeout=60)
         output = "\n".join(stdout).strip()
         if not output:
             output = "_lime-report ran but produced no output._"
